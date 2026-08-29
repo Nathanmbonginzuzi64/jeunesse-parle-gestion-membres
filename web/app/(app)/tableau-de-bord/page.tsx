@@ -529,9 +529,17 @@ export default function DashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader title="Compétences" description="Les plus déclarées" />
+          <CardHeader
+            title="Compétences"
+            description="Les plus déclarées"
+            action={
+              <Link href="/statistiques" className="text-xs font-medium text-brand-700 hover:underline">
+                Lire la suite
+              </Link>
+            }
+          />
           <CardBody className="space-y-3">
-            {(charts.data?.top_skills ?? []).map((skill) => {
+            {(charts.data?.top_skills ?? []).slice(0, 5).map((skill) => {
               const max = charts.data?.top_skills[0]?.total ?? 1;
               return (
                 <div key={skill.label}>
@@ -561,7 +569,7 @@ export default function DashboardPage() {
             description="Inscriptions, validations, cartes et vérifications"
             action={
               <Link href="/audit" className="text-xs font-medium text-brand-700 hover:underline">
-                Journal
+                Lire la suite
               </Link>
             }
           />
@@ -569,7 +577,7 @@ export default function DashboardPage() {
             {(overview.data?.recent ?? []).length === 0 ? (
               <EmptyState title="Aucune activité récente" />
             ) : (
-              <RecentActivity items={overview.data?.recent ?? []} />
+              <RecentActivity items={(overview.data?.recent ?? []).slice(0, 5)} />
             )}
           </CardBody>
         </Card>

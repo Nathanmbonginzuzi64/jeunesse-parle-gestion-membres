@@ -71,9 +71,13 @@ export function MemberCardVisual({
   className?: string;
   compact?: boolean;
 }) {
-  const active = isActiveStatus(render.status);
-  const photo = useProtectedImage(render.photo_url);
-  const qrValue = render.verification_url || render.member_code;
+  const active = isActiveStatus(render?.status ?? "");
+  const photo = useProtectedImage(render?.photo_url);
+  const qrValue = render?.verification_url || render?.member_code;
+
+  if (!render) {
+    return null;
+  }
 
   return (
     <div

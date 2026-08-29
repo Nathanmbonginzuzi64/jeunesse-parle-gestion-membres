@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Globe2, Shield, Sparkles } from "lucide-react";
 import { DashboardClock } from "@/components/dashboard/dashboard-clock";
 import { MiniCalendar } from "@/components/dashboard/mini-calendar";
@@ -27,9 +27,18 @@ export function DashboardWelcomeBanner({
   chips = [],
   className,
 }: DashboardWelcomeBannerProps) {
-  const greeting = getTimeGreeting();
-  const dateLabel = formatDateLong();
-  const week = getWeekNumber();
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const tick = () => setNow(new Date());
+    tick();
+    const timer = window.setInterval(tick, 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const greeting = getTimeGreeting(now);
+  const dateLabel = formatDateLong(now);
+  const week = getWeekNumber(now);
 
   return (
     <AnimateIn animation="fade-in" delay={0}>

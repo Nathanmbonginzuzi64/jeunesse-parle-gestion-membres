@@ -34,8 +34,12 @@ export function MemberCardBack({
   className?: string;
 }) {
   const structure =
-    [render.province, render.commune ?? render.city, render.structure].filter(Boolean).join(" / ") || null;
-  const qrValue = render.verification_url || render.member_code;
+    [render?.province, render?.commune ?? render?.city, render?.structure].filter(Boolean).join(" / ") || null;
+  const qrValue = render?.verification_url || render?.member_code;
+
+  if (!render) {
+    return null;
+  }
 
   return (
     <div

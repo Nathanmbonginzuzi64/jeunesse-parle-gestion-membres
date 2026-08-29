@@ -1,18 +1,22 @@
 const TIMEZONE_RDC = "Africa/Kinshasa";
 
+/** Salutation selon l'heure exacte (fuseau Africa/Kinshasa). */
 export function getTimeGreeting(date = new Date(), timeZone = TIMEZONE_RDC): string {
-  const hour = Number(
-    new Intl.DateTimeFormat("fr-CD", {
-      hour: "numeric",
-      hour12: false,
-      timeZone,
-    }).format(date),
-  );
+  const hourPart = new Intl.DateTimeFormat("en-GB", {
+    hour: "numeric",
+    hourCycle: "h23",
+    timeZone,
+  }).formatToParts(date).find((part) => part.type === "hour")?.value;
 
-  if (hour >= 22 || hour < 5) return "Bonne nuit";
-  if (hour < 12) return "Bonjour";
-  if (hour < 18) return "Bon après-midi";
-  return "Bonsoir";
+  let hour = Number(hourPart);
+  if (!Number.isFinite(hour)) hour = date.getHours();
+  // Certains moteurs renvoient 24 à minuit.
+  if (hour === 24) hour = 0;
+
+  if (hour >= 5 && hour < 12) return "Bonjour";
+  if (hour >= 12 && hour < 18) return "Bon après-midi";
+  if (hour >= 18 && hour < 22) return "Bonsoir";
+  return "Bonne nuit";
 }
 
 export function formatDateLong(date = new Date(), timeZone = TIMEZONE_RDC): string {
