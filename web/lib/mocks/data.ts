@@ -841,12 +841,6 @@ export const mapStatistics: MapStatistics = {
   generated_at: now,
 };
 
-export const FAKE_QR =
-  "data:image/svg+xml;utf8," +
-  encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21"><rect width="21" height="21" fill="#fff"/><path fill="#072a40" d="M0 0h9v9H0zm12 0h9v9h-9zM0 12h9v9H0zm2 2h5v5H2zM2 2h5v5H2zm12 0h5v5h-5zM14 14h1v1h-1zm2 0h3v1h-3zm-2 2h3v1h-3zm4 0h1v3h-1zm-6-2h1v1h-1zm2 4h1v1h-1zm2 2h3v1h-3zM12 12h2v2h-2z"/></svg>`,
-  );
-
 export function cardRender(member: Member): CardRender {
   return {
     organization: "Jeunesse Parle",
@@ -867,8 +861,8 @@ export function cardRender(member: Member): CardRender {
     card_status_label: member.card?.status_label ?? member.status_label,
     issued_at: member.card?.issued_at ?? null,
     expires_at: member.card?.expires_at ?? null,
-    verification_url: `/verifier-membre/demo${member.id}tokenjeunesseparleverify`,
-    qr_svg: FAKE_QR,
+    verification_url: `/verifier-membre/demo${String(member.id).padStart(2, "0")}tokenjeunesseparleverify`,
+    qr_svg: null,
   };
 }
 
