@@ -28,7 +28,7 @@ import { fieldErrors } from "@/lib/form";
 import { useApi } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { AppNotification, Paginated } from "@/lib/types";
-import { cn, formatRelative } from "@/lib/utils";
+import { cn, formatDateTime, formatRelative } from "@/lib/utils";
 
 const LEVEL_META: Record<
   string,
@@ -65,6 +65,7 @@ export default function NotificationsPage() {
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [selected, setSelected] = useState<AppNotification | null>(null);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [level, setLevel] = useState("info");
@@ -114,6 +115,11 @@ export default function NotificationsPage() {
     } catch {
       /* silencieux */
     }
+  }
+
+  function openNotification(item: AppNotification) {
+    setSelected({ ...item, is_read: true });
+    if (!item.is_read) void markOne(item.id);
   }
 
   async function onCreate(event: FormEvent) {
@@ -202,7 +208,7 @@ export default function NotificationsPage() {
             <CardBody className="p-0">
               <ul className="divide-y divide-slate-100">
                 {filtered.map((item) => (
-                  <NotificationRow key={item.id} item={item} onMark={() => void markOne(item.id)} />
+                  <NotificationRow key={item.id} item={item} onOpen={() => openNotification(item)} />
                 ))}
               </ul>
               {data && (
@@ -245,16 +251,101 @@ export default function NotificationsPage() {
           </div>
         </form>
       </Modal>
+
+      <NotificationDetailModal
+        notification={selected}
+        onClose={() => setSelected(null)}
+      />
     </div>
+  );
+}
+
+function NotificationDetailModal({
+  notification,
+  onClose,
+}: {
+  notification: AppNotification | null;
+  onClose: () => void;
+}) {
+  const meta = notification ? (LEVEL_META[notification.level] ?? LEVEL_META.info) : LEVEL_META.info;
+  const Icon = meta.icon;
+
+  return (
+    <Modal
+      open={Boolean(notification)}
+      onClose={onClose}
+      title={notification?.title ?? "Notification"}
+      description="Détail de l'alerte"
+      size="md"
+      footer={
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={onClose}>
+            Fermer
+          </Button>
+        </div>
+      }
+    >
+      {notification && (
+        <div className="space-y-4">
+          <div className={cn("flex items-start gap-3 rounded-xl border p-4", meta.tone)}>
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/70 ring-1 ring-inset ring-black/5">
+              <Icon className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase", meta.chip)}>
+                  {meta.label}
+                </span>
+                {!notification.is_read && (
+                  <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                    Non lu
+                  </span>
+                )}
+              </div>
+              <p className="mt-2 text-base font-semibold text-slate-900">{notification.title}</p>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Message</p>
+            {notification.body ? (
+              <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{notification.body}</p>
+            ) : (
+              <p className="mt-1.5 text-sm italic text-slate-400">Aucun message complémentaire.</p>
+            )}
+          </div>
+
+          <dl className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50/60 p-3 sm:grid-cols-2">
+            <div>
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Type</dt>
+              <dd className="mt-0.5 text-sm font-medium text-slate-800">{notification.type.replaceAll("_", " ")}</dd>
+            </div>
+            <div>
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Reçue</dt>
+              <dd className="mt-0.5 text-sm font-medium text-slate-800">
+                {formatDateTime(notification.created_at)}
+              </dd>
+              <dd className="text-[11px] text-slate-400">{formatRelative(notification.created_at)}</dd>
+            </div>
+            {notification.read_at && (
+              <div className="sm:col-span-2">
+                <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Lue le</dt>
+                <dd className="mt-0.5 text-sm font-medium text-slate-800">{formatDateTime(notification.read_at)}</dd>
+              </div>
+            )}
+          </dl>
+        </div>
+      )}
+    </Modal>
   );
 }
 
 function NotificationRow({
   item,
-  onMark,
+  onOpen,
 }: {
   item: AppNotification;
-  onMark: () => void;
+  onOpen: () => void;
 }) {
   const meta = LEVEL_META[item.level] ?? LEVEL_META.info;
   const Icon = meta.icon;
@@ -263,7 +354,7 @@ function NotificationRow({
     <li>
       <button
         type="button"
-        onClick={() => !item.is_read && onMark()}
+        onClick={onOpen}
         className={cn(
           "flex w-full items-start gap-3 px-5 py-4 text-left transition hover:bg-slate-50/80",
           !item.is_read && "bg-brand-50/40",
@@ -287,7 +378,7 @@ function NotificationRow({
               <span className="h-2 w-2 rounded-full bg-brand-500" title="Non lu" aria-label="Non lu" />
             )}
           </div>
-          {item.body && <p className="mt-1 text-xs leading-relaxed text-slate-600">{item.body}</p>}
+          {item.body && <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-600">{item.body}</p>}
           <p className="mt-1.5 text-[11px] text-slate-400">{formatRelative(item.created_at)}</p>
         </div>
       </button>
