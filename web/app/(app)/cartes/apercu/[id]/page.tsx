@@ -3,19 +3,21 @@
 import Link from "next/link";
 import { ArrowLeft, Download, Printer, RefreshCw } from "lucide-react";
 import { useParams } from "next/navigation";
+import { MemberCardPresentation } from "@/components/cards/member-card-presentation";
+import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
 import { PageHeader } from "@/components/layout/topbar";
-import { MemberCardVisual } from "@/components/members/member-card-visual";
-import { MemberCardBack } from "@/components/cards/member-card-back";
 import { Can, RequirePermission } from "@/components/auth/require-permission";
 import { Button } from "@/components/ui/button";
-import { Card, CardBody } from "@/components/ui/card";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Alert, PageLoader } from "@/components/ui/feedback";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { CardMeta } from "@/components/members/member-card-visual";
 import { api, ApiError } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useToast } from "@/components/ui/toast";
 import type { CardRender, MemberCard } from "@/lib/types";
+import { formatShortDate } from "@/lib/utils";
 
 export default function CardPreviewPage() {
   return (
@@ -49,8 +51,8 @@ function CardPreview() {
     <div className="space-y-6">
       <Breadcrumb items={[{ href: "/cartes", label: "Cartes" }, { label: "Aperçu" }]} />
       <PageHeader
-        title="Aperçu carte membre"
-        description={data.render.member_code}
+        title="Présentation carte membre"
+        description={`${data.render.full_name} · ${data.render.member_code}`}
         actions={
           <div className="no-print flex flex-wrap gap-2">
             <Link href="/cartes">
@@ -77,17 +79,35 @@ function CardPreview() {
         }
       />
 
-      <div id="member-card-print" className="mx-auto flex max-w-4xl flex-col items-center gap-8 print:gap-4">
-        <MemberCardVisual render={data.render} />
-        <MemberCardBack organization={data.render.organization} verificationUrl={data.render.verification_url} />
-      </div>
+      <DashboardAnimate>
+        <div
+          id="member-card-print"
+          className="rounded-2xl border border-slate-200/80 bg-gradient-to-b from-slate-100 via-slate-50 to-white p-4 shadow-[var(--shadow-card)] sm:p-6 lg:p-8"
+        >
+          <MemberCardPresentation render={data.render} />
+        </div>
+      </DashboardAnimate>
 
-      <Card className="no-print max-w-4xl mx-auto">
-        <CardBody className="text-sm text-slate-600">
-          <p>N° carte : <span className="font-mono">{data.data.card_number}</span></p>
-          <p className="mt-1">Statut : {data.data.status_label}</p>
-        </CardBody>
-      </Card>
+      <DashboardAnimate delay={80}>
+        <Card className="no-print mx-auto max-w-5xl">
+          <CardHeader
+            title="Métadonnées"
+            description="Informations techniques de la carte émise"
+            action={<CardMeta status={data.data.status} statusLabel={data.data.status_label} valid={data.data.is_valid} />}
+          />
+          <CardBody className="grid gap-3 text-sm text-slate-600 sm:grid-cols-3">
+            <p>
+              N° carte : <span className="font-mono font-medium text-slate-900">{data.data.card_number}</span>
+            </p>
+            <p>
+              Émise le : <span className="font-medium text-slate-900">{formatShortDate(data.data.issued_at)}</span>
+            </p>
+            <p>
+              Expire le : <span className="font-medium text-slate-900">{formatShortDate(data.data.expires_at)}</span>
+            </p>
+          </CardBody>
+        </Card>
+      </DashboardAnimate>
     </div>
   );
 }

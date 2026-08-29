@@ -1,9 +1,9 @@
 "use client";
 
 import { Download, Printer, Share2 } from "lucide-react";
+import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
+import { MemberCardPresentation } from "@/components/cards/member-card-presentation";
 import { PageHeader } from "@/components/layout/topbar";
-import { MemberCardVisual } from "@/components/members/member-card-visual";
-import { MemberCardBack } from "@/components/cards/member-card-back";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Alert, EmptyState, PageLoader } from "@/components/ui/feedback";
@@ -36,10 +36,10 @@ export default function MyCardPage() {
   }
 
   return (
-    <div className="mx-auto max-w-md space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader
         title="Ma carte de membre"
-        description="Présentez le QR code pour être identifié. Aucune donnée personnelle n'y est encodée."
+        description="Recto / verso officiels — présentez le QR code pour être identifié."
         actions={
           <div className="no-print flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => window.print()}>
@@ -54,17 +54,21 @@ export default function MyCardPage() {
         }
       />
 
-      <div id="member-card-print" className="space-y-6">
-        <MemberCardVisual render={data.render} className="mx-auto" />
-        <MemberCardBack organization={data.render.organization} verificationUrl={data.render.verification_url} />
-      </div>
+      <DashboardAnimate>
+        <div
+          id="member-card-print"
+          className="rounded-2xl border border-slate-200/80 bg-gradient-to-b from-slate-100 via-slate-50 to-white p-4 shadow-[var(--shadow-card)] sm:p-6 lg:p-8"
+        >
+          <MemberCardPresentation render={data.render} />
+        </div>
+      </DashboardAnimate>
 
       <Card className="no-print">
         <CardBody className="flex items-start gap-3 text-sm text-slate-600">
           <Share2 className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
           <p>
             En cas de perte, contactez votre structure. L&apos;ancienne carte sera désactivée avant émission d&apos;une
-            nouvelle.
+            nouvelle. Le QR ne contient aucune donnée personnelle.
           </p>
         </CardBody>
       </Card>

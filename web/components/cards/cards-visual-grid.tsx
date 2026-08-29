@@ -16,7 +16,7 @@ export function CardsVisualGrid({ items }: { items: CardVisualItem[] }) {
           key={item.card.id}
           className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[var(--shadow-card)] transition hover:border-brand-200 hover:shadow-[var(--shadow-elevated)]"
         >
-          <div className="relative bg-gradient-to-b from-slate-100 to-slate-50 p-4 pb-6">
+          <div className="relative bg-gradient-to-b from-brand-950/5 via-slate-50 to-slate-100 p-4 pb-6">
             <div
               className={cn(
                 "mx-auto transition duration-300 group-hover:scale-[1.02]",

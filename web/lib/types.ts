@@ -145,11 +145,18 @@ export interface CardRender {
   country: string;
   member_code: string;
   full_name: string;
+  last_name: string;
+  first_name: string;
+  middle_name: string | null;
   photo_url: string | null;
   structure: string | null;
   province: string | null;
+  city: string | null;
+  commune: string | null;
   position: string | null;
   status: string;
+  card_status: string;
+  card_status_label: string;
   issued_at: string | null;
   expires_at: string | null;
   verification_url: string | null;

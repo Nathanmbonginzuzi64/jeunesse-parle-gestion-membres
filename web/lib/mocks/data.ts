@@ -849,15 +849,22 @@ export const FAKE_QR =
 
 export function cardRender(member: Member): CardRender {
   return {
-    organization: "La Jeunesse Parle",
+    organization: "Jeunesse Parle",
     country: "République Démocratique du Congo",
     member_code: member.member_code,
     full_name: member.full_name,
+    last_name: member.last_name,
+    first_name: member.first_name,
+    middle_name: member.middle_name,
     photo_url: member.photo_url,
     structure: member.structure?.name ?? null,
     province: member.province?.name ?? null,
+    city: member.city?.name ?? null,
+    commune: member.commune?.name ?? null,
     position: member.position,
     status: member.status_label,
+    card_status: member.card?.status ?? member.status,
+    card_status_label: member.card?.status_label ?? member.status_label,
     issued_at: member.card?.issued_at ?? null,
     expires_at: member.card?.expires_at ?? null,
     verification_url: `/verifier-membre/demo${member.id}tokenjeunesseparleverify`,
