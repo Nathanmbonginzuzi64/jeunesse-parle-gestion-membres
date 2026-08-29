@@ -1,27 +1,41 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
-import { Plus, MapPin, Building2, Network } from "lucide-react";
-import { PageHeader } from "@/components/layout/topbar";
+import { useMemo, useState } from "react";
+import {
+  BarChart3,
+  Building2,
+  Layers,
+  Map,
+  MapPin,
+  Network,
+  Plus,
+  Search,
+  Users,
+} from "lucide-react";
 import { Can, RequirePermission } from "@/components/auth/require-permission";
 import { StructureFormDialog } from "@/components/structures/structure-form-dialog";
 import { TerritoryFormDialog } from "@/components/structures/territory-form-dialog";
+import { StructuresHero } from "@/components/structures/structures-hero";
+import { StructuresTable } from "@/components/structures/structures-table";
+import { StructuresViewNav, type StructuresView } from "@/components/structures/structures-view-nav";
 import { StructureCards, TerritoryTree } from "@/components/structures/territory-tree";
-import { Badge } from "@/components/ui/badge";
+import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
+import { DashboardSection } from "@/components/dashboard/dashboard-section";
+import { QuickLinkCard } from "@/components/dashboard/quick-link-card";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/field";
 import { Alert, EmptyState, TableSkeleton } from "@/components/ui/feedback";
 import { ConfirmDialog } from "@/components/ui/modal";
-import { Pagination, Table, Td, Th, Tr } from "@/components/ui/table";
-import { Tabs } from "@/components/ui/tabs";
+import { KpiCard, dashboardCardGrid } from "@/components/ui/kpi";
+import { Pagination } from "@/components/ui/table";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { api, ApiError } from "@/lib/api";
 import { useApi, useDebounced } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useToast } from "@/components/ui/toast";
-import type { Paginated, Structure } from "@/lib/types";
+import type { Paginated, StatisticsOverview, Structure } from "@/lib/types";
+import { cn, formatNumber } from "@/lib/utils";
 
 export default function StructuresPage() {
   return (
@@ -33,7 +47,8 @@ export default function StructuresPage() {
 
 function StructuresHub() {
   const toast = useToast();
-  const [view, setView] = useState("tree");
+  const stats = useApi<StatisticsOverview>("/statistics");
+  const [view, setView] = useState<StructuresView>("tree");
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
   const debounced = useDebounced(q);
@@ -49,6 +64,16 @@ function StructuresHub() {
   const [territoryKind, setTerritoryKind] = useState<"province" | "city" | "commune" | null>(null);
   const [disableTarget, setDisableTarget] = useState<Structure | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const kpis = stats.data?.kpis;
+  const activeCount = useMemo(
+    () => data?.data.filter((structure) => structure.is_active).length ?? 0,
+    [data?.data],
+  );
+  const membersAttached = useMemo(
+    () => data?.data.reduce((acc, structure) => acc + (structure.members_count ?? 0), 0) ?? 0,
+    [data?.data],
+  );
 
   async function disableStructure() {
     if (!disableTarget) return;
@@ -66,148 +91,174 @@ function StructuresHub() {
     }
   }
 
+  function openCreateStructure() {
+    setEditing(null);
+    setStructureOpen(true);
+  }
+
   return (
     <div className="space-y-6">
       <Breadcrumb items={[{ href: "/tableau-de-bord", label: "Pilotage" }, { label: "Structures" }]} />
-      <PageHeader
-        title="Structures & territoires"
-        description="Provinces, villes, communes et structures de mobilisation."
-        actions={
+
+      <DashboardAnimate>
+        <StructuresHero
+          structuresCount={kpis?.coverage.structures ?? data?.meta.total}
+          provincesCount={kpis?.coverage.provinces}
+          citiesCount={kpis?.coverage.cities}
+        />
+      </DashboardAnimate>
+
+      {kpis && (
+        <DashboardAnimate delay={60}>
+          <div className={cn(dashboardCardGrid, "sm:grid-cols-2 lg:grid-cols-4")}>
+            <KpiCard label="Structures" value={kpis.coverage.structures} icon={Building2} tone="info" />
+            <KpiCard label="Provinces couvertes" value={kpis.coverage.provinces} icon={MapPin} tone="info" href="/cartographie" />
+            <KpiCard label="Villes / territoires" value={kpis.coverage.cities} icon={Network} tone="neutral" />
+            <KpiCard label="Membres (total)" value={kpis.members.total} icon={Users} tone="success" href="/membres" />
+          </div>
+        </DashboardAnimate>
+      )}
+
+      <DashboardAnimate delay={100}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <StructuresViewNav value={view} onChange={setView} resultCount={data?.meta.total} />
           <Can permission={PERMISSIONS.structuresManage}>
             <div className="flex flex-wrap gap-2">
               <Can permission={PERMISSIONS.territoriesManage}>
-                <Button variant="outline" onClick={() => setTerritoryKind("province")}>
+                <Button variant="outline" size="sm" onClick={() => setTerritoryKind("province")}>
                   <MapPin className="h-4 w-4" />
                   Province
                 </Button>
-                <Button variant="outline" onClick={() => setTerritoryKind("city")}>
+                <Button variant="outline" size="sm" onClick={() => setTerritoryKind("city")}>
                   <Network className="h-4 w-4" />
                   Ville
                 </Button>
-                <Button variant="outline" onClick={() => setTerritoryKind("commune")}>
+                <Button variant="outline" size="sm" onClick={() => setTerritoryKind("commune")}>
                   <Building2 className="h-4 w-4" />
                   Commune
                 </Button>
               </Can>
-              <Button
-                onClick={() => {
-                  setEditing(null);
-                  setStructureOpen(true);
-                }}
-              >
+              <Button size="sm" onClick={openCreateStructure}>
                 <Plus className="h-4 w-4" />
-                Structure
+                Nouvelle structure
               </Button>
             </div>
           </Can>
-        }
-      />
-
-      <Tabs
-        tabs={[
-          { id: "tree", label: "Arbre territorial" },
-          { id: "table", label: "Tableau" },
-          { id: "cards", label: "Cartes" },
-        ]}
-        value={view}
-        onChange={setView}
-      />
+        </div>
+      </DashboardAnimate>
 
       {view === "tree" && (
-        <Card className="p-4">
-          {tree.loading && <TableSkeleton />}
-          {tree.error && <Alert tone="error">{tree.error}</Alert>}
-          {tree.data?.data && (
-            <TerritoryTree
-              data={tree.data.data as Parameters<typeof TerritoryTree>[0]["data"]}
-              onSelectStructure={(structure) => {
-                setEditing(structure);
-                setStructureOpen(true);
-              }}
-            />
-          )}
-        </Card>
+        <DashboardAnimate delay={140}>
+          <Card>
+            <CardHeader title="Arbre territorial" description="Navigation hiérarchique province → ville → structure" />
+            <CardBody>
+              {tree.loading && <TableSkeleton />}
+              {tree.error && <Alert tone="error">{tree.error}</Alert>}
+              {tree.data?.data && (
+                <TerritoryTree
+                  data={tree.data.data as Parameters<typeof TerritoryTree>[0]["data"]}
+                  onSelectStructure={(structure) => {
+                    setEditing(structure);
+                    setStructureOpen(true);
+                  }}
+                />
+              )}
+            </CardBody>
+          </Card>
+        </DashboardAnimate>
       )}
 
       {(view === "table" || view === "cards") && (
-        <Card>
-          <div className="border-b border-slate-200 p-4">
-            <Input placeholder="Rechercher…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} />
-          </div>
-          {error && <Alert tone="error">{error}</Alert>}
-          {loading && <TableSkeleton />}
-          {!loading && data?.data.length === 0 && <EmptyState title="Aucune structure" />}
-          {!loading && data && data.data.length > 0 && view === "cards" && (
-            <div className="p-4">
-              <StructureCards
-                structures={data.data}
+        <DashboardAnimate delay={140}>
+          <Card>
+            <CardHeader
+              title={view === "table" ? "Registre des structures" : "Cartes des structures"}
+              description={
+                loading
+                  ? "Chargement…"
+                  : `${formatNumber(data?.meta.total ?? 0)} structure(s) · ${formatNumber(activeCount)} active(s) sur cette page`
+              }
+            />
+            <div className="border-b border-slate-200 px-4 py-3">
+              <div className="relative max-w-md">
+                <Search className="pointer-events-none absolute top-2.5 left-3 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Rechercher une structure, un code…"
+                  value={q}
+                  onChange={(e) => {
+                    setQ(e.target.value);
+                    setPage(1);
+                  }}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+
+            {error && <Alert tone="error" className="m-4">{error}</Alert>}
+            {loading && <TableSkeleton />}
+            {!loading && data?.data.length === 0 && (
+              <EmptyState
+                title="Aucune structure"
+                description="Aucune structure ne correspond à votre recherche."
+                action={
+                  <Can permission={PERMISSIONS.structuresManage}>
+                    <Button size="sm" onClick={openCreateStructure}>
+                      <Plus className="h-4 w-4" />
+                      Créer une structure
+                    </Button>
+                  </Can>
+                }
+              />
+            )}
+            {!loading && data && data.data.length > 0 && view === "cards" && (
+              <>
+                <CardBody>
+                  <StructureCards
+                    structures={data.data}
+                    onEdit={(structure) => {
+                      setEditing(structure);
+                      setStructureOpen(true);
+                    }}
+                    onDisable={setDisableTarget}
+                  />
+                  <p className="mt-4 text-xs text-slate-500">
+                    {formatNumber(membersAttached)} membres rattachés aux structures affichées
+                  </p>
+                </CardBody>
+                <Pagination
+                  page={data.meta.current_page}
+                  lastPage={data.meta.last_page}
+                  total={data.meta.total}
+                  perPage={data.meta.per_page}
+                  onChange={setPage}
+                  label="structures"
+                />
+              </>
+            )}
+            {!loading && data && data.data.length > 0 && view === "table" && (
+              <StructuresTable
+                data={data}
                 onEdit={(structure) => {
                   setEditing(structure);
                   setStructureOpen(true);
                 }}
-                onDisable={setDisableTarget}
+                onPageChange={setPage}
               />
-            </div>
-          )}
-          {!loading && data && data.data.length > 0 && view === "table" && (
-            <>
-              <Table>
-                <thead>
-                  <tr>
-                    <Th>Structure</Th>
-                    <Th>Type</Th>
-                    <Th>Localisation</Th>
-                    <Th>Membres</Th>
-                    <Th>Statut</Th>
-                    <Th></Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.data.map((structure) => (
-                    <Tr key={structure.id}>
-                      <Td>
-                        <p className="font-medium">{structure.name}</p>
-                        <p className="font-mono text-[11px] text-slate-400">{structure.code}</p>
-                      </Td>
-                      <Td className="text-xs">{structure.type.replaceAll("_", " ")}</Td>
-                      <Td className="text-xs">
-                        {structure.province?.name}
-                        {structure.city ? ` · ${structure.city.name}` : ""}
-                      </Td>
-                      <Td>{structure.members_count ?? 0}</Td>
-                      <Td>
-                        <Badge tone={structure.is_active ? "success" : "neutral"}>
-                          {structure.is_active ? "Active" : "Inactive"}
-                        </Badge>
-                      </Td>
-                      <Td>
-                        <div className="flex gap-2 text-xs">
-                          <Link href={`/membres?structure_id=${structure.id}`} className="text-brand-700">
-                            Membres
-                          </Link>
-                          <Can permission={PERMISSIONS.structuresManage}>
-                            <button type="button" className="text-slate-600" onClick={() => { setEditing(structure); setStructureOpen(true); }}>
-                              Modifier
-                            </button>
-                          </Can>
-                        </div>
-                      </Td>
-                    </Tr>
-                  ))}
-                </tbody>
-              </Table>
-              <Pagination
-                page={data.meta.current_page}
-                lastPage={data.meta.last_page}
-                total={data.meta.total}
-                perPage={data.meta.per_page}
-                onChange={setPage}
-                label="structures"
-              />
-            </>
-          )}
-        </Card>
+            )}
+          </Card>
+        </DashboardAnimate>
       )}
+
+      <DashboardAnimate delay={180}>
+        <DashboardSection icon={Layers} title="Raccourcis" description="Pilotage territorial et mobilisation" tone="brand">
+          <div className={cn(dashboardCardGrid, "sm:grid-cols-2 lg:grid-cols-4")}>
+            <QuickLinkCard href="/cartographie" icon={Map} title="Cartographie" description="Vue géographique des provinces" tone="brand" />
+            <QuickLinkCard href="/membres" icon={Users} title="Membres" description="Registre filtrable par structure" tone="emerald" />
+            <QuickLinkCard href="/statistiques" icon={BarChart3} title="Statistiques" description="Indicateurs de couverture" tone="slate" />
+            <QuickLinkCard href="/activites" icon={Building2} title="Activités" description="Mobilisation par antenne" tone="amber" />
+          </div>
+        </DashboardSection>
+      </DashboardAnimate>
 
       <StructureFormDialog
         open={structureOpen}
