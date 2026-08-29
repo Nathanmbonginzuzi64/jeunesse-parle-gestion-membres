@@ -315,21 +315,67 @@ body {
 
 @media print {
   body {
-    background: #ffffff;
+    background: #ffffff !important;
+    color: #000;
   }
 
   .no-print {
     display: none !important;
   }
 
-  .print-area {
-    margin: 0;
-    padding: 0;
+  /* Impression carte membre : uniquement recto + verso */
+  body:has(#member-card-print) * {
+    visibility: hidden;
+  }
+
+  body:has(#member-card-print) #member-card-print,
+  body:has(#member-card-print) #member-card-print * {
+    visibility: visible;
+  }
+
+  body:has(#member-card-print) #member-card-print {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
     box-shadow: none !important;
   }
 
+  body:has(#member-card-print) #member-card-print .member-card-print-faces {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center;
+    gap: 10mm;
+    width: 100%;
+  }
+
+  body:has(#member-card-print) #member-card-print .member-card-print-face {
+    width: 100%;
+    max-width: 100mm;
+    margin: 0 auto;
+  }
+
+  body:has(#member-card-print) #member-card-print .member-card-print-face:first-child {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .print-area {
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
   @page {
-    size: auto;
+    size: A4 portrait;
     margin: 12mm;
   }
 }

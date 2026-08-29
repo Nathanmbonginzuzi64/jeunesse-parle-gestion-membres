@@ -37,22 +37,24 @@ export default function MyCardPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      <PageHeader
-        title="Ma carte de membre"
-        description="Recto / verso officiels — présentez le QR code pour être identifié."
-        actions={
-          <div className="no-print flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => window.print()}>
-              <Printer className="h-4 w-4" />
-              Imprimer
-            </Button>
-            <Button size="sm" onClick={() => window.print()}>
-              <Download className="h-4 w-4" />
-              Télécharger
-            </Button>
-          </div>
-        }
-      />
+      <div className="no-print">
+        <PageHeader
+          title="Ma carte de membre"
+          description="Recto / verso officiels — présentez le QR code pour être identifié."
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={() => window.print()}>
+                <Printer className="h-4 w-4" />
+                Imprimer
+              </Button>
+              <Button size="sm" onClick={() => window.print()}>
+                <Download className="h-4 w-4" />
+                Télécharger
+              </Button>
+            </div>
+          }
+        />
+      </div>
 
       <DashboardAnimate>
         <div

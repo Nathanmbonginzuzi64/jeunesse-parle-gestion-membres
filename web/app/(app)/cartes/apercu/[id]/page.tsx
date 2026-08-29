@@ -49,35 +49,37 @@ function CardPreview() {
 
   return (
     <div className="space-y-6">
-      <Breadcrumb items={[{ href: "/cartes", label: "Cartes" }, { label: "Aperçu" }]} />
-      <PageHeader
-        title="Présentation carte membre"
-        description={`${data.render.full_name} · ${data.render.member_code}`}
-        actions={
-          <div className="no-print flex flex-wrap gap-2">
-            <Link href="/cartes">
-              <Button variant="outline">
-                <ArrowLeft className="h-4 w-4" />
-                Retour
+      <div className="no-print space-y-6">
+        <Breadcrumb items={[{ href: "/cartes", label: "Cartes" }, { label: "Aperçu" }]} />
+        <PageHeader
+          title="Présentation carte membre"
+          description={`${data.render.full_name} · ${data.render.member_code}`}
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <Link href="/cartes">
+                <Button variant="outline">
+                  <ArrowLeft className="h-4 w-4" />
+                  Retour
+                </Button>
+              </Link>
+              <Button variant="outline" onClick={() => window.print()}>
+                <Printer className="h-4 w-4" />
+                Imprimer
               </Button>
-            </Link>
-            <Button variant="outline" onClick={() => window.print()}>
-              <Printer className="h-4 w-4" />
-              Imprimer
-            </Button>
-            <Button variant="outline" onClick={() => window.print()}>
-              <Download className="h-4 w-4" />
-              Télécharger
-            </Button>
-            <Can permission={PERMISSIONS.cardsIssue}>
-              <Button onClick={() => void regenerate()}>
-                <RefreshCw className="h-4 w-4" />
-                Régénérer
+              <Button variant="outline" onClick={() => window.print()}>
+                <Download className="h-4 w-4" />
+                Télécharger
               </Button>
-            </Can>
-          </div>
-        }
-      />
+              <Can permission={PERMISSIONS.cardsIssue}>
+                <Button onClick={() => void regenerate()}>
+                  <RefreshCw className="h-4 w-4" />
+                  Régénérer
+                </Button>
+              </Can>
+            </div>
+          }
+        />
+      </div>
 
       <DashboardAnimate>
         <div

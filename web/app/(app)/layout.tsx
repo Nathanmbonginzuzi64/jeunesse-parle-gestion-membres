@@ -24,12 +24,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen">
       <Suspense fallback={null}>
-        <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
+        <div className="no-print">
+          <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
+        </div>
       </Suspense>
 
-      <div className="lg:pl-[17.5rem]">
-        <Topbar onOpenMenu={() => setMenuOpen(true)} />
-        <main className="animate-fade-in mx-auto w-full max-w-[110rem] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="lg:pl-[17.5rem] print:pl-0">
+        <div className="no-print">
+          <Topbar onOpenMenu={() => setMenuOpen(true)} />
+        </div>
+        <main className="animate-fade-in mx-auto w-full max-w-[110rem] px-4 py-6 sm:px-6 lg:px-8 print:max-w-none print:p-0">
           {user.must_change_password && (
             <Alert tone="warning" className="mb-4 no-print" title="Changement de mot de passe requis">
               <Link href="/compte/mot-de-passe" className="font-medium underline">
