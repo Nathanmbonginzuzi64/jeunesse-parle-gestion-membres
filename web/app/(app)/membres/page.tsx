@@ -1,14 +1,11 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Archive,
   Download,
-  Eye,
   Filter,
-  Pencil,
   Plus,
   RotateCcw,
   Search,
@@ -18,6 +15,7 @@ import {
 } from "lucide-react";
 import { MemberFormDialog } from "@/components/members/member-form-dialog";
 import { MemberPreviewDrawer } from "@/components/members/member-preview-drawer";
+import { MembersTable } from "@/components/members/members-table";
 import {
   getMemberStatusView,
   MembersHero,
@@ -25,21 +23,20 @@ import {
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
 import { DashboardSection } from "@/components/dashboard/dashboard-section";
 import { RequirePermission, Can } from "@/components/auth/require-permission";
-import { Avatar } from "@/components/ui/avatar";
-import { MemberStatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Checkbox, Input, Select } from "@/components/ui/field";
+import { Input, Select } from "@/components/ui/field";
 import { Alert, EmptyState, TableSkeleton } from "@/components/ui/feedback";
 import { KpiCard, dashboardCardGrid } from "@/components/ui/kpi";
-import { Pagination, Table, Td, Th, Tr } from "@/components/ui/table";
+import { Pagination } from "@/components/ui/table";
+import { ConfirmDialog } from "@/components/ui/modal";
 import { TerritorySelect } from "@/components/forms/territory-select";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { api, downloadFile, ApiError } from "@/lib/api";
 import { useApi, useDebounced, useReferences } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { Member, Paginated, StatisticsOverview } from "@/lib/types";
-import { cn, formatNumber, formatShortDate } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 
 const EMPTY_BY_STATUS: Record<string, { title: string; description: string }> = {
@@ -90,6 +87,8 @@ function MembersList() {
   const [preview, setPreview] = useState<Member | null>(null);
   const [selected, setSelected] = useState<number[]>([]);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Member | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   useEffect(() => {
     setPage(1);
@@ -184,6 +183,23 @@ function MembersList() {
       toast.success("Export lancé.");
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : "Le téléchargement a échoué.");
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleteBusy(true);
+    try {
+      const response = await api.delete<{ message: string }>(`/members/${deleteTarget.id}`);
+      toast.success(response.message);
+      setSelected((current) => current.filter((id) => id !== deleteTarget.id));
+      if (preview?.id === deleteTarget.id) setPreview(null);
+      setDeleteTarget(null);
+      reload();
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : "Suppression impossible.");
+    } finally {
+      setDeleteBusy(false);
     }
   }
 
@@ -327,85 +343,26 @@ function MembersList() {
 
           {!loading && data && data.data.length > 0 && (
             <>
-              <div className="divide-y divide-slate-100 md:hidden">
-                {data.data.map((member) => (
-                  <button
-                    key={member.id}
-                    type="button"
-                    onClick={() => setPreview(member)}
-                    className="flex w-full items-center gap-3 p-4 text-left transition hover:bg-brand-50/40"
-                  >
-                    <Avatar src={member.photo_url} name={member.full_name} size="sm" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium text-slate-900">{member.full_name}</span>
-                      <span className="block font-mono text-[11px] text-slate-500">{member.member_code}</span>
-                    </span>
-                    <MemberStatusBadge status={member.status} label={member.status_label} />
-                  </button>
-                ))}
-              </div>
-
-              <div className="hidden md:block">
-                <Table className="min-w-[72rem]">
-                  <thead>
-                    <tr>
-                      <Th className="w-10">
-                        <Checkbox
-                          label="Tout sélectionner"
-                          className="sr-only [&_label]:sr-only"
-                          checked={Boolean(data.data.length && selected.length === data.data.length)}
-                          onChange={(e) => toggleAll(e.target.checked)}
-                        />
-                      </Th>
-                      <Th>Photo</Th>
-                      <Th sortable active={sort === "member_code"} direction={direction} onSort={() => toggleSort("member_code")}>ID</Th>
-                      <Th>Nom</Th>
-                      <Th>Téléphone</Th>
-                      <Th>Province</Th>
-                      <Th>Structure</Th>
-                      <Th sortable active={sort === "status"} direction={direction} onSort={() => toggleSort("status")}>Statut</Th>
-                      <Th sortable active={sort === "created_at"} direction={direction} onSort={() => toggleSort("created_at")}>Inscription</Th>
-                      <Th className="w-28">Actions</Th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.data.map((member) => (
-                      <Tr key={member.id} className="cursor-pointer hover:bg-brand-50/30" onClick={() => setPreview(member)}>
-                        <Td onClick={(e) => e.stopPropagation()}>
-                          <Checkbox
-                            label={member.full_name}
-                            className="[&_label]:sr-only"
-                            checked={selected.includes(member.id)}
-                            onChange={(e) => {
-                              setSelected((c) => e.target.checked ? [...c, member.id] : c.filter((id) => id !== member.id));
-                            }}
-                          />
-                        </Td>
-                        <Td><Avatar src={member.photo_url} name={member.full_name} size="sm" /></Td>
-                        <Td className="font-mono text-xs">{member.member_code}</Td>
-                        <Td className="font-medium">{member.full_name}</Td>
-                        <Td className="text-xs">{member.phone ?? "—"}</Td>
-                        <Td className="text-xs">{member.province?.name ?? "—"}</Td>
-                        <Td className="text-xs">{member.structure?.name ?? "—"}</Td>
-                        <Td><MemberStatusBadge status={member.status} label={member.status_label} /></Td>
-                        <Td className="text-xs text-slate-500">{formatShortDate(member.created_at)}</Td>
-                        <Td onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center gap-1">
-                            <Link href={`/membres/${member.id}`} aria-label="Voir">
-                              <Button variant="ghost" size="icon"><Eye className="h-4 w-4" /></Button>
-                            </Link>
-                            <Can permission={PERMISSIONS.membersUpdate}>
-                              <Button variant="ghost" size="icon" aria-label="Modifier" onClick={() => { setEditing(member); setFormOpen(true); }}>
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                            </Can>
-                          </div>
-                        </Td>
-                      </Tr>
-                    ))}
-                  </tbody>
-                </Table>
-              </div>
+              <MembersTable
+                members={data.data}
+                selected={selected}
+                sort={sort}
+                direction={direction}
+                busyId={deleteBusy ? deleteTarget?.id : null}
+                onToggleAll={toggleAll}
+                onToggleOne={(id, checked) => {
+                  setSelected((current) =>
+                    checked ? [...current, id] : current.filter((item) => item !== id),
+                  );
+                }}
+                onSort={toggleSort}
+                onPreview={setPreview}
+                onEdit={(member) => {
+                  setEditing(member);
+                  setFormOpen(true);
+                }}
+                onDelete={setDeleteTarget}
+              />
 
               {selected.length > 0 && (
                 <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-brand-200 bg-brand-50 px-4 py-3">
@@ -443,6 +400,24 @@ function MembersList() {
         member={preview}
         onClose={() => setPreview(null)}
         onEdit={preview ? (member) => { setPreview(null); setEditing(member); setFormOpen(true); } : undefined}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => !deleteBusy && setDeleteTarget(null)}
+        onConfirm={() => void confirmDelete()}
+        title="Supprimer ce membre ?"
+        message={
+          deleteTarget ? (
+            <>
+              Le dossier <strong>{deleteTarget.full_name}</strong> ({deleteTarget.member_code}) sera supprimé
+              définitivement. Cette action est irréversible.
+            </>
+          ) : null
+        }
+        confirmLabel="Supprimer"
+        tone="danger"
+        loading={deleteBusy}
       />
     </div>
   );

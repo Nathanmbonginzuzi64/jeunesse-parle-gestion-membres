@@ -291,6 +291,11 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     if (["PUT", "PATCH", "POST"].includes(method) && segments.length === 2) {
       return { message: "Membre mis à jour.", data: member } as T;
     }
+    if (method === "DELETE" && segments.length === 2) {
+      const index = db.members.findIndex((item) => item.id === member.id);
+      if (index >= 0) db.members.splice(index, 1);
+      return { message: `Membre ${member.member_code} supprimé définitivement.` } as T;
+    }
   }
 
   if (method === "POST" && path === "/members/bulk-status") {
