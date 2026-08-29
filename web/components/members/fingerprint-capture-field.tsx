@@ -16,6 +16,7 @@ import {
   type FingerprintSlot,
   type MemberFingerprint,
 } from "@/lib/fingerprints";
+import type { FingerprintSamplePayload } from "@/lib/hooks/use-digitalpersona-reader";
 import { cn } from "@/lib/utils";
 
 type WizardStep = "select" | "enroll" | "confirm";
@@ -36,6 +37,7 @@ export function FingerprintCaptureField({
   const [activeSlot, setActiveSlot] = useState<FingerprintSlot | null>(null);
   const [progress, setProgress] = useState(0);
   const [pendingTemplate, setPendingTemplate] = useState<string | null>(null);
+  const [usedHardware, setUsedHardware] = useState(false);
   const [mismatchError, setMismatchError] = useState<string | null>(null);
 
   const activeMeta = activeSlot ? FINGERPRINT_SLOTS.find((item) => item.slot === activeSlot) : null;
@@ -46,6 +48,7 @@ export function FingerprintCaptureField({
     setActiveSlot(null);
     setProgress(0);
     setPendingTemplate(null);
+    setUsedHardware(false);
     setMismatchError(null);
   }
 
@@ -55,13 +58,40 @@ export function FingerprintCaptureField({
     setWizardStep("enroll");
     setProgress(0);
     setPendingTemplate(null);
+    setUsedHardware(false);
     setMismatchError(null);
   }
 
+  const finalizeFinger = useCallback(
+    (template: string) => {
+      if (!activeSlot) return;
+      const meta = FINGERPRINT_SLOTS.find((item) => item.slot === activeSlot)!;
+      const captured: MemberFingerprint = {
+        slot: activeSlot,
+        hand: meta.hand,
+        finger: meta.finger,
+        template_hash: template,
+        captured_at: new Date().toISOString(),
+      };
+      onChange({ ...value, [activeSlot]: captured });
+      resetWizard();
+    },
+    [activeSlot, onChange, value],
+  );
+
+  const handleHardwareSample = useCallback(
+    (payload: FingerprintSamplePayload) => {
+      if (wizardStep === "enroll") {
+        setPendingTemplate(payload.templateHash);
+        setUsedHardware(true);
+      }
+    },
+    [wizardStep],
+  );
+
   const handleEnrollComplete = useCallback(() => {
     if (!activeSlot) return;
-    const template = generateFingerprintTemplate(seed, activeSlot);
-    setPendingTemplate(template);
+    setPendingTemplate((prev) => prev ?? generateFingerprintTemplate(seed, activeSlot));
     setProgress(0);
     setWizardStep("confirm");
     setMismatchError(null);
@@ -69,8 +99,13 @@ export function FingerprintCaptureField({
 
   const handleConfirmComplete = useCallback(() => {
     if (!activeSlot || !pendingTemplate) return;
-    const confirmTemplate = generateFingerprintTemplate(seed, activeSlot);
 
+    if (usedHardware) {
+      finalizeFinger(pendingTemplate);
+      return;
+    }
+
+    const confirmTemplate = generateFingerprintTemplate(seed, activeSlot);
     if (confirmTemplate !== pendingTemplate) {
       setMismatchError("Les empreintes ne correspondent pas. Recommencez l'enregistrement de ce doigt.");
       setProgress(0);
@@ -79,23 +114,13 @@ export function FingerprintCaptureField({
       return;
     }
 
-    const meta = FINGERPRINT_SLOTS.find((item) => item.slot === activeSlot)!;
-    const captured: MemberFingerprint = {
-      slot: activeSlot,
-      hand: meta.hand,
-      finger: meta.finger,
-      template_hash: pendingTemplate,
-      captured_at: new Date().toISOString(),
-    };
-
-    onChange({ ...value, [activeSlot]: captured });
-    resetWizard();
-  }, [activeSlot, onChange, pendingTemplate, seed, value]);
+    finalizeFinger(pendingTemplate);
+  }, [activeSlot, finalizeFinger, pendingTemplate, seed, usedHardware]);
 
   return (
     <Field
       label="Procédure d'enregistrement biométrique"
-      hint="Choisissez un doigt sur les deux mains, enregistrez-le par mouvement, puis validez avec le même doigt."
+      hint="Choisissez un doigt, scannez avec le lecteur HID (ou simulation), puis validez avec le même doigt."
       error={error}
     >
       <div className="space-y-4">
@@ -115,7 +140,6 @@ export function FingerprintCaptureField({
           <>
             <Alert tone="info" title="Étape 1 — Choisir le doigt de départ">
               Sélectionnez le doigt à enregistrer sur la main gauche ou droite (auriculaire, index ou majeur).
-              Vous pouvez commencer par n&apos;importe quel doigt non encore validé.
             </Alert>
             <FingerprintHandDiagram value={value} activeSlot={activeSlot} onSelectFinger={selectFinger} />
           </>
@@ -149,6 +173,7 @@ export function FingerprintCaptureField({
               progress={progress}
               onProgressChange={setProgress}
               onComplete={wizardStep === "enroll" ? handleEnrollComplete : handleConfirmComplete}
+              onHardwareSample={handleHardwareSample}
               active
             />
 
