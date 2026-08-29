@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\CardController;
 use App\Http\Controllers\Api\BiometricController;
 use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\AttendanceController;
@@ -36,6 +37,7 @@ Route::prefix('auth')->group(function () {
 
 // Biométrie contextuelle (WebAuthn) — options / assertion publiques pour LOGIN & VERIFICATION
 Route::prefix('biometrics')->middleware('throttle:30,1')->group(function () {
+    Route::post('member-enroll/options', [BiometricController::class, 'memberEnrollmentOptions']);
     Route::post('authenticate/options', [BiometricController::class, 'authenticationOptions']);
     Route::post('authenticate', [BiometricController::class, 'authenticate']);
 });
@@ -82,6 +84,18 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
         Route::post('register/options', [BiometricController::class, 'registrationOptions']);
         Route::post('register', [BiometricController::class, 'register']);
         Route::delete('credentials/{credential}', [BiometricController::class, 'destroy']);
+    });
+
+    // ------------------------------------------------------------ Cartes (registre global)
+    Route::prefix('cards')->group(function () {
+        Route::middleware('permission:cards.view')->group(function () {
+            Route::get('/', [CardController::class, 'index']);
+            Route::get('visual', [CardController::class, 'visual']);
+        });
+        Route::post('{card}/regenerate', [CardController::class, 'regenerate'])
+            ->middleware('permission:cards.issue');
+        Route::post('{card}/revoke', [CardController::class, 'revoke'])
+            ->middleware('permission:cards.revoke');
     });
 
     // ------------------------------------------------------------ Membres

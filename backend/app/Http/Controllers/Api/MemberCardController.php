@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\MemberCardResource;
 use App\Models\Member;
 use App\Models\MemberCard;
+use App\Services\CardPresentationService;
 use App\Services\CardService;
 use App\Services\QrCodeService;
 use Illuminate\Http\JsonResponse;
@@ -19,6 +20,7 @@ class MemberCardController extends Controller
     public function __construct(
         private readonly CardService $cards,
         private readonly QrCodeService $qrCodes,
+        private readonly CardPresentationService $presentation,
     ) {}
 
     /** Renvoie la carte active et l'ensemble des données nécessaires à son rendu. */
@@ -35,33 +37,11 @@ class MemberCardController extends Controller
             ], 404);
         }
 
-        $token = $card->activeQrToken;
         $member->loadMissing(['province', 'city', 'commune', 'structure']);
 
         return response()->json([
             'data' => new MemberCardResource($card),
-            'render' => [
-                'organization' => config('jeunesse.organization.name'),
-                'country' => config('jeunesse.organization.country'),
-                'member_code' => $member->member_code,
-                'full_name' => $member->full_name,
-                'last_name' => $member->last_name,
-                'first_name' => $member->first_name,
-                'middle_name' => $member->middle_name,
-                'photo_url' => $member->photo_path ? route('media.member-photo', ['member' => $member->member_code]) : null,
-                'structure' => $member->structure?->name,
-                'province' => $member->province?->name,
-                'city' => $member->city?->name,
-                'commune' => $member->commune?->name,
-                'position' => $member->position,
-                'status' => $member->status->label(),
-                'card_status' => $card->status->value,
-                'card_status_label' => $card->status->label(),
-                'issued_at' => $card->issued_at?->toDateString(),
-                'expires_at' => $card->expires_at?->toDateString(),
-                'verification_url' => $token ? $this->qrCodes->verificationUrl($token->token) : null,
-                'qr_svg' => $token ? $this->qrCodes->renderDataUri($this->qrCodes->verificationUrl($token->token)) : null,
-            ],
+            'render' => $this->presentation->render($member, $card),
         ]);
     }
 

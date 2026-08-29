@@ -36,7 +36,7 @@ function CardPreview() {
 
   async function regenerate() {
     try {
-      const response = await api.post<{ message: string }>(`/members/${params.id}/cards`);
+      const response = await api.post<{ message: string }>(`/members/${params.id}/card`);
       toast.success(response.message);
       reload();
     } catch (caught) {
