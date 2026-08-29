@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import {
   Download,
   Eye,
-  FileText,
+  FileDown,
   Loader2,
   Printer,
   RotateCcw,
@@ -130,7 +130,7 @@ export function ReportBuilderPanel() {
           <CardHeader
             title={
               <span className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-brand-600" />
+                <FileDown className="h-4 w-4 text-brand-600" />
                 Générateur de rapports
               </span>
             }

@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, FileText } from "lucide-react";
+import { BarChart3, FileDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
   { href: "/statistiques", label: "Analyses", icon: BarChart3, exact: true },
-  { href: "/statistiques/rapports", label: "Rapports", icon: FileText },
+  { href: "/statistiques/rapports", label: "Rapports", icon: FileDown },
 ];
 
 export default function StatisticsLayout({ children }: { children: React.ReactNode }) {
