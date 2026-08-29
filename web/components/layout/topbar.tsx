@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Bell, ChevronDown, CircleHelp, KeyRound, LogOut, Menu, UserRound } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
+import { NotificationsInboxModal } from "@/components/notifications/notifications-inbox-modal";
 import { api } from "@/lib/api";
 import { USE_MOCKS } from "@/lib/config";
 import { useAuth } from "@/lib/auth";
@@ -14,6 +15,7 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const { user, logout } = useAuth();
   const [unread, setUnread] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -78,10 +80,16 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
         <CircleHelp className="h-5 w-5" />
       </Link>
 
-      <Link
-        href="/notifications"
+      <button
+        type="button"
+        onClick={() => {
+          setMenuOpen(false);
+          setNotificationsOpen(true);
+        }}
         className="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100"
         aria-label={`Notifications${unread > 0 ? ` (${unread} non lues)` : ""}`}
+        aria-haspopup="dialog"
+        aria-expanded={notificationsOpen}
       >
         <Bell className="h-5 w-5" />
         {unread > 0 && (
@@ -89,7 +97,7 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
             {unread > 99 ? "99+" : unread}
           </span>
         )}
-      </Link>
+      </button>
 
       <div className="relative" ref={menuRef}>
         <button
@@ -151,6 +159,13 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
           </div>
         )}
       </div>
+
+      <NotificationsInboxModal
+        open={notificationsOpen}
+        onClose={() => setNotificationsOpen(false)}
+        unreadCount={unread}
+        onUnreadChange={setUnread}
+      />
     </header>
   );
 }

@@ -6,12 +6,12 @@ import {
   Bell,
   BellRing,
   CheckCheck,
-  Info,
   Plus,
-  ShieldAlert,
 } from "lucide-react";
 import { Can } from "@/components/auth/require-permission";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
+import { NotificationDetailModal } from "@/components/notifications/notification-detail-modal";
+import { notificationLevelMeta } from "@/components/notifications/notification-level";
 import { NotificationsHero } from "@/components/notifications/notifications-hero";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
@@ -28,37 +28,7 @@ import { fieldErrors } from "@/lib/form";
 import { useApi } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { AppNotification, Paginated } from "@/lib/types";
-import { cn, formatDateTime, formatRelative } from "@/lib/utils";
-
-const LEVEL_META: Record<
-  string,
-  { label: string; icon: typeof Info; tone: string; chip: string }
-> = {
-  success: {
-    label: "Succès",
-    icon: CheckCheck,
-    tone: "border-emerald-200 bg-emerald-50",
-    chip: "bg-emerald-100 text-emerald-800",
-  },
-  info: {
-    label: "Information",
-    icon: Info,
-    tone: "border-brand-200 bg-brand-50",
-    chip: "bg-brand-100 text-brand-800",
-  },
-  warning: {
-    label: "Avertissement",
-    icon: AlertTriangle,
-    tone: "border-amber-200 bg-amber-50",
-    chip: "bg-amber-100 text-amber-800",
-  },
-  danger: {
-    label: "Urgent",
-    icon: ShieldAlert,
-    tone: "border-red-200 bg-red-50",
-    chip: "bg-red-100 text-red-800",
-  },
-};
+import { cn, formatRelative } from "@/lib/utils";
 
 export default function NotificationsPage() {
   const toast = useToast();
@@ -260,86 +230,6 @@ export default function NotificationsPage() {
   );
 }
 
-function NotificationDetailModal({
-  notification,
-  onClose,
-}: {
-  notification: AppNotification | null;
-  onClose: () => void;
-}) {
-  const meta = notification ? (LEVEL_META[notification.level] ?? LEVEL_META.info) : LEVEL_META.info;
-  const Icon = meta.icon;
-
-  return (
-    <Modal
-      open={Boolean(notification)}
-      onClose={onClose}
-      title={notification?.title ?? "Notification"}
-      description="Détail de l'alerte"
-      size="md"
-      footer={
-        <div className="flex justify-end">
-          <Button variant="outline" onClick={onClose}>
-            Fermer
-          </Button>
-        </div>
-      }
-    >
-      {notification && (
-        <div className="space-y-4">
-          <div className={cn("flex items-start gap-3 rounded-xl border p-4", meta.tone)}>
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/70 ring-1 ring-inset ring-black/5">
-              <Icon className="h-5 w-5" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase", meta.chip)}>
-                  {meta.label}
-                </span>
-                {!notification.is_read && (
-                  <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-semibold text-white">
-                    Non lu
-                  </span>
-                )}
-              </div>
-              <p className="mt-2 text-base font-semibold text-slate-900">{notification.title}</p>
-            </div>
-          </div>
-
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Message</p>
-            {notification.body ? (
-              <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{notification.body}</p>
-            ) : (
-              <p className="mt-1.5 text-sm italic text-slate-400">Aucun message complémentaire.</p>
-            )}
-          </div>
-
-          <dl className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50/60 p-3 sm:grid-cols-2">
-            <div>
-              <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Type</dt>
-              <dd className="mt-0.5 text-sm font-medium text-slate-800">{notification.type.replaceAll("_", " ")}</dd>
-            </div>
-            <div>
-              <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Reçue</dt>
-              <dd className="mt-0.5 text-sm font-medium text-slate-800">
-                {formatDateTime(notification.created_at)}
-              </dd>
-              <dd className="text-[11px] text-slate-400">{formatRelative(notification.created_at)}</dd>
-            </div>
-            {notification.read_at && (
-              <div className="sm:col-span-2">
-                <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Lue le</dt>
-                <dd className="mt-0.5 text-sm font-medium text-slate-800">{formatDateTime(notification.read_at)}</dd>
-              </div>
-            )}
-          </dl>
-        </div>
-      )}
-    </Modal>
-  );
-}
-
 function NotificationRow({
   item,
   onOpen,
@@ -347,7 +237,7 @@ function NotificationRow({
   item: AppNotification;
   onOpen: () => void;
 }) {
-  const meta = LEVEL_META[item.level] ?? LEVEL_META.info;
+  const meta = notificationLevelMeta(item.level);
   const Icon = meta.icon;
 
   return (
