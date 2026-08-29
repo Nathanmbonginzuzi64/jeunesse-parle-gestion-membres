@@ -98,6 +98,17 @@ class StructureController extends Controller
         ]);
     }
 
+    public function disable(Request $request, Structure $structure): JsonResponse
+    {
+        $this->authorize('update', $structure);
+
+        $structure->update(['is_active' => false]);
+
+        $this->audit->log('structure.disabled', $structure, "Désactivation de {$structure->code}");
+
+        return response()->json(['message' => 'Structure désactivée.']);
+    }
+
     public function destroy(Request $request, Structure $structure): JsonResponse
     {
         $this->authorize('delete', $structure);

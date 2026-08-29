@@ -130,6 +130,9 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
     });
 
     // ------------------------------------------------------------ Structures
+    Route::get('territories/tree', [TerritoryController::class, 'tree'])
+        ->middleware('permission:structures.view');
+    Route::post('structures/{structure}/disable', [StructureController::class, 'disable']);
     Route::apiResource('structures', StructureController::class);
 
     // ------------------------------------------------------------ Activités & présences

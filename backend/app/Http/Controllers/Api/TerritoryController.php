@@ -7,6 +7,7 @@ use App\Models\City;
 use App\Models\Commune;
 use App\Models\Province;
 use App\Models\Zone;
+use App\Services\TerritoryTreeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -16,6 +17,18 @@ use Illuminate\Http\Request;
  */
 class TerritoryController extends Controller
 {
+    public function __construct(private readonly TerritoryTreeService $tree) {}
+
+    /** Hiérarchie complète pour la page Structures (vue arbre). */
+    public function tree(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', \App\Models\Structure::class);
+
+        return response()->json([
+            'data' => $this->tree->build($request->user()),
+        ]);
+    }
+
     public function provinces(): JsonResponse
     {
         return response()->json([
