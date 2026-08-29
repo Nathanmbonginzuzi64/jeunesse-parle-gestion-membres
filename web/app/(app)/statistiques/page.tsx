@@ -49,9 +49,11 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Select } from "@/components/ui/field";
 import { Alert, Skeleton } from "@/components/ui/feedback";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { Pagination } from "@/components/ui/table";
 import { useApi, usePublicStructures } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { StatisticsCharts, StatisticsOverview } from "@/lib/types";
+import { useClientPagination } from "@/lib/use-client-pagination";
 import { cn, formatNumber } from "@/lib/utils";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -150,6 +152,24 @@ function StatisticsContent() {
   const overview = useApi<StatisticsOverview>("/statistics", filters);
   const charts = useApi<StatisticsCharts>("/statistics/charts", filters);
 
+  const recent = overview.data?.recent ?? [];
+  const provinces = charts.data?.by_province ?? [];
+  const topSkills = charts.data?.top_skills ?? [];
+  const activitiesByType = charts.data?.by_activity ?? [];
+  const paginationResetKey = [
+    period,
+    status,
+    structureId,
+    territory.province_id,
+    territory.city_id,
+    territory.commune_id,
+  ].join("|");
+
+  const provincesPage = useClientPagination(provinces, 5, paginationResetKey);
+  const mobilisationPage = useClientPagination(activitiesByType, 5, paginationResetKey);
+  const recentPage = useClientPagination(recent, 5, paginationResetKey);
+  const skillsPage = useClientPagination(topSkills, 5, paginationResetKey);
+
   const hasActiveFilters =
     status !== "" ||
     structureId !== "" ||
@@ -174,9 +194,8 @@ function StatisticsContent() {
   if (overview.error) return <Alert tone="error">{overview.error}</Alert>;
 
   const kpis = overview.data?.kpis;
-  const recent = overview.data?.recent ?? [];
-  const provinces = charts.data?.by_province ?? [];
-  const topSkills = charts.data?.top_skills ?? [];
+  const skillsMax = topSkills[0]?.total ?? 1;
+  const provincesMax = Math.max(...provinces.map((item) => item.total), 1);
 
   return (
     <div className="space-y-6">
@@ -514,12 +533,29 @@ function StatisticsContent() {
               </ResponsiveContainer>
             </ChartCard>
 
-            <ChartCard title="Compétences phares" icon={Sparkles} tone="gold" loading={charts.loading}>
-              {topSkills.length > 0 ? (
+            <ChartCard
+              title="Compétences phares"
+              icon={Sparkles}
+              tone="gold"
+              loading={charts.loading}
+              footer={
+                skillsPage.total > 0 ? (
+                  <Pagination
+                    page={skillsPage.page}
+                    lastPage={skillsPage.lastPage}
+                    total={skillsPage.total}
+                    perPage={skillsPage.perPage}
+                    onChange={skillsPage.setPage}
+                    label="compétences"
+                  />
+                ) : null
+              }
+            >
+              {skillsPage.slice.length > 0 ? (
                 <ul className="flex h-full flex-col justify-center gap-3">
-                  {topSkills.map((skill, index) => {
-                    const max = topSkills[0]?.total ?? 1;
-                    const width = Math.round((skill.total / max) * 100);
+                  {skillsPage.slice.map((skill, index) => {
+                    const width = Math.round((skill.total / skillsMax) * 100);
+                    const globalIndex = (skillsPage.page - 1) * skillsPage.perPage + index;
                     return (
                       <li key={skill.label}>
                         <div className="mb-1 flex items-center justify-between gap-2 text-sm">
@@ -532,7 +568,7 @@ function StatisticsContent() {
                         <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                           <div
                             className="h-full rounded-full bg-gradient-to-r from-gold-500 to-brand-500"
-                            style={{ width: `${width}%`, opacity: 1 - index * 0.08 }}
+                            style={{ width: `${width}%`, opacity: 1 - globalIndex * 0.08 }}
                           />
                         </div>
                       </li>
@@ -571,9 +607,25 @@ function StatisticsContent() {
               tone="brand"
               loading={charts.loading}
               height="min-h-[20rem]"
+              footer={
+                provincesPage.total > 0 ? (
+                  <Pagination
+                    page={provincesPage.page}
+                    lastPage={provincesPage.lastPage}
+                    total={provincesPage.total}
+                    perPage={provincesPage.perPage}
+                    onChange={provincesPage.setPage}
+                    label="provinces"
+                  />
+                ) : null
+              }
             >
-              {provinces.length > 0 ? (
-                <ProvinceRanking items={provinces} />
+              {provincesPage.slice.length > 0 ? (
+                <ProvinceRanking
+                  items={provincesPage.slice}
+                  startRank={(provincesPage.page - 1) * provincesPage.perPage + 1}
+                  maxTotal={provincesMax}
+                />
               ) : (
                 <ProvinceRankingEmpty />
               )}
@@ -586,10 +638,22 @@ function StatisticsContent() {
               icon={Activity}
               tone="amber"
               loading={charts.loading}
+              footer={
+                mobilisationPage.total > 0 ? (
+                  <Pagination
+                    page={mobilisationPage.page}
+                    lastPage={mobilisationPage.lastPage}
+                    total={mobilisationPage.total}
+                    perPage={mobilisationPage.perPage}
+                    onChange={mobilisationPage.setPage}
+                    label="types"
+                  />
+                ) : null
+              }
             >
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
-                  data={charts.data?.by_activity ?? []}
+                  data={mobilisationPage.slice}
                   layout="vertical"
                   margin={{ top: 4, right: 12, left: 4, bottom: 0 }}
                 >
@@ -608,14 +672,24 @@ function StatisticsContent() {
                 description="Derniers événements du périmètre"
               />
               <CardBody className="p-0">
-                {recent.length > 0 ? (
-                  <RecentActivity items={recent} />
+                {recentPage.slice.length > 0 ? (
+                  <RecentActivity items={recentPage.slice} />
                 ) : (
                   <p className="px-5 py-8 text-center text-sm text-slate-500">
                     Aucune activité récente.
                   </p>
                 )}
               </CardBody>
+              {recentPage.total > 0 && (
+                <Pagination
+                  page={recentPage.page}
+                  lastPage={recentPage.lastPage}
+                  total={recentPage.total}
+                  perPage={recentPage.perPage}
+                  onChange={recentPage.setPage}
+                  label="événements"
+                />
+              )}
             </Card>
           </div>
         </DashboardSection>

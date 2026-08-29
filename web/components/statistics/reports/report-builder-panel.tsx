@@ -209,7 +209,12 @@ export function ReportBuilderPanel() {
       )}
 
       {ready && !showPreview && (
-        <div ref={printRef} className="pointer-events-none fixed -left-[9999px] top-0" aria-hidden>
+        <div
+          ref={printRef}
+          className="pointer-events-none absolute top-0 left-0 -z-10 opacity-[0.01]"
+          style={{ width: 794 }}
+          aria-hidden
+        >
           <ReportDocument payload={payload!} />
         </div>
       )}

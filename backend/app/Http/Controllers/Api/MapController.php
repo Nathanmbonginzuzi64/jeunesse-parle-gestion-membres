@@ -37,9 +37,14 @@ class MapController extends Controller
     /** Indique au frontend quel fournisseur cartographique est configuré. */
     public function config(): JsonResponse
     {
+        $apiKey = config('jeunesse.maps.api_key');
+        $configured = filled($apiKey);
+
         return response()->json([
-            'provider' => config('jeunesse.maps.provider'),
-            'configured' => filled(config('jeunesse.maps.api_key')),
+            'provider' => $configured ? 'google' : 'none',
+            'configured' => $configured,
+            // Clé navigateur : destinée au client Maps JS (restreindre par référent HTTP).
+            'api_key' => $configured ? $apiKey : null,
         ]);
     }
 }

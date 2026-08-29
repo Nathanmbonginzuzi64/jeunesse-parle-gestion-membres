@@ -1,8 +1,61 @@
-import html2canvas from "html2canvas";
+import html2canvas from "html2canvas-pro";
 import { jsPDF } from "jspdf";
 
 const A4_WIDTH_MM = 210;
 const A4_HEIGHT_MM = 297;
+const JPEG_QUALITY = 0.92;
+
+function canvasToJpeg(canvas: HTMLCanvasElement): string {
+  const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+  if (!dataUrl.startsWith("data:image/jpeg")) {
+    throw new Error("Échec de la conversion de la page en image.");
+  }
+  return dataUrl;
+}
+
+/** Ajoute un canvas capturé au PDF (découpe A4 si trop haut). */
+function addCanvasToPdf(pdf: jsPDF, canvas: HTMLCanvasElement, isFirstCapture: boolean) {
+  if (canvas.width < 1 || canvas.height < 1) {
+    throw new Error("Capture vide : impossible de générer le PDF.");
+  }
+
+  const pageHeightPx = Math.max(1, Math.floor((canvas.width * A4_HEIGHT_MM) / A4_WIDTH_MM));
+  let position = 0;
+  let sliceIndex = 0;
+
+  while (position < canvas.height) {
+    const needsNewPage = !(isFirstCapture && sliceIndex === 0);
+    if (needsNewPage) pdf.addPage();
+
+    const sliceHeight = Math.max(1, Math.min(pageHeightPx, canvas.height - position));
+    const sliceCanvas = document.createElement("canvas");
+    sliceCanvas.width = canvas.width;
+    sliceCanvas.height = sliceHeight;
+
+    const ctx = sliceCanvas.getContext("2d");
+    if (!ctx) throw new Error("Contexte canvas indisponible.");
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+    ctx.drawImage(
+      canvas,
+      0,
+      position,
+      canvas.width,
+      sliceHeight,
+      0,
+      0,
+      canvas.width,
+      sliceHeight,
+    );
+
+    const heightMm = (sliceCanvas.height * A4_WIDTH_MM) / sliceCanvas.width;
+    pdf.addImage(canvasToJpeg(sliceCanvas), "JPEG", 0, 0, A4_WIDTH_MM, heightMm, undefined, "FAST");
+
+    position += sliceHeight;
+    sliceIndex += 1;
+  }
+}
 
 export async function exportReportToPdf(
   container: HTMLElement,
@@ -18,49 +71,24 @@ export async function exportReportToPdf(
 
   for (let index = 0; index < pages.length; index++) {
     const page = pages[index]!;
+    const width = Math.max(page.scrollWidth, page.offsetWidth, 794);
+    const height = Math.max(page.scrollHeight, page.offsetHeight, 1);
+
     const canvas = await html2canvas(page, {
       scale: 2,
       useCORS: true,
+      allowTaint: false,
       backgroundColor: "#ffffff",
       logging: false,
-      windowWidth: page.scrollWidth,
-      windowHeight: page.scrollHeight,
+      imageTimeout: 15_000,
+      foreignObjectRendering: false,
+      width,
+      height,
+      windowWidth: width,
+      windowHeight: height,
     });
 
-    const imgData = canvas.toDataURL("image/png");
-    const imgHeightMm = (canvas.height * A4_WIDTH_MM) / canvas.width;
-
-    if (index > 0) pdf.addPage();
-
-    if (imgHeightMm <= A4_HEIGHT_MM) {
-      pdf.addImage(imgData, "PNG", 0, 0, A4_WIDTH_MM, imgHeightMm);
-    } else {
-      let position = 0;
-      const pageHeightPx = (canvas.width * A4_HEIGHT_MM) / A4_WIDTH_MM;
-      while (position < canvas.height) {
-        if (position > 0) pdf.addPage();
-        const sliceCanvas = document.createElement("canvas");
-        sliceCanvas.width = canvas.width;
-        sliceCanvas.height = Math.min(pageHeightPx, canvas.height - position);
-        const ctx = sliceCanvas.getContext("2d");
-        if (!ctx) break;
-        ctx.drawImage(
-          canvas,
-          0,
-          position,
-          canvas.width,
-          sliceCanvas.height,
-          0,
-          0,
-          canvas.width,
-          sliceCanvas.height,
-        );
-        const sliceData = sliceCanvas.toDataURL("image/png");
-        const sliceHeightMm = (sliceCanvas.height * A4_WIDTH_MM) / sliceCanvas.width;
-        pdf.addImage(sliceData, "PNG", 0, 0, A4_WIDTH_MM, sliceHeightMm);
-        position += pageHeightPx;
-      }
-    }
+    addCanvasToPdf(pdf, canvas, index === 0);
   }
 
   pdf.save(filename);

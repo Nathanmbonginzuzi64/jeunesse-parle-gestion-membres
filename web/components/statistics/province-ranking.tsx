@@ -2,8 +2,18 @@ import { MapPin } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
 import type { ProvinceStat } from "@/lib/types";
 
-export function ProvinceRanking({ items }: { items: ProvinceStat[] }) {
-  const max = Math.max(...items.map((item) => item.total), 1);
+export function ProvinceRanking({
+  items,
+  startRank = 1,
+  maxTotal,
+}: {
+  items: ProvinceStat[];
+  /** Rang affiché du premier élément (pagination). */
+  startRank?: number;
+  /** Maximum global pour l’échelle des barres (évite de recalculer par page). */
+  maxTotal?: number;
+}) {
+  const max = maxTotal ?? Math.max(...items.map((item) => item.total), 1);
 
   return (
     <ul className="space-y-3">
@@ -17,7 +27,7 @@ export function ProvinceRanking({ items }: { items: ProvinceStat[] }) {
             <div className="mb-1.5 flex items-center justify-between gap-2 text-sm">
               <span className="flex min-w-0 items-center gap-2 font-medium text-slate-800">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-50 text-[10px] font-bold text-brand-700 ring-1 ring-inset ring-brand-100">
-                  {index + 1}
+                  {startRank + index}
                 </span>
                 <span className="truncate">{province.name}</span>
                 <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400">

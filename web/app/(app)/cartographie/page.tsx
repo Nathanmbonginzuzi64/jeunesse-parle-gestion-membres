@@ -17,11 +17,14 @@ import { KpiCard, dashboardCardGrid } from "@/components/ui/kpi";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Alert, EmptyState, Skeleton } from "@/components/ui/feedback";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { Pagination } from "@/components/ui/table";
 import { useApi } from "@/lib/hooks";
 import { useDeviceLocation } from "@/lib/hooks/use-device-location";
 import { findNearestProvince } from "@/lib/geo";
+import { GOOGLE_MAPS_API_KEY } from "@/lib/maps-config";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { MapStatistics } from "@/lib/types";
+import { useClientPagination } from "@/lib/use-client-pagination";
 import { cn, formatNumber } from "@/lib/utils";
 
 function MapSkeleton() {
@@ -50,14 +53,24 @@ function MapContent() {
   const [provinceId, setProvinceId] = useState<number | null>(null);
   const [cityId, setCityId] = useState<number | null>(null);
   const device = useDeviceLocation();
-  const config = useApi<{ provider: string; configured: boolean }>("/map/config");
+  const config = useApi<{ provider: string; configured: boolean; api_key?: string | null }>("/map/config");
   const stats = useApi<MapStatistics>("/map/statistics", {
     province_id: provinceId,
     city_id: cityId,
   });
 
+  const mapsApiKey = config.data?.api_key || GOOGLE_MAPS_API_KEY;
+  const mapsConfigured = Boolean(mapsApiKey);
+
   const provinces = stats.data?.provinces ?? [];
   const nationalTotal = stats.data?.total ?? 0;
+
+  const rankedProvinces = useMemo(
+    () => [...provinces].sort((a, b) => b.total - a.total),
+    [provinces],
+  );
+  const rankingPage = useClientPagination(rankedProvinces, 5, rankedProvinces.length);
+  const rankingMax = Math.max(...rankedProvinces.map((item) => item.total), 1);
 
   const selectedProvince = useMemo(
     () => provinces.find((p) => p.id === provinceId) ?? null,
@@ -111,11 +124,11 @@ function MapContent() {
         />
       </DashboardAnimate>
 
-      {config.data && !config.data.configured && (
+      {!mapsConfigured && (
         <Alert tone="info">
-          Aucune clé Google Maps configurée (`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`). La carte SVG de
-          secours reste disponible. Activez votre position admin ci-dessous — seule votre position
-          est affichée, jamais celle des membres.
+          Carte locale active (sans Google Maps). Activez votre position admin ci-dessous — seule
+          votre position est affichée, jamais celle des membres. Pour Google Maps, ajoutez une clé
+          API dans la configuration.
         </Alert>
       )}
 
@@ -156,12 +169,13 @@ function MapContent() {
             </Link>
           }
         >
-          {config.data?.configured ? (
+          {mapsConfigured ? (
             <GoogleTerritoryMap
               provinces={provinces}
               selectedId={provinceId}
               onSelect={selectProvince}
               deviceLocation={device.enabled ? device.location : null}
+              apiKey={mapsApiKey}
             />
           ) : (
             <TerritoryMap
@@ -300,11 +314,25 @@ function MapContent() {
 
       {!provinceId && provinces.length > 0 && (
         <DashboardAnimate delay={340}>
-          <Card>
+          <Card className="overflow-hidden">
             <CardHeader title="Classement provincial" description="Top effectifs par province" />
             <CardBody>
-              <ProvinceRanking items={[...provinces].sort((a, b) => b.total - a.total)} />
+              <ProvinceRanking
+                items={rankingPage.slice}
+                startRank={(rankingPage.page - 1) * rankingPage.perPage + 1}
+                maxTotal={rankingMax}
+              />
             </CardBody>
+            {rankingPage.total > 0 && (
+              <Pagination
+                page={rankingPage.page}
+                lastPage={rankingPage.lastPage}
+                total={rankingPage.total}
+                perPage={rankingPage.perPage}
+                onChange={rankingPage.setPage}
+                label="provinces"
+              />
+            )}
           </Card>
         </DashboardAnimate>
       )}

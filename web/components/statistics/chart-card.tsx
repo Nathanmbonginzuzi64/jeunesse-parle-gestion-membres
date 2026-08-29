@@ -59,7 +59,7 @@ export function ChartCard({
       <CardBody className={cn(height, "relative")}>
         {loading ? <Skeleton className="absolute inset-5 rounded-lg" /> : children}
       </CardBody>
-      {footer && <div className="border-t border-slate-100 px-5 py-3">{footer}</div>}
+      {footer}
     </Card>
   );
 }

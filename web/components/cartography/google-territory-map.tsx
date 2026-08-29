@@ -50,11 +50,14 @@ export function GoogleTerritoryMap({
   selectedId,
   onSelect,
   deviceLocation,
+  apiKey = GOOGLE_MAPS_API_KEY,
 }: {
   provinces: ProvinceStat[];
   selectedId: number | null;
   onSelect: (id: number) => void;
   deviceLocation?: DeviceLocation | null;
+  /** Clé Maps JS (backend `/map/config` ou `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`). */
+  apiKey?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -65,11 +68,11 @@ export function GoogleTerritoryMap({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!GOOGLE_MAPS_API_KEY || !containerRef.current) return;
+    if (!apiKey || !containerRef.current) return;
 
     let cancelled = false;
 
-    loadGoogleMapsScript(GOOGLE_MAPS_API_KEY)
+    loadGoogleMapsScript(apiKey)
       .then(() => {
         if (cancelled || !containerRef.current || !window.google?.maps) return;
 
@@ -97,7 +100,7 @@ export function GoogleTerritoryMap({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [apiKey]);
 
   useEffect(() => {
     if (!ready || !mapRef.current || !window.google?.maps) return;
