@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\BiometricController;
 use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuditLogController;
@@ -28,12 +29,20 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register'])->middleware('throttle:6,1');
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
+    Route::post('login-fingerprint', [AuthController::class, 'loginFingerprint'])->middleware('throttle:10,1');
     Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:5,1');
     Route::post('reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:6,1');
 });
 
+// Biométrie contextuelle (WebAuthn) — options / assertion publiques pour LOGIN & VERIFICATION
+Route::prefix('biometrics')->middleware('throttle:30,1')->group(function () {
+    Route::post('authenticate/options', [BiometricController::class, 'authenticationOptions']);
+    Route::post('authenticate', [BiometricController::class, 'authenticate']);
+});
+
 Route::middleware('throttle:30,1')->group(function () {
     Route::post('members/verify', [VerificationController::class, 'verify']);
+    Route::post('members/verify-fingerprint', [VerificationController::class, 'verifyFingerprint']);
     Route::get('verify/{token}', [VerificationController::class, 'verifyByToken'])
         ->where('token', '[A-Za-z0-9]{16,64}');
     Route::get('verify/{token}/photo', [MediaController::class, 'verificationPhoto'])
@@ -65,6 +74,14 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
         Route::post('logout', [AuthController::class, 'logout']);
         Route::post('logout-all', [AuthController::class, 'logoutAll']);
         Route::post('change-password', [AuthController::class, 'changePassword'])->middleware('throttle:6,1');
+    });
+
+    // ------------------------------------------------------------ Biométrie WebAuthn (configuration)
+    Route::prefix('biometrics')->group(function () {
+        Route::get('credentials', [BiometricController::class, 'index']);
+        Route::post('register/options', [BiometricController::class, 'registrationOptions']);
+        Route::post('register', [BiometricController::class, 'register']);
+        Route::delete('credentials/{credential}', [BiometricController::class, 'destroy']);
     });
 
     // ------------------------------------------------------------ Membres

@@ -29,6 +29,12 @@ class StoreUserRequest extends FormRequest
             'commune_id' => ['nullable', 'integer', 'exists:communes,id'],
             'structure_id' => ['nullable', 'integer', 'exists:structures,id'],
             'is_active' => ['nullable', 'boolean'],
+            'fingerprints' => ['nullable', 'array', 'min:6', 'max:6'],
+            'fingerprints.*.slot' => ['required_with:fingerprints', 'string', 'max:40'],
+            'fingerprints.*.template_hash' => ['required_with:fingerprints', 'string', 'min:8', 'max:255'],
+            'fingerprints.*.hand' => ['nullable', 'string', 'max:20'],
+            'fingerprints.*.finger' => ['nullable', 'string', 'max:40'],
+            'fingerprints.*.captured_at' => ['nullable', 'date'],
         ];
     }
 

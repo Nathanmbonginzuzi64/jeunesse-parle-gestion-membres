@@ -28,6 +28,7 @@ export function KpiCard({
   tone = "neutral",
   href,
   trend,
+  align = "start",
 }: {
   label: string;
   value: number | string;
@@ -36,8 +37,11 @@ export function KpiCard({
   tone?: keyof typeof TONES;
   href?: string;
   trend?: string;
+  /** Alignement du contenu (ex. cartes « Membres par statut »). */
+  align?: "start" | "center";
 }) {
   const meta = trend || hint;
+  const centered = align === "center";
 
   const content = (
     <Card
@@ -46,17 +50,41 @@ export function KpiCard({
         "before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:content-['']",
         ACCENTS[tone],
         href && "hover:shadow-[var(--shadow-elevated)]",
+        centered && "items-center text-center before:hidden",
       )}
     >
-      <div className="flex flex-1 items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-1 flex-col">
-          <p className="line-clamp-2 min-h-[2rem] text-xs font-medium tracking-wide text-slate-500 uppercase">
+      <div
+        className={cn(
+          "flex flex-1 gap-3",
+          centered ? "w-full flex-col items-center justify-center" : "items-start justify-between",
+        )}
+      >
+        {Icon && centered && (
+          <span
+            className={cn(
+              "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset",
+              TONES[tone],
+            )}
+          >
+            <Icon className="h-5 w-5" aria-hidden />
+          </span>
+        )}
+        <div className={cn("flex min-w-0 flex-1 flex-col", centered && "items-center")}>
+          <p
+            className={cn(
+              "line-clamp-2 min-h-[2rem] text-xs font-medium tracking-wide text-slate-500 uppercase",
+              centered && "min-h-0",
+            )}
+          >
             {label}
           </p>
-          <p className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">{typeof value === "number" ? formatNumber(value) : value}</p>
+          <p className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">
+            {typeof value === "number" ? formatNumber(value) : value}
+          </p>
           <p
             className={cn(
               "mt-auto min-h-[1.25rem] pt-2 text-[11px] leading-snug text-slate-400",
+              centered && "mt-2",
               !meta && "invisible",
             )}
           >
@@ -70,7 +98,7 @@ export function KpiCard({
             {!trend && hint}
           </p>
         </div>
-        {Icon && (
+        {Icon && !centered && (
           <span
             className={cn(
               "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset",

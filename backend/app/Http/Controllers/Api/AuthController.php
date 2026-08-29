@@ -10,6 +10,7 @@ use App\Http\Resources\UserResource;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\AuditLogger;
+use App\Services\BiometricService;
 use App\Services\DuplicateDetector;
 use App\Services\MemberService;
 use Illuminate\Http\JsonResponse;
@@ -26,6 +27,7 @@ class AuthController extends Controller
         private readonly MemberService $members,
         private readonly DuplicateDetector $duplicates,
         private readonly AuditLogger $audit,
+        private readonly BiometricService $biometrics,
     ) {}
 
     /**
@@ -129,6 +131,103 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Connexion réussie.',
+            'token' => $token,
+            'user' => new UserResource($user->load(['role.permissions', 'province', 'city', 'structure', 'member'])),
+        ]);
+    }
+
+    /**
+     * Connexion par empreinte : le client envoie l'échantillon capturé ;
+     * le matching et l'autorisation sont décidés uniquement côté serveur.
+     */
+    public function loginFingerprint(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'login' => ['required', 'string', 'max:160'],
+            'template_hash' => ['nullable', 'string', 'min:8', 'max:255'],
+            'format' => ['nullable', 'string', 'in:hardware,simulation'],
+            'device_name' => ['nullable', 'string', 'max:60'],
+        ]);
+
+        $login = trim($validated['login']);
+        $format = $validated['format'] ?? 'hardware';
+
+        $user = User::with('role.permissions')
+            ->where(function ($query) use ($login) {
+                $query->where('email', mb_strtolower($login))
+                    ->orWhere('phone', preg_replace('/[\s().-]+/', '', $login));
+            })
+            ->first();
+
+        if (! $user) {
+            return response()->json([
+                'valid' => false,
+                'message' => 'Aucun compte ne correspond à cet identifiant.',
+            ], 422);
+        }
+
+        if ($user->isLocked()) {
+            return response()->json([
+                'valid' => false,
+                'message' => 'Compte temporairement verrouillé après plusieurs tentatives.',
+            ], 422);
+        }
+
+        if (! $user->is_active) {
+            return response()->json([
+                'valid' => false,
+                'message' => 'Ce compte est désactivé. Contactez un administrateur.',
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'is_active' => false,
+                    'role' => $user->role?->slug,
+                    'fingerprint_enrolled' => $this->biometrics->userIsEnrolled($user),
+                ],
+            ], 403);
+        }
+
+        if (! $this->biometrics->userIsEnrolled($user)) {
+            return response()->json([
+                'valid' => false,
+                'message' => 'Aucune empreinte enregistrée — demandez à un administrateur de configurer la biométrie.',
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'is_active' => true,
+                    'role' => $user->role?->slug,
+                    'fingerprint_enrolled' => false,
+                ],
+            ], 422);
+        }
+
+        try {
+            $this->biometrics->matchUser($user, $validated['template_hash'] ?? null, $format);
+        } catch (ValidationException $e) {
+            $user->registerFailedLogin(
+                (int) config('jeunesse.security.max_login_attempts'),
+                (int) config('jeunesse.security.lockout_minutes'),
+            );
+
+            return response()->json([
+                'valid' => false,
+                'message' => collect($e->errors())->flatten()->first() ?? 'Empreinte non reconnue.',
+            ], 422);
+        }
+
+        $user->registerSuccessfulLogin($request->ip());
+        $user->tokens()->where('name', $validated['device_name'] ?? 'web')->delete();
+        $token = $user->createToken($validated['device_name'] ?? 'web')->plainTextToken;
+
+        $this->audit->log('auth.login-fingerprint', $user, "Connexion biométrique de {$user->name}");
+
+        return response()->json([
+            'valid' => true,
+            'message' => $user->must_change_password
+                ? 'Connexion biométrique réussie — vous devez changer votre mot de passe.'
+                : 'Connexion biométrique réussie.',
             'token' => $token,
             'user' => new UserResource($user->load(['role.permissions', 'province', 'city', 'structure', 'member'])),
         ]);

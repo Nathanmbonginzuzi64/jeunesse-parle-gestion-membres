@@ -18,6 +18,7 @@ class MemberService
         private readonly CardService $cards,
         private readonly NotificationService $notifications,
         private readonly AuditLogger $audit,
+        private readonly BiometricService $biometrics,
     ) {}
 
     /**
@@ -35,6 +36,9 @@ class MemberService
     public function create(array $data, ?User $author, ?UploadedFile $photo = null): Member
     {
         return DB::transaction(function () use ($data, $author, $photo) {
+            $fingerprints = $data['fingerprints'] ?? null;
+            unset($data['fingerprints'], $data['fingerprint_enrollment']);
+
             $data['member_code'] = $this->identifiers->memberCode();
             $data['status'] = $data['status'] ?? MemberStatus::Pending->value;
             $data['status_changed_at'] = now();
@@ -61,6 +65,10 @@ class MemberService
                 'changed_by' => $author?->id,
             ]);
 
+            if (is_array($fingerprints) && $fingerprints !== []) {
+                $this->biometrics->enrollForMember($member, $fingerprints, $author, (bool) ($data['consent_given'] ?? true));
+            }
+
             $this->audit->log('member.created', $member, "Inscription du membre {$member->member_code}");
 
             if ($member->status === MemberStatus::Active) {
@@ -75,8 +83,8 @@ class MemberService
     {
         return DB::transaction(function () use ($member, $data, $author, $photo) {
             $before = $member->getAttributes();
-
-            unset($data['status'], $data['member_code'], $data['user_id']);
+            $fingerprints = $data['fingerprints'] ?? null;
+            unset($data['fingerprints'], $data['fingerprint_enrollment'], $data['status'], $data['member_code'], $data['user_id']);
             $data = $this->fillTerritoryFromStructure($data, $member);
 
             $member->fill($data);
@@ -86,6 +94,10 @@ class MemberService
             }
 
             $member->save();
+
+            if (is_array($fingerprints) && $fingerprints !== []) {
+                $this->biometrics->enrollForMember($member, $fingerprints, $author, true);
+            }
 
             $this->audit->logChanges('member.updated', $member, $before, "Modification du membre {$member->member_code}");
 

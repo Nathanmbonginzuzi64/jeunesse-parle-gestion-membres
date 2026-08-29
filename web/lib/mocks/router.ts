@@ -199,6 +199,11 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     return loginWithFingerprint(jsonBody(body)) as T;
   }
 
+  // --- Biométrie contextuelle (WebAuthn / mocks) ---
+  if (path.startsWith("/biometrics/")) {
+    return handleBiometricsMock(method, path, body) as T;
+  }
+
   if (method === "POST" && path === "/auth/register") {
     return {
       message: "Votre demande d'adhésion a été enregistrée.",
@@ -1108,6 +1113,140 @@ function loginWithFingerprint(input: Record<string, unknown>) {
     token: `mock.${user.id}`,
     user,
   };
+}
+
+const mockWebAuthnCredentials: Array<{
+  id: number;
+  user_id: number;
+  device_name: string;
+  created_at: string;
+  last_used_at: string | null;
+}> = [];
+
+function handleBiometricsMock(method: string, path: string, body: unknown) {
+  const payload = jsonBody(body);
+  const context = String(payload.context ?? "");
+
+  if (method === "POST" && path === "/biometrics/register/options") {
+    requireUser();
+    return { options: { publicKey: { challenge: "mock" } }, context: "BIOMETRIC_REGISTRATION" };
+  }
+
+  if (method === "POST" && path === "/biometrics/register") {
+    const user = requireUser();
+    const row = {
+      id: mockWebAuthnCredentials.length + 1,
+      user_id: user.id,
+      device_name: String(payload.device_name ?? "Windows Hello (mock)"),
+      created_at: new Date().toISOString(),
+      last_used_at: null as string | null,
+    };
+    mockWebAuthnCredentials.push(row);
+    user.fingerprint_enrolled = true;
+    return { ok: true, message: "Biométrie configurée.", context: "BIOMETRIC_REGISTRATION", credential: row };
+  }
+
+  if (method === "GET" && path === "/biometrics/credentials") {
+    const user = requireUser();
+    return {
+      data: mockWebAuthnCredentials
+        .filter((item) => item.user_id === user.id)
+        .map(({ id, device_name, created_at, last_used_at }) => ({
+          id,
+          device_name,
+          created_at,
+          last_used_at,
+        })),
+    };
+  }
+
+  if (method === "DELETE" && path.startsWith("/biometrics/credentials/")) {
+    const user = requireUser();
+    const id = Number(path.split("/").pop());
+    const index = mockWebAuthnCredentials.findIndex((item) => item.id === id && item.user_id === user.id);
+    if (index >= 0) mockWebAuthnCredentials.splice(index, 1);
+    return { message: "Credential biométrique révoqué." };
+  }
+
+  if (method === "POST" && path === "/biometrics/authenticate/options") {
+    return {
+      options: { publicKey: { challenge: "mock" } },
+      challenge_key: "mock",
+      context,
+    };
+  }
+
+  if (method === "POST" && path === "/biometrics/authenticate") {
+    const member = db.members[0];
+    const user = db.users.find((item) => item.member_id === member?.id) ?? db.users[0];
+
+    if (context === "LOGIN") {
+      if (!user?.is_active) {
+        throw new ApiError(422, "Ce compte est désactivé.", {
+          errors: { credential: ["Ce compte est désactivé."] },
+        });
+      }
+      user.last_login_at = new Date().toISOString();
+      return {
+        ok: true,
+        context: "LOGIN",
+        action: "LOGIN",
+        message: "Connexion réussie.",
+        creates_session: true,
+        token: `mock.${user.id}`,
+        user,
+      };
+    }
+
+    if (context === "ATTENDANCE") {
+      requireUser();
+      return {
+        ok: true,
+        context: "ATTENDANCE",
+        action: "ATTENDANCE",
+        message: "Présence enregistrée.",
+        creates_session: false,
+        attendance: {
+          id: 1,
+          recorded_at: new Date().toISOString(),
+          method: "fingerprint",
+        },
+        member: {
+          id: member.id,
+          member_code: member.member_code,
+          full_name: member.full_name,
+          status: "active",
+          status_label: "Actif",
+        },
+      };
+    }
+
+    // MEMBER_VERIFICATION (défaut)
+    return {
+      ok: true,
+      context: "MEMBER_VERIFICATION",
+      action: "MEMBER_VERIFICATION",
+      message: "Membre identifié.",
+      creates_session: false,
+      member: {
+        id: member.id,
+        member_code: member.member_code,
+        full_name: member.full_name,
+        status: "active",
+        status_label: "Actif",
+        photo_url: member.photo_url,
+        structure: member.structure?.name ?? null,
+        province: member.province?.name ?? null,
+        card: {
+          status: "active",
+          status_label: "Valide",
+          card_number: member.card?.card_number ?? "JP-CARD-000001",
+        },
+      },
+    };
+  }
+
+  throw new ApiError(404, "Route biométrique mock introuvable.");
 }
 
 function parseFingerprintsFromBody(body: unknown): MemberFingerprint[] {

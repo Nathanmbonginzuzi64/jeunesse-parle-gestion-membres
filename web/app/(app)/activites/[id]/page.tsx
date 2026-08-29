@@ -7,6 +7,7 @@ import {
   Building2,
   CalendarDays,
   ClipboardList,
+  Fingerprint,
   Globe,
   MapPin,
   Pencil,
@@ -17,6 +18,7 @@ import {
 import { ActivityDetailHero } from "@/components/activities/activity-detail-hero";
 import { ActivityForm } from "@/components/activities/activity-form";
 import { Can } from "@/components/auth/require-permission";
+import { BiometricModal, type BiometricResult } from "@/components/biometrics/biometric-modal";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
 import { QrScannerPanel } from "@/components/members/qr-scanner-panel";
 import { ActivityStatusBadge, AttendanceStatusBadge } from "@/components/ui/badge";
@@ -43,6 +45,7 @@ export default function ActivityShowPage() {
   const sheet = useApi<AttendanceSheet>(`/activities/${params.id}/attendance/sheet`);
   const [busy, setBusy] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [biometricOpen, setBiometricOpen] = useState(false);
 
   async function record(payload: Record<string, unknown>) {
     setBusy(true);
@@ -65,6 +68,17 @@ export default function ActivityShowPage() {
     } else {
       void record({ qr_token: extractTokenFromQr(trimmed) });
     }
+  }
+
+  function handleBiometricAttendance(result: BiometricResult) {
+    if (!result.ok) return;
+    toast.success(
+      result.member
+        ? `${result.message} — ${result.member.full_name}`
+        : result.message,
+    );
+    sheet.reload();
+    activity.reload();
   }
 
   if (activity.loading) return <PageLoader />;
@@ -166,13 +180,34 @@ export default function ActivityShowPage() {
       <Can permission={PERMISSIONS.attendanceRecord}>
         <DashboardAnimate delay={140}>
           <Card>
-            <CardHeader title="Pointer une présence" description="Scan QR ou identifiant membre." />
-            <CardBody>
+            <CardHeader
+              title="Pointer une présence"
+              description="Scan QR, identifiant membre, ou empreinte digitale."
+            />
+            <CardBody className="space-y-4">
+              <Button
+                type="button"
+                size="lg"
+                className="w-full"
+                onClick={() => setBiometricOpen(true)}
+                disabled={busy}
+              >
+                <Fingerprint className="h-4 w-4" />
+                Identifier un membre
+              </Button>
               <QrScannerPanel onScan={handleScan} loading={busy} />
             </CardBody>
           </Card>
         </DashboardAnimate>
       </Can>
+
+      <BiometricModal
+        open={biometricOpen}
+        onClose={() => setBiometricOpen(false)}
+        context="ATTENDANCE"
+        activityId={Number(params.id)}
+        onSuccess={handleBiometricAttendance}
+      />
 
       <DashboardAnimate delay={180}>
         <Card>

@@ -91,7 +91,11 @@ return [
     | et la collecte préalable d'un consentement explicite.
     */
     'biometrics' => [
-        'enabled' => env('JP_BIOMETRICS_ENABLED', false),
-        'provider' => env('JP_BIOMETRICS_PROVIDER'),
+        'enabled' => env('JP_BIOMETRICS_ENABLED', true),
+        'provider' => env('JP_BIOMETRICS_PROVIDER', 'webauthn'),
+        // Accepte la simulation DigitalPersona héritée (dev).
+        'lab_mode' => env('JP_BIOMETRICS_LAB_MODE', true),
+        // Domaine WebAuthn (Windows Hello). Ex. localhost en local.
+        'rp_id' => env('JP_WEBAUTHN_RP_ID', 'localhost'),
     ],
 ];

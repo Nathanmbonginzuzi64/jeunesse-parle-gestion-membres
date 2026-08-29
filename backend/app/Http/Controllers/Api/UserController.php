@@ -47,7 +47,15 @@ class UserController extends Controller
 
     public function store(StoreUserRequest $request): JsonResponse
     {
-        $user = User::create($request->validated());
+        $data = $request->validated();
+        $fingerprints = $data['fingerprints'] ?? null;
+        unset($data['fingerprints']);
+
+        $user = User::create($data);
+
+        if (is_array($fingerprints) && $fingerprints !== []) {
+            app(\App\Services\BiometricService::class)->enrollForUser($user, $fingerprints, $request->user());
+        }
 
         $this->audit->log('user.created', $user, "Création du compte {$user->email}");
 
@@ -80,7 +88,14 @@ class UserController extends Controller
             'commune_id' => ['nullable', 'integer', 'exists:communes,id'],
             'structure_id' => ['nullable', 'integer', 'exists:structures,id'],
             'is_active' => ['nullable', 'boolean'],
+            'fingerprints' => ['nullable', 'array', 'min:6', 'max:6'],
+            'fingerprints.*.slot' => ['required_with:fingerprints', 'string', 'max:40'],
+            'fingerprints.*.template_hash' => ['required_with:fingerprints', 'string', 'min:8', 'max:255'],
+            'fingerprints.*.captured_at' => ['nullable', 'date'],
         ]);
+
+        $fingerprints = $validated['fingerprints'] ?? null;
+        unset($validated['fingerprints']);
 
         // Une élévation de privilège ne peut pas être obtenue via une simple mise à jour.
         if (isset($validated['role_id'])) {
@@ -96,6 +111,10 @@ class UserController extends Controller
 
         $before = $user->getAttributes();
         $user->update($validated);
+
+        if (is_array($fingerprints) && $fingerprints !== []) {
+            app(\App\Services\BiometricService::class)->enrollForUser($user, $fingerprints, $request->user());
+        }
 
         $this->audit->logChanges('user.updated', $user, $before, "Modification du compte {$user->email}");
 

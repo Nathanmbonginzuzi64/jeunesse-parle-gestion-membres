@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Bell, ChevronDown, CircleHelp, KeyRound, LogOut, Menu, UserRound } from "lucide-react";
+import { Bell, ChevronDown, CircleHelp, Fingerprint, KeyRound, LogOut, Menu, UserRound } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { NotificationsInboxPopover } from "@/components/notifications/notifications-inbox-popover";
 import { api } from "@/lib/api";
@@ -158,6 +158,15 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
             >
               <KeyRound className="h-4 w-4 text-slate-400" />
               Changer mon mot de passe
+            </Link>
+            <Link
+              href="/compte/biometrie"
+              role="menuitem"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-2.5 px-3.5 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            >
+              <Fingerprint className="h-4 w-4 text-slate-400" />
+              Biométrie
             </Link>
             <div className="my-1 border-t border-slate-100" />
             <button

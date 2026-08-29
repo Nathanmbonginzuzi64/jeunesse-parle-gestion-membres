@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Fingerprint, LogIn } from "lucide-react";
-import { FingerprintLoginPanel } from "@/components/auth/fingerprint-login-panel";
+import { BiometricModal, type BiometricResult } from "@/components/biometrics/biometric-modal";
 import { ApiError } from "@/lib/api";
 import { USE_MOCKS } from "@/lib/config";
 import { useAuth } from "@/lib/auth";
@@ -26,6 +26,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [biometricOpen, setBiometricOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -66,13 +67,17 @@ export default function LoginPage() {
     }
   }
 
-  async function handleFingerprintSuccess(authenticated: AuthUser, token: string) {
+  async function handleBiometricSuccess(result: BiometricResult) {
+    if (!result.token || !result.user) {
+      setError(result.message || "Connexion biométrique impossible.");
+      return;
+    }
     try {
-      const user = await loginWithFingerprint(authenticated, token);
-      redirectAfterLogin(user);
+      const authenticated = await loginWithFingerprint(result.user, result.token);
+      setBiometricOpen(false);
+      redirectAfterLogin(authenticated);
     } catch {
       setError("Session biométrique impossible à établir.");
-      setSubmitting(false);
     }
   }
 
@@ -162,13 +167,37 @@ export default function LoginPage() {
             </Button>
           </form>
         ) : (
-          <FingerprintLoginPanel
-            onSuccess={handleFingerprintSuccess}
-            loading={submitting}
-            onLoadingChange={setSubmitting}
-          />
+          <div className="space-y-4">
+            <div className="rounded-xl border border-brand-200 bg-gradient-to-br from-brand-50 to-white p-6 text-center">
+              <Fingerprint className="mx-auto h-12 w-12 text-brand-600" />
+              <p className="mt-3 text-sm font-medium text-slate-800">Se connecter avec mon empreinte</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Windows Hello / biométrie de l&apos;appareil — aucune image d&apos;empreinte n&apos;est envoyée au serveur.
+              </p>
+              <Button
+                type="button"
+                size="lg"
+                className="mt-4 w-full"
+                onClick={() => {
+                  setError(null);
+                  setBiometricOpen(true);
+                }}
+              >
+                <Fingerprint className="h-4 w-4" />
+                Se connecter avec mon empreinte
+              </Button>
+            </div>
+            {error && <Alert tone="error">{error}</Alert>}
+          </div>
         )}
       </div>
+
+      <BiometricModal
+        open={biometricOpen}
+        onClose={() => setBiometricOpen(false)}
+        context="LOGIN"
+        onSuccess={(result) => void handleBiometricSuccess(result)}
+      />
 
       <p className="mt-6 text-center text-sm text-slate-500">
         Pas encore membre ?{" "}

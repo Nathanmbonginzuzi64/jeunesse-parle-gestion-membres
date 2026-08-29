@@ -36,6 +36,7 @@ class UserResource extends JsonResource
             ],
             'member_id' => $this->member_id,
             'member_code' => $this->whenLoaded('member', fn () => $this->member?->member_code),
+            'fingerprint_enrolled' => app(\App\Services\BiometricService::class)->userIsEnrolled($this->resource),
             'permissions' => $this->when(
                 $request->user()?->id === $this->id,
                 fn () => $this->permissionSlugs()->values(),

@@ -14,21 +14,21 @@ import {
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
 import { DashboardSection } from "@/components/dashboard/dashboard-section";
 import { QuickLinkCard } from "@/components/dashboard/quick-link-card";
+import { BiometricModal, type BiometricResult } from "@/components/biometrics/biometric-modal";
 import { QrScannerPanel } from "@/components/members/qr-scanner-panel";
 import { RequirePermission } from "@/components/auth/require-permission";
-import { FingerprintVerifyPanel } from "@/components/verification/fingerprint-verify-panel";
 import {
   VerificationHero,
   VerificationHistory,
   type VerificationHistoryEntry,
 } from "@/components/verification/verification-history";
 import { VerificationResultPanel } from "@/components/verification/verification-result-panel";
+import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { KpiCard, dashboardCardGrid } from "@/components/ui/kpi";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { api, ApiError } from "@/lib/api";
 import { extractTokenFromQr } from "@/lib/form";
-import type { FingerprintVerifyResult } from "@/lib/fingerprints";
 import { useApi } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { StatisticsOverview, VerificationResult } from "@/lib/types";
@@ -48,6 +48,7 @@ function VerificationTool() {
   const stats = useApi<StatisticsOverview>("/statistics");
   const [mode, setMode] = useState<VerifyMode>("qr");
   const [loading, setLoading] = useState(false);
+  const [biometricOpen, setBiometricOpen] = useState(false);
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<VerificationHistoryEntry[]>([]);
@@ -89,33 +90,36 @@ function VerificationTool() {
     ]);
   }
 
-  function handleFingerprintVerified(fpResult: FingerprintVerifyResult) {
-    if (!fpResult.valid) return;
+  function handleBiometricSuccess(fpResult: BiometricResult) {
+    if (!fpResult.ok || !fpResult.member) return;
+
+    const isActive = fpResult.member.status === "active";
     const synthetic: VerificationResult = {
-      result: "valid",
-      valid: true,
-      message: `${fpResult.message} (biométrie)`,
+      result: isActive ? "valid" : "inactive",
+      valid: isActive,
+      message: fpResult.message,
       member: {
-        member_id: fpResult.member_id ?? undefined,
-        member_code: fpResult.member_code ?? "",
-        full_name: fpResult.full_name ?? "",
-        photo_url: null,
+        member_id: fpResult.member.id,
+        member_code: fpResult.member.member_code,
+        full_name: fpResult.member.full_name,
+        photo_url: fpResult.member.photo_url ?? null,
         gender: null,
-        province: null,
-        structure: null,
+        province: fpResult.member.province ?? null,
+        structure: fpResult.member.structure ?? null,
         position: null,
-        status: "Actif",
-        card_number: "",
-        card_status: "",
+        status: fpResult.member.status_label,
+        card_number: fpResult.member.card?.card_number ?? "",
+        card_status: fpResult.member.card?.status_label ?? "",
         issued_at: null,
         expires_at: null,
         fingerprint_enrolled: true,
-        fingerprints_count: fpResult.fingerprints_enrolled,
+        fingerprints_count: 1,
       },
     };
     setResult(synthetic);
     setError(null);
     pushHistory(synthetic);
+    setBiometricOpen(false);
   }
 
   function clearResult() {
@@ -216,11 +220,28 @@ function VerificationTool() {
               </CardBody>
             </Card>
           ) : (
-            <FingerprintVerifyPanel
-              loading={loading}
-              onLoadingChange={setLoading}
-              onVerified={handleFingerprintVerified}
-            />
+            <Card className="overflow-hidden">
+              <CardHeader
+                title="Identifier avec mon empreinte"
+                description="Windows Hello — identification uniquement, sans connexion automatique."
+              />
+              <CardBody className="space-y-4 text-center">
+                <Fingerprint className="mx-auto h-14 w-14 text-brand-600" />
+                <p className="text-sm text-slate-600">
+                  Le membre pose son doigt sur le lecteur. Aucune session n&apos;est créée.
+                </p>
+                <Button
+                  type="button"
+                  size="lg"
+                  className="w-full"
+                  onClick={() => setBiometricOpen(true)}
+                  disabled={loading}
+                >
+                  <Fingerprint className="h-4 w-4" />
+                  Identifier avec mon empreinte
+                </Button>
+              </CardBody>
+            </Card>
           )}
 
           <VerificationResultPanel
@@ -231,6 +252,13 @@ function VerificationTool() {
           />
         </div>
       </DashboardAnimate>
+
+      <BiometricModal
+        open={biometricOpen}
+        onClose={() => setBiometricOpen(false)}
+        context="MEMBER_VERIFICATION"
+        onSuccess={handleBiometricSuccess}
+      />
 
       {history.length > 0 && (
         <DashboardAnimate delay={140}>

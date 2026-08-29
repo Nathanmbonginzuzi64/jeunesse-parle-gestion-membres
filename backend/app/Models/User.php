@@ -128,6 +128,11 @@ class User extends Authenticatable
         return $this->role?->scope_level ?? 4;
     }
 
+    public function biometricTemplates(): HasMany
+    {
+        return $this->hasMany(BiometricTemplate::class);
+    }
+
     public function isNationalScope(): bool
     {
         return $this->scopeLevel() === 0;

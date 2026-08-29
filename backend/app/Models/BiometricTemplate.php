@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class BiometricTemplate extends Model
 {
     protected $fillable = [
-        'member_id', 'modality', 'position', 'provider', 'algorithm',
+        'member_id', 'user_id', 'modality', 'position', 'provider', 'algorithm',
         'template_reference', 'quality_score', 'status',
         'captured_at', 'consent_given_at', 'consent_reference', 'enrolled_by',
     ];
@@ -31,5 +31,10 @@ class BiometricTemplate extends Model
     public function member(): BelongsTo
     {
         return $this->belongsTo(Member::class);
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 }

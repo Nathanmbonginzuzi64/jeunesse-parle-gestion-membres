@@ -263,6 +263,7 @@ export default function DashboardPage() {
             tone="info"
             href="/membres"
             hint="tous statuts"
+            align="center"
           />
           <KpiCard
             label="Membres actifs"
@@ -270,6 +271,7 @@ export default function DashboardPage() {
             icon={UserCheck}
             tone="success"
             href="/membres?status=active"
+            align="center"
           />
           <KpiCard
             label="En attente"
@@ -277,12 +279,14 @@ export default function DashboardPage() {
             icon={UserPlus}
             tone="warning"
             href="/membres?status=pending"
+            align="center"
           />
           <KpiCard
             label="Inactifs"
             value={kpis?.members.inactive ?? 0}
             icon={UserMinus}
             href="/membres?status=inactive"
+            align="center"
           />
           <KpiCard
             label="Suspendus"
@@ -290,6 +294,7 @@ export default function DashboardPage() {
             icon={ShieldAlert}
             tone="danger"
             href="/membres?status=suspended"
+            align="center"
           />
           <KpiCard
             label="Nouveaux membres"
@@ -297,6 +302,7 @@ export default function DashboardPage() {
             icon={UserPlus}
             tone="info"
             trend={`+${formatNumber(kpis?.members.new_last_30_days ?? 0)} / 30 j`}
+            align="center"
           />
         </div>
       </DashboardSection>
@@ -449,17 +455,19 @@ export default function DashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader title="Membres par statut" />
-          <CardBody className="h-80">
+          <CardHeader title="Membres par statut" className="justify-center text-center [&_div]:w-full [&_div]:text-center" />
+          <CardBody className="flex h-80 flex-col items-center justify-center">
             {charts.loading ? (
-              <Skeleton className="h-full" />
+              <Skeleton className="h-full w-full" />
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="70%">
                 <PieChart>
                   <Pie
                     data={charts.data?.by_status ?? []}
                     dataKey="total"
                     nameKey="label"
+                    cx="50%"
+                    cy="50%"
                     innerRadius={58}
                     outerRadius={86}
                     paddingAngle={2}
@@ -477,12 +485,12 @@ export default function DashboardPage() {
                 </PieChart>
               </ResponsiveContainer>
             )}
-            <ul className="-mt-4 grid grid-cols-2 gap-x-3 gap-y-1.5 px-1 text-[11px]">
+            <ul className="mt-1 grid w-full max-w-sm grid-cols-2 justify-items-center gap-x-3 gap-y-1.5 px-1 text-center text-[11px]">
               {(charts.data?.by_status ?? []).map((entry) => (
-                <li key={entry.key} className="flex items-center justify-between gap-2">
+                <li key={entry.key} className="flex w-full items-center justify-center gap-2">
                   <span className="flex items-center gap-1.5 text-slate-600">
                     <span
-                      className="h-2 w-2 rounded-full"
+                      className="h-2 w-2 shrink-0 rounded-full"
                       style={{ background: STATUS_COLORS[entry.key] ?? "#0087d1" }}
                     />
                     {entry.label}

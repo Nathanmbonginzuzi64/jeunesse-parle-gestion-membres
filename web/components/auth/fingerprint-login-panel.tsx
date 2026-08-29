@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { CheckCircle2, Fingerprint, Loader2, XCircle } from "lucide-react";
+import { FingerprintScannerPad } from "@/components/members/fingerprint-scanner-pad";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { Alert } from "@/components/ui/feedback";
 import { api, ApiError } from "@/lib/api";
+import { generateFingerprintTemplate } from "@/lib/fingerprints";
 import type { AuthUser } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -27,10 +29,12 @@ export function FingerprintLoginPanel({
 }) {
   const [login, setLogin] = useState("");
   const [scanning, setScanning] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<FingerprintLoginResponse | null>(null);
+  const [hardwareHash, setHardwareHash] = useState<string | null>(null);
 
-  async function handleLogin() {
+  async function submitSample(templateHash: string, format: "hardware" | "simulation") {
     const identifier = login.trim();
     if (!identifier) {
       setError("Saisissez votre e-mail ou numéro de téléphone.");
@@ -42,11 +46,11 @@ export function FingerprintLoginPanel({
     setResult(null);
     onLoadingChange?.(true);
 
-    await new Promise((resolve) => setTimeout(resolve, 1800));
-
     try {
       const response = await api.public.post<FingerprintLoginResponse>("/auth/login-fingerprint", {
         login: identifier,
+        template_hash: templateHash,
+        format,
       });
       setResult(response);
       if (response.valid && response.token && response.user) {
@@ -63,10 +67,29 @@ export function FingerprintLoginPanel({
     } finally {
       setScanning(false);
       onLoadingChange?.(false);
+      setProgress(0);
+      setHardwareHash(null);
     }
   }
 
+  async function handleScanComplete() {
+    const identifier = login.trim();
+    if (!identifier) {
+      setError("Saisissez votre e-mail ou numéro de téléphone.");
+      return;
+    }
+
+    if (hardwareHash) {
+      await submitSample(hardwareHash, "hardware");
+      return;
+    }
+
+    const simulated = generateFingerprintTemplate(`login-${identifier.toLowerCase()}`, "left_index");
+    await submitSample(simulated, "simulation");
+  }
+
   const busy = scanning || loading;
+  const canScan = Boolean(login.trim()) && !busy;
 
   return (
     <div className="space-y-4">
@@ -77,28 +100,33 @@ export function FingerprintLoginPanel({
         value={login}
         onChange={(e) => setLogin(e.target.value)}
         placeholder="nom@exemple.cd ou +243 …"
-        hint="Identifiez votre compte avant de scanner l'empreinte."
+        hint="Identifiez votre compte, puis scannez une empreinte enregistrée."
         required
       />
 
-      <div className="rounded-xl border border-brand-200/60 bg-gradient-to-br from-brand-50 to-white p-5 text-center">
-        <div
-          className={cn(
-            "mx-auto flex h-20 w-20 items-center justify-center rounded-full transition",
-            scanning ? "bg-brand-100 animate-pulse" : "bg-brand-50",
-          )}
-        >
-          {scanning ? (
-            <Loader2 className="h-9 w-9 animate-spin text-brand-600" />
-          ) : (
-            <Fingerprint className="h-9 w-9 text-brand-600" />
-          )}
-        </div>
-        <p className="mt-3 text-sm font-medium text-slate-800">
-          {scanning ? "Lecture de l'empreinte…" : "Placez votre doigt sur le lecteur"}
-        </p>
-        <p className="mt-1 text-xs text-slate-500">
-          Connexion autorisée uniquement si le compte est actif et les empreintes enregistrées.
+      <div className="rounded-xl border border-brand-200/60 bg-gradient-to-br from-brand-50 to-white p-4">
+        {canScan ? (
+          <FingerprintScannerPad
+            phase="enroll"
+            fingerLabel="Doigt enregistré"
+            progress={progress}
+            onProgressChange={setProgress}
+            onComplete={() => void handleScanComplete()}
+            onHardwareSample={(payload) => setHardwareHash(payload.templateHash)}
+            active={!busy}
+          />
+        ) : (
+          <div className="py-6 text-center">
+            <div className={cn("mx-auto flex h-20 w-20 items-center justify-center rounded-full", scanning ? "bg-brand-100 animate-pulse" : "bg-brand-50")}>
+              {scanning ? <Loader2 className="h-9 w-9 animate-spin text-brand-600" /> : <Fingerprint className="h-9 w-9 text-brand-600" />}
+            </div>
+            <p className="mt-3 text-sm font-medium text-slate-800">
+              {scanning ? "Vérification serveur…" : "Saisissez d'abord votre identifiant"}
+            </p>
+          </div>
+        )}
+        <p className="mt-2 text-center text-xs text-slate-500">
+          Le serveur valide l&apos;empreinte — le navigateur ne fait que la capture.
         </p>
       </div>
 
@@ -118,7 +146,14 @@ export function FingerprintLoginPanel({
         </div>
       )}
 
-      <Button type="button" size="lg" className="w-full" loading={busy} onClick={() => void handleLogin()}>
+      <Button
+        type="button"
+        size="lg"
+        className="w-full"
+        loading={busy}
+        disabled={!login.trim()}
+        onClick={() => void handleScanComplete()}
+      >
         <Fingerprint className="h-4 w-4" />
         Se connecter par empreinte
       </Button>
