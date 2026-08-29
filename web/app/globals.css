@@ -314,16 +314,22 @@ body {
 }
 
 @media print {
+  /* Conserver couleurs, dégradés et bandeau tricolore à l'identique */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
   body {
     background: #ffffff !important;
-    color: #000;
   }
 
   .no-print {
     display: none !important;
   }
 
-  /* Impression carte membre : uniquement recto + verso */
+  /* N'imprimer que le bloc carte — sans changer son design */
   body:has(#member-card-print) * {
     visibility: hidden;
   }
@@ -335,47 +341,46 @@ body {
 
   body:has(#member-card-print) #member-card-print {
     position: absolute;
-    inset: 0;
+    left: 0;
+    top: 0;
     width: 100%;
     max-width: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-    border-radius: 0 !important;
-    background: #ffffff !important;
+    /* Même cadre visuel qu'à l'écran */
+    margin: 0 auto !important;
+    padding: 1.5rem !important;
+    border: 1px solid rgb(226 232 240 / 0.8) !important;
+    border-radius: 1rem !important;
+    background: linear-gradient(to bottom, #f1f5f9, #f8fafc, #ffffff) !important;
     box-shadow: none !important;
   }
 
+  /* Même disposition recto | verso (grille 2 colonnes) */
   body:has(#member-card-print) #member-card-print .member-card-print-faces {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center;
-    gap: 10mm;
-    width: 100%;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 2rem !important;
+    width: 100% !important;
+    align-items: start;
   }
 
   body:has(#member-card-print) #member-card-print .member-card-print-face {
-    width: 100%;
-    max-width: 100mm;
-    margin: 0 auto;
-  }
-
-  body:has(#member-card-print) #member-card-print .member-card-print-face:first-child {
-    break-after: page;
-    page-break-after: always;
-  }
-
-  .print-area {
-    margin: 0 !important;
-    max-width: 100% !important;
     width: 100% !important;
-    box-shadow: none !important;
+    max-width: 34rem !important;
+    margin: 0 auto !important;
+  }
+
+  /* Cartes : mêmes dimensions / ratio / styles qu'à l'écran */
+  body:has(#member-card-print) #member-card-print .print-area {
+    width: 100% !important;
+    max-width: 34rem !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
     break-inside: avoid;
     page-break-inside: avoid;
   }
 
   @page {
-    size: A4 portrait;
-    margin: 12mm;
+    size: A4 landscape;
+    margin: 8mm;
   }
 }
