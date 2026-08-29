@@ -34,6 +34,22 @@ class BiometricController extends Controller
         return $tokenable instanceof User ? $tokenable : null;
     }
 
+    /** Options WebAuthn pour enregistrer la biométrie d'un futur membre (formulaire). */
+    public function memberEnrollmentOptions(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'enrollment_key' => ['required', 'string', 'max:80'],
+            'user_name' => ['required', 'string', 'max:160'],
+            'display_name' => ['required', 'string', 'max:120'],
+        ]);
+
+        return response()->json($this->biometrics->memberEnrollmentOptions(
+            $validated['enrollment_key'],
+            $validated['user_name'],
+            $validated['display_name'],
+        ));
+    }
+
     /** Options WebAuthn pour enregistrer Windows Hello / passkey. */
     public function registrationOptions(Request $request): JsonResponse
     {

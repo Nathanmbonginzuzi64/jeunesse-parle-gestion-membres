@@ -5,6 +5,7 @@ export type BiometricContext =
   | "MEMBER_VERIFICATION"
   | "ATTENDANCE"
   | "BIOMETRIC_REGISTRATION"
+  | "MEMBER_ENROLLMENT"
   | "SECURITY_CONFIRMATION";
 
 export const BIOMETRIC_CONTEXT_COPY: Record<
@@ -34,6 +35,12 @@ export const BIOMETRIC_CONTEXT_COPY: Record<
     description: "Utilisez Windows Hello pour sécuriser votre compte.",
     waiting: "Suivez les instructions de Windows Hello…",
     successDefault: "Biométrie configurée.",
+  },
+  MEMBER_ENROLLMENT: {
+    title: "Enregistrer la biométrie du membre",
+    description: "Utilisez Windows Hello pour enregistrer l'empreinte du nouveau membre.",
+    waiting: "En attente de l'empreinte du membre…",
+    successDefault: "Biométrie enregistrée.",
   },
   SECURITY_CONFIRMATION: {
     title: "Confirmation de sécurité",

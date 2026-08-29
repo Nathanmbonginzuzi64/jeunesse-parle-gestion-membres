@@ -8,6 +8,14 @@ export function fieldErrors(error: unknown): Record<string, string> {
   );
 }
 
+/** Liste lisible des erreurs de validation API. */
+export function validationErrorMessages(error: unknown): string[] {
+  if (!(error instanceof ApiError)) return [];
+  return Object.values(error.errors)
+    .flat()
+    .filter(Boolean);
+}
+
 export function toFormData(payload: Record<string, unknown>): FormData {
   const form = new FormData();
 
@@ -33,6 +41,11 @@ export function toFormData(payload: Record<string, unknown>): FormData {
 
     if (typeof value === "boolean") {
       form.append(key, value ? "1" : "0");
+      continue;
+    }
+
+    if (typeof value === "object" && value !== null && !(value instanceof File)) {
+      form.append(key, JSON.stringify(value));
       continue;
     }
 

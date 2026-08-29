@@ -8,6 +8,8 @@ enum BiometricContext: string
     case MemberVerification = 'MEMBER_VERIFICATION';
     case Attendance = 'ATTENDANCE';
     case BiometricRegistration = 'BIOMETRIC_REGISTRATION';
+    case MemberEnrollment = 'MEMBER_ENROLLMENT';
+    case UserEnrollment = 'USER_ENROLLMENT';
     case SecurityConfirmation = 'SECURITY_CONFIRMATION';
 
     public function label(): string
@@ -17,6 +19,8 @@ enum BiometricContext: string
             self::MemberVerification => 'Vérification membre',
             self::Attendance => 'Présence',
             self::BiometricRegistration => 'Configuration biométrie',
+            self::MemberEnrollment => 'Enregistrement membre',
+            self::UserEnrollment => 'Enregistrement utilisateur',
             self::SecurityConfirmation => 'Confirmation sécurité',
         };
     }
@@ -28,6 +32,8 @@ enum BiometricContext: string
             self::MemberVerification => 'BIOMETRIC_MEMBER_VERIFICATION',
             self::Attendance => 'BIOMETRIC_ATTENDANCE',
             self::BiometricRegistration => 'BIOMETRIC_REGISTRATION',
+            self::MemberEnrollment => 'BIOMETRIC_MEMBER_ENROLLMENT',
+            self::UserEnrollment => 'BIOMETRIC_USER_ENROLLMENT',
             self::SecurityConfirmation => 'BIOMETRIC_SECURITY_CONFIRMATION',
         };
     }

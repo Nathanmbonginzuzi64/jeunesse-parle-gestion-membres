@@ -42,14 +42,17 @@ class MemberResource extends JsonResource
             'profession' => $this->profession,
             'joined_at' => $this->joined_at?->toDateString(),
             'created_at' => $this->created_at?->toIso8601String(),
-            'fingerprint_enrolled' => $this->biometricTemplates()
-                ->where('modality', 'fingerprint')
-                ->where('status', 'enrolled')
-                ->exists(),
-            'fingerprints_count' => $this->biometricTemplates()
-                ->where('modality', 'fingerprint')
-                ->where('status', 'enrolled')
-                ->count(),
+            'fingerprint_enrolled' => $this->webAuthnCredentials()->exists()
+                || $this->biometricTemplates()
+                    ->where('modality', 'fingerprint')
+                    ->where('status', 'enrolled')
+                    ->exists(),
+            'fingerprints_count' => $this->webAuthnCredentials()->exists()
+                ? 1
+                : $this->biometricTemplates()
+                    ->where('modality', 'fingerprint')
+                    ->where('status', 'enrolled')
+                    ->count(),
 
             // Les coordonnées ne quittent l'API que pour un porteur de permission
             // ou pour le membre lui-même.

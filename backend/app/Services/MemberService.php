@@ -19,6 +19,7 @@ class MemberService
         private readonly NotificationService $notifications,
         private readonly AuditLogger $audit,
         private readonly BiometricService $biometrics,
+        private readonly ContextualBiometricService $contextualBiometrics,
     ) {}
 
     /**
@@ -37,7 +38,8 @@ class MemberService
     {
         return DB::transaction(function () use ($data, $author, $photo) {
             $fingerprints = $data['fingerprints'] ?? null;
-            unset($data['fingerprints'], $data['fingerprint_enrollment']);
+            $webauthnEnrollment = $data['webauthn_enrollment'] ?? null;
+            unset($data['fingerprints'], $data['fingerprint_enrollment'], $data['webauthn_enrollment']);
 
             $data['member_code'] = $this->identifiers->memberCode();
             $data['status'] = $data['status'] ?? MemberStatus::Pending->value;
@@ -69,6 +71,16 @@ class MemberService
                 $this->biometrics->enrollForMember($member, $fingerprints, $author, (bool) ($data['consent_given'] ?? true));
             }
 
+            if (is_array($webauthnEnrollment) && $webauthnEnrollment !== []) {
+                $linkedUser = $member->user_id ? User::find($member->user_id) : null;
+                $this->contextualBiometrics->completeMemberEnrollment(
+                    $linkedUser,
+                    $member,
+                    (object) $webauthnEnrollment,
+                    request(),
+                );
+            }
+
             $this->audit->log('member.created', $member, "Inscription du membre {$member->member_code}");
 
             if ($member->status === MemberStatus::Active) {
@@ -84,7 +96,8 @@ class MemberService
         return DB::transaction(function () use ($member, $data, $author, $photo) {
             $before = $member->getAttributes();
             $fingerprints = $data['fingerprints'] ?? null;
-            unset($data['fingerprints'], $data['fingerprint_enrollment'], $data['status'], $data['member_code'], $data['user_id']);
+            $webauthnEnrollment = $data['webauthn_enrollment'] ?? null;
+            unset($data['fingerprints'], $data['fingerprint_enrollment'], $data['webauthn_enrollment'], $data['status'], $data['member_code'], $data['user_id']);
             $data = $this->fillTerritoryFromStructure($data, $member);
 
             $member->fill($data);
@@ -97,6 +110,16 @@ class MemberService
 
             if (is_array($fingerprints) && $fingerprints !== []) {
                 $this->biometrics->enrollForMember($member, $fingerprints, $author, true);
+            }
+
+            if (is_array($webauthnEnrollment) && $webauthnEnrollment !== []) {
+                $linkedUser = $member->user_id ? User::find($member->user_id) : null;
+                $this->contextualBiometrics->completeMemberEnrollment(
+                    $linkedUser,
+                    $member,
+                    (object) $webauthnEnrollment,
+                    request(),
+                );
             }
 
             $this->audit->logChanges('member.updated', $member, $before, "Modification du membre {$member->member_code}");

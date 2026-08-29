@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { FingerprintCaptureField } from "@/components/members/fingerprint-capture-field";
+import { BiometricEnrollmentField } from "@/components/members/biometric-enrollment-field";
 import { PhotoField } from "@/components/members/photo-field";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -10,15 +10,8 @@ import { Alert } from "@/components/ui/feedback";
 import { PasswordStrength } from "@/components/ui/password-strength";
 import { TerritorySelect } from "@/components/forms/territory-select";
 import { api, ApiError } from "@/lib/api";
-import { fieldErrors, toFormData } from "@/lib/form";
-import {
-  allFingerprintsCaptured,
-  capturedFingerprintCount,
-  emptyFingerprintMap,
-  fingerprintListFromMap,
-  fingerprintMapFromList,
-  type FingerprintCaptureMap,
-} from "@/lib/fingerprints";
+import { hasWebAuthnEnrollment, type WebAuthnEnrollmentPayload } from "@/lib/biometrics/types";
+import { fieldErrors, toFormData, validationErrorMessages } from "@/lib/form";
 import { useApi, usePublicStructures } from "@/lib/hooks";
 import { ROLE_SLUGS } from "@/lib/permissions";
 import type { AuthUser, RoleDetail } from "@/lib/types";
@@ -53,7 +46,8 @@ export function UserFormDialog({
   const [photo, setPhoto] = useState<File | null>(null);
   const [roleId, setRoleId] = useState("");
   const [enableBiometry, setEnableBiometry] = useState(false);
-  const [fingerprints, setFingerprints] = useState<FingerprintCaptureMap>(emptyFingerprintMap());
+  const [webauthnEnrollment, setWebauthnEnrollment] = useState<WebAuthnEnrollmentPayload | null>(null);
+  const [existingBiometricEnrolled, setExistingBiometricEnrolled] = useState(false);
   const [biometryError, setBiometryError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -72,7 +66,8 @@ export function UserFormDialog({
   );
   const level = territoryLevel(selectedRole?.slug);
   const structures = usePublicStructures(territory.province_id, territory.city_id);
-  const fingerprintSeed = [email, name, phone].filter(Boolean).join("-") || "utilisateur";
+  const biometricDisplayName = name.trim() || "Utilisateur";
+  const biometricUserName = email.trim() || phone.trim() || "utilisateur";
 
   useEffect(() => {
     if (!open) return;
@@ -85,7 +80,8 @@ export function UserFormDialog({
       setPhoto(null);
       setRoleId(String(roles.data?.data.find((r) => r.slug === user.role?.slug)?.id ?? ""));
       setEnableBiometry(Boolean(user.fingerprint_enrolled));
-      setFingerprints(fingerprintMapFromList(user.fingerprints));
+      setExistingBiometricEnrolled(Boolean(user.fingerprint_enrolled));
+      setWebauthnEnrollment(null);
       setTerritory({
         province_id: user.scope.province_id,
         city_id: user.scope.city_id,
@@ -102,13 +98,49 @@ export function UserFormDialog({
       setPhoto(null);
       setRoleId("");
       setEnableBiometry(false);
-      setFingerprints(emptyFingerprintMap());
+      setExistingBiometricEnrolled(false);
+      setWebauthnEnrollment(null);
       setTerritory({ province_id: null, city_id: null, district_id: null, commune_id: null, zone_id: null });
       setStructureId(null);
     }
     setBiometryError(null);
     setErrors({});
   }, [open, user, roles.data?.data]);
+
+  const accountFieldKeys = [
+    "name",
+    "email",
+    "phone",
+    "password",
+    "password_confirmation",
+    "role_id",
+    "province_id",
+    "city_id",
+    "commune_id",
+    "structure_id",
+  ];
+
+  function handleApiError(caught: unknown) {
+    if (!(caught instanceof ApiError)) return;
+
+    const nextErrors = fieldErrors(caught);
+    setErrors(nextErrors);
+
+    const details = validationErrorMessages(caught);
+    const biometryMessage =
+      nextErrors.webauthn_enrollment ??
+      nextErrors.credential ??
+      (details.length > 0 ? details.join(" ") : caught.message);
+
+    if (step === "biometry") {
+      setBiometryError(biometryMessage);
+      if (accountFieldKeys.some((field) => nextErrors[field])) {
+        setStep("account");
+      }
+    } else if (details.length > 0) {
+      setBiometryError(details.join(" "));
+    }
+  }
 
   function handleClose() {
     onClose();
@@ -135,8 +167,11 @@ export function UserFormDialog({
     setErrors({});
     setBiometryError(null);
 
-    if (enableBiometry && !allFingerprintsCaptured(fingerprints)) {
-      setBiometryError("Enregistrez les 6 empreintes pour activer la connexion biométrique.");
+    const biometryReady =
+      hasWebAuthnEnrollment(webauthnEnrollment) || (editing && existingBiometricEnrolled);
+
+    if (enableBiometry && !biometryReady) {
+      setBiometryError("Configurez Windows Hello pour activer la connexion biométrique.");
       setSubmitting(false);
       return;
     }
@@ -158,8 +193,8 @@ export function UserFormDialog({
     if (photo) {
       payload.photo = photo;
     }
-    if (enableBiometry && allFingerprintsCaptured(fingerprints)) {
-      payload.fingerprints = fingerprintListFromMap(fingerprints);
+    if (enableBiometry && hasWebAuthnEnrollment(webauthnEnrollment)) {
+      payload.webauthn_enrollment = webauthnEnrollment;
     } else if (!enableBiometry) {
       payload.fingerprint_enrollment = "0";
     }
@@ -172,7 +207,7 @@ export function UserFormDialog({
       onSaved(response.message);
       handleClose();
     } catch (caught) {
-      if (caught instanceof ApiError) setErrors(fieldErrors(caught));
+      handleApiError(caught);
     } finally {
       setSubmitting(false);
     }
@@ -185,7 +220,7 @@ export function UserFormDialog({
       title={editing ? "Modifier le compte" : "Nouveau compte"}
       description={
         step === "biometry"
-          ? "Enregistrement biométrique — connexion par empreinte"
+          ? "Enregistrement biométrique — connexion par Windows Hello"
           : editing
             ? user?.email ?? undefined
             : "Administrateur, responsable territorial ou agent."
@@ -257,15 +292,18 @@ export function UserFormDialog({
               checked={enableBiometry}
               onChange={(e) => {
                 setEnableBiometry(e.target.checked);
-                if (!e.target.checked) setFingerprints(emptyFingerprintMap());
+                if (!e.target.checked) {
+                  setWebauthnEnrollment(null);
+                  setExistingBiometricEnrolled(false);
+                }
               }}
-              label="Activer la connexion par empreinte digitale"
+              label="Activer la connexion biométrique (Windows Hello)"
             />
             <p className="mt-2 text-xs text-slate-600">
-              Si activé, l&apos;utilisateur pourra se connecter via son empreinte (compte actif uniquement).
-              {user?.fingerprint_enrolled && (
+              Si activé, l&apos;utilisateur pourra se connecter via Windows Hello (compte actif uniquement).
+              {user?.fingerprint_enrolled && enableBiometry && (
                 <span className="block mt-1 text-brand-700">
-                  Biométrie actuelle : {capturedFingerprintCount(fingerprints)}/6 doigts.
+                  Biométrie déjà configurée — reconfigurez pour la remplacer.
                 </span>
               )}
             </p>
@@ -282,15 +320,27 @@ export function UserFormDialog({
         </form>
       ) : (
         <div className="space-y-4">
+          {(biometryError || Object.keys(errors).length > 0) && (
+            <Alert tone="error">
+              {biometryError || Object.values(errors).join(" ")}
+            </Alert>
+          )}
           <Alert tone="info">
-            Enregistrez les 6 empreintes (auriculaire, index, majeur — mains G/D). Elles permettront la connexion
-            si le compte reste <strong>actif</strong>.
+            Configurez <strong>Windows Hello</strong> sur cet appareil. Aucune image d&apos;empreinte n&apos;est
+            stockée — uniquement un credential WebAuthn sécurisé pour la connexion si le compte reste{" "}
+            <strong>actif</strong>.
           </Alert>
-          <FingerprintCaptureField
-            value={fingerprints}
-            onChange={setFingerprints}
-            memberSeed={fingerprintSeed}
-            error={biometryError ?? errors.fingerprints}
+          <BiometricEnrollmentField
+            subject="user"
+            value={webauthnEnrollment}
+            onChange={(payload) => {
+              setWebauthnEnrollment(payload);
+              setBiometryError(null);
+            }}
+            displayName={biometricDisplayName}
+            userName={biometricUserName}
+            alreadyEnrolled={editing && existingBiometricEnrolled}
+            error={biometryError ?? errors.webauthn_enrollment}
           />
           <div className="flex justify-between gap-2">
             <Button type="button" variant="outline" onClick={() => setStep("account")}>

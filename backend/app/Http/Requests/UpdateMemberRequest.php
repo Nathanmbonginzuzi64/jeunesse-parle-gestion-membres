@@ -24,6 +24,13 @@ class UpdateMemberRequest extends FormRequest
             'phone_alt' => $this->has('phone_alt') ? preg_replace('/[\s().-]+/', '', (string) $this->input('phone_alt')) : null,
             'email' => $this->input('email') ? mb_strtolower(trim($this->input('email'))) : null,
         ], fn ($v) => $v !== null && $v !== ''));
+
+        if (is_string($this->input('webauthn_enrollment'))) {
+            $decoded = json_decode($this->input('webauthn_enrollment'), true);
+            if (is_array($decoded)) {
+                $this->merge(['webauthn_enrollment' => $decoded]);
+            }
+        }
     }
 
     public function rules(): array
@@ -73,6 +80,13 @@ class UpdateMemberRequest extends FormRequest
                 'mimes:'.implode(',', config('jeunesse.photo.mimes')),
                 'max:'.config('jeunesse.photo.max_kilobytes'),
             ],
+
+            'webauthn_enrollment' => ['nullable', 'array'],
+            'webauthn_enrollment.enrollment_key' => ['required_with:webauthn_enrollment', 'string', 'max:80'],
+            'webauthn_enrollment.clientDataJSON' => ['required_with:webauthn_enrollment', 'string'],
+            'webauthn_enrollment.attestationObject' => ['required_with:webauthn_enrollment', 'string'],
+            'webauthn_enrollment.transports' => ['nullable', 'array'],
+            'webauthn_enrollment.device_name' => ['nullable', 'string', 'max:120'],
         ];
     }
 

@@ -4,18 +4,26 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreUserRequest;
+use App\Http\Requests\UpdateUserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\AuditLogger;
+use App\Services\BiometricService;
+use App\Services\ContextualBiometricService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 
 class UserController extends Controller
 {
-    public function __construct(private readonly AuditLogger $audit) {}
+    public function __construct(
+        private readonly AuditLogger $audit,
+        private readonly BiometricService $biometrics,
+        private readonly ContextualBiometricService $contextualBiometrics,
+    ) {}
 
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -49,13 +57,22 @@ class UserController extends Controller
     {
         $data = $request->validated();
         $fingerprints = $data['fingerprints'] ?? null;
-        unset($data['fingerprints']);
+        $webauthnEnrollment = $data['webauthn_enrollment'] ?? null;
+        unset($data['fingerprints'], $data['webauthn_enrollment'], $data['fingerprint_enrollment']);
 
-        $user = User::create($data);
+        $user = DB::transaction(function () use ($data, $fingerprints, $webauthnEnrollment, $request) {
+            $user = User::create($data);
 
-        if (is_array($fingerprints) && $fingerprints !== []) {
-            app(\App\Services\BiometricService::class)->enrollForUser($user, $fingerprints, $request->user());
-        }
+            if (is_array($fingerprints) && $fingerprints !== []) {
+                $this->biometrics->enrollForUser($user, $fingerprints, $request->user());
+            }
+
+            if (is_array($webauthnEnrollment) && $webauthnEnrollment !== []) {
+                $this->contextualBiometrics->completeUserEnrollment($user, (object) $webauthnEnrollment, $request);
+            }
+
+            return $user;
+        });
 
         $this->audit->log('user.created', $user, "Création du compte {$user->email}");
 
@@ -74,47 +91,30 @@ class UserController extends Controller
         ]);
     }
 
-    public function update(Request $request, User $user): JsonResponse
+    public function update(UpdateUserRequest $request, User $user): JsonResponse
     {
-        $this->authorize('update', $user);
-
-        $validated = $request->validate([
-            'name' => ['sometimes', 'string', 'max:120'],
-            'email' => ['sometimes', 'email:rfc', 'max:160', 'unique:users,email,'.$user->id],
-            'phone' => ['nullable', 'string', 'max:30', 'unique:users,phone,'.$user->id],
-            'role_id' => ['sometimes', 'integer', 'exists:roles,id'],
-            'province_id' => ['nullable', 'integer', 'exists:provinces,id'],
-            'city_id' => ['nullable', 'integer', 'exists:cities,id'],
-            'commune_id' => ['nullable', 'integer', 'exists:communes,id'],
-            'structure_id' => ['nullable', 'integer', 'exists:structures,id'],
-            'is_active' => ['nullable', 'boolean'],
-            'fingerprints' => ['nullable', 'array', 'min:6', 'max:6'],
-            'fingerprints.*.slot' => ['required_with:fingerprints', 'string', 'max:40'],
-            'fingerprints.*.template_hash' => ['required_with:fingerprints', 'string', 'min:8', 'max:255'],
-            'fingerprints.*.captured_at' => ['nullable', 'date'],
-        ]);
+        $validated = $request->validated();
 
         $fingerprints = $validated['fingerprints'] ?? null;
-        unset($validated['fingerprints']);
-
-        // Une élévation de privilège ne peut pas être obtenue via une simple mise à jour.
-        if (isset($validated['role_id'])) {
-            $role = Role::find($validated['role_id']);
-            $actor = $request->user();
-
-            if ($role && ! $actor->hasRole(\App\Enums\RoleSlug::SuperAdmin) && $role->scope_level < $actor->scopeLevel()) {
-                return response()->json([
-                    'message' => 'Vous ne pouvez pas attribuer un rôle plus étendu que le vôtre.',
-                ], 403);
-            }
-        }
+        $webauthnEnrollment = $validated['webauthn_enrollment'] ?? null;
+        $disableBiometry = ($validated['fingerprint_enrollment'] ?? null) === '0';
+        unset($validated['fingerprints'], $validated['webauthn_enrollment'], $validated['fingerprint_enrollment']);
 
         $before = $user->getAttributes();
-        $user->update($validated);
 
-        if (is_array($fingerprints) && $fingerprints !== []) {
-            app(\App\Services\BiometricService::class)->enrollForUser($user, $fingerprints, $request->user());
-        }
+        DB::transaction(function () use ($user, $validated, $fingerprints, $webauthnEnrollment, $disableBiometry, $request) {
+            $user->update($validated);
+
+            if (is_array($fingerprints) && $fingerprints !== []) {
+                $this->biometrics->enrollForUser($user, $fingerprints, $request->user());
+            }
+
+            if (is_array($webauthnEnrollment) && $webauthnEnrollment !== []) {
+                $this->contextualBiometrics->completeUserEnrollment($user, (object) $webauthnEnrollment, $request);
+            } elseif ($disableBiometry) {
+                $this->contextualBiometrics->revokeUserCredentials($user);
+            }
+        });
 
         $this->audit->logChanges('user.updated', $user, $before, "Modification du compte {$user->email}");
 

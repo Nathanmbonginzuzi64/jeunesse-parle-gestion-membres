@@ -303,6 +303,14 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     return paginate(list, query) as T;
   }
 
+  if (method === "POST" && path === "/biometrics/member-enroll/options") {
+    return {
+      options: { publicKey: { challenge: "mock" } },
+      enrollment_key: String(jsonBody(body).enrollment_key ?? "mock"),
+      context: "MEMBER_ENROLLMENT",
+    } as T;
+  }
+
   if (method === "POST" && path === "/members") {
     return { message: "Membre enregistré avec succès.", data: db.members[0] } as T;
   }
@@ -679,6 +687,7 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     const input = jsonBody(body);
     const role = db.roles.find((item) => item.id === Number(input.role_id));
     const fingerprints = parseFingerprintsFromBody(body);
+    const webauthnEnrollment = parseWebAuthnEnrollmentFromBody(body);
     const photoUrl = await resolveUserPhoto(input);
     const created = db.makeUser({
       id: db.users.length + 1,
@@ -697,7 +706,7 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
         structure: db.structures.find((s) => s.id === Number(input.structure_id))?.name ?? null,
       },
       fingerprints,
-      fingerprint_enrolled: fingerprints.length >= FINGERPRINT_SLOTS.length,
+      fingerprint_enrolled: webauthnEnrollment !== null || fingerprints.length >= FINGERPRINT_SLOTS.length,
     });
     if (input.fingerprint_enrollment === "0") {
       created.fingerprints = [];
@@ -738,10 +747,15 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
         user.fingerprints = [];
         user.fingerprint_enrolled = false;
       } else {
-        const fingerprints = parseFingerprintsFromBody(body);
-        if (fingerprints.length > 0) {
-          user.fingerprints = fingerprints;
-          user.fingerprint_enrolled = fingerprints.length >= FINGERPRINT_SLOTS.length;
+        const webauthnEnrollment = parseWebAuthnEnrollmentFromBody(body);
+        if (webauthnEnrollment) {
+          user.fingerprint_enrolled = true;
+        } else {
+          const fingerprints = parseFingerprintsFromBody(body);
+          if (fingerprints.length > 0) {
+            user.fingerprints = fingerprints;
+            user.fingerprint_enrolled = fingerprints.length >= FINGERPRINT_SLOTS.length;
+          }
         }
       }
       return { message: "Compte mis à jour.", data: user } as T;
@@ -1262,4 +1276,22 @@ function parseFingerprintsFromBody(body: unknown): MemberFingerprint[] {
   }
   if (Array.isArray(raw)) return raw as MemberFingerprint[];
   return [];
+}
+
+function parseWebAuthnEnrollmentFromBody(body: unknown): Record<string, unknown> | null {
+  const data = jsonBody(body);
+  const raw = data.webauthn_enrollment;
+  if (!raw) return null;
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      return parsed?.enrollment_key ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof raw === "object" && raw !== null && "enrollment_key" in raw) {
+    return raw as Record<string, unknown>;
+  }
+  return null;
 }

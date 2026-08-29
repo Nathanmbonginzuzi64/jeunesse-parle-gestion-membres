@@ -136,6 +136,160 @@ class ContextualBiometricService
         return $credential;
     }
 
+    /**
+     * Options WebAuthn lors de la création d'un membre (formulaire d'adhésion ou ajout admin).
+     * Le credential est finalisé après création du dossier membre.
+     */
+    public function memberEnrollmentOptions(string $enrollmentKey, string $userName, string $displayName): array
+    {
+        $webAuthn = $this->makeWebAuthn();
+
+        $userId = Str::random(16);
+        $args = $webAuthn->getCreateArgs(
+            $userId,
+            $userName,
+            $displayName,
+            60,
+            true,
+            true,
+            false,
+            [],
+        );
+
+        $challenge = $webAuthn->getChallenge();
+        $this->storeChallenge('enroll:'.$enrollmentKey, $challenge, [
+            'context' => BiometricContext::MemberEnrollment->value,
+        ]);
+
+        return [
+            'options' => $args,
+            'enrollment_key' => $enrollmentKey,
+            'context' => BiometricContext::MemberEnrollment->value,
+        ];
+    }
+
+    /** Lie un credential WebAuthn à un membre (et à son compte utilisateur si présent). */
+    public function completeMemberEnrollment(
+        ?User $user,
+        Member $member,
+        object $clientData,
+        Request $request,
+    ): WebAuthnCredential {
+        $credential = $this->persistEnrollmentCredential(
+            $clientData,
+            $user?->id,
+            $member->id,
+            fn () => WebAuthnCredential::query()->where('member_id', $member->id)->delete(),
+        );
+
+        $this->audit->log(
+            BiometricContext::MemberEnrollment->auditAction(),
+            $member,
+            "Credential biométrique enregistré pour {$member->member_code}",
+            [],
+            ['credential_id' => substr($credential->credential_id, 0, 16), 'device' => $credential->device_name],
+        );
+
+        return $credential;
+    }
+
+    /** Lie un credential WebAuthn à un compte utilisateur (création / édition admin). */
+    public function completeUserEnrollment(User $user, object $clientData, Request $request): WebAuthnCredential
+    {
+        $credential = $this->persistEnrollmentCredential(
+            $clientData,
+            $user->id,
+            $user->member_id,
+            fn () => WebAuthnCredential::query()->where('user_id', $user->id)->delete(),
+        );
+
+        $this->audit->log(
+            BiometricContext::UserEnrollment->auditAction(),
+            $user,
+            "Credential biométrique enregistré pour {$user->email}",
+            [],
+            ['credential_id' => substr($credential->credential_id, 0, 16)],
+        );
+
+        return $credential;
+    }
+
+    /**
+     * @param  callable(): void|null  $beforePersist
+     */
+    private function persistEnrollmentCredential(
+        object $clientData,
+        ?int $userId,
+        ?int $memberId,
+        ?callable $beforePersist = null,
+    ): WebAuthnCredential {
+        $enrollmentKey = (string) ($clientData->enrollment_key ?? '');
+        if ($enrollmentKey === '') {
+            throw ValidationException::withMessages([
+                'webauthn_enrollment' => 'Clé d\'enregistrement biométrique manquante.',
+            ]);
+        }
+
+        $webAuthn = $this->makeWebAuthn();
+        $challenge = $this->pullChallenge('enroll:'.$enrollmentKey, 'webauthn_enrollment');
+
+        try {
+            $data = $webAuthn->processCreate(
+                $this->binaryFromClient($clientData->clientDataJSON ?? null),
+                $this->binaryFromClient($clientData->attestationObject ?? null),
+                $challenge,
+                true,
+                true,
+                false,
+            );
+        } catch (WebAuthnException $e) {
+            throw ValidationException::withMessages([
+                'webauthn_enrollment' => 'Enregistrement biométrique refusé : '.$e->getMessage(),
+            ]);
+        }
+
+        if ($beforePersist) {
+            $beforePersist();
+        }
+
+        $credentialId = $this->b64urlEncode($data->credentialId);
+
+        return WebAuthnCredential::updateOrCreate(
+            ['credential_id' => $credentialId],
+            [
+                'user_id' => $userId,
+                'member_id' => $memberId,
+                'public_key' => $data->credentialPublicKey,
+                'counter' => $data->signatureCounter ?? 0,
+                'aaguid' => isset($data->AAGUID) ? bin2hex($data->AAGUID) : null,
+                'attestation_format' => $data->attestationFormat ?? 'none',
+                'device_name' => $clientData->device_name ?? 'Windows Hello / plateforme',
+                'transports' => $clientData->transports ?? ['internal'],
+            ],
+        );
+    }
+
+    public function memberHasCredential(Member $member): bool
+    {
+        return WebAuthnCredential::query()->where('member_id', $member->id)->exists();
+    }
+
+    public function revokeUserCredentials(User $user): void
+    {
+        $deleted = WebAuthnCredential::query()->where('user_id', $user->id)->delete();
+
+        if ($deleted > 0) {
+            $this->audit->log('BIOMETRIC_REVOKED', $user, 'Credentials biométriques révoqués', [], [
+                'count' => $deleted,
+            ]);
+        }
+    }
+
+    public function userHasCredential(User $user): bool
+    {
+        return WebAuthnCredential::query()->where('user_id', $user->id)->exists();
+    }
+
     /** Options d'authentification / identification selon le contexte. */
     public function authenticationOptions(BiometricContext $context, ?User $actor = null): array
     {
@@ -473,12 +627,12 @@ class ContextualBiometricService
         ]), now()->addMinutes(5));
     }
 
-    private function pullChallenge(string $key): ByteBuffer
+    private function pullChallenge(string $key, string $errorField = 'credential'): ByteBuffer
     {
         $meta = Cache::pull($this->challengeCacheKey($key));
         if (! is_array($meta) || empty($meta['challenge'])) {
             throw ValidationException::withMessages([
-                'credential' => 'DÃ©fi biometrique expirÃ©. RÃ©essayez.',
+                $errorField => 'Défi biométrique expiré. Reconfigurez Windows Hello puis réessayez.',
             ]);
         }
 

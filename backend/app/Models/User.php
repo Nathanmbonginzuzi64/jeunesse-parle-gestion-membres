@@ -133,6 +133,11 @@ class User extends Authenticatable
         return $this->hasMany(BiometricTemplate::class);
     }
 
+    public function webAuthnCredentials(): HasMany
+    {
+        return $this->hasMany(WebAuthnCredential::class);
+    }
+
     public function isNationalScope(): bool
     {
         return $this->scopeLevel() === 0;

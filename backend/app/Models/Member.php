@@ -138,6 +138,11 @@ class Member extends Model
         return $this->hasMany(BiometricTemplate::class);
     }
 
+    public function webAuthnCredentials(): HasMany
+    {
+        return $this->hasMany(WebAuthnCredential::class);
+    }
+
     // ---------------------------------------------------------------- Accesseurs
 
     public function getFullNameAttribute(): string

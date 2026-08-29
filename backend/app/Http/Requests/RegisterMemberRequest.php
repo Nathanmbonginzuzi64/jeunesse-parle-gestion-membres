@@ -24,6 +24,13 @@ class RegisterMemberRequest extends FormRequest
             'phone' => preg_replace('/[\s().-]+/', '', (string) $this->input('phone')),
             'email' => $this->input('email') ? mb_strtolower(trim($this->input('email'))) : null,
         ]);
+
+        if (is_string($this->input('webauthn_enrollment'))) {
+            $decoded = json_decode($this->input('webauthn_enrollment'), true);
+            if (is_array($decoded)) {
+                $this->merge(['webauthn_enrollment' => $decoded]);
+            }
+        }
     }
 
     public function rules(): array
@@ -72,6 +79,13 @@ class RegisterMemberRequest extends FormRequest
                 'mimes:'.implode(',', config('jeunesse.photo.mimes')),
                 'max:'.config('jeunesse.photo.max_kilobytes'),
             ],
+
+            'webauthn_enrollment' => ['required', 'array'],
+            'webauthn_enrollment.enrollment_key' => ['required', 'string', 'max:80'],
+            'webauthn_enrollment.clientDataJSON' => ['required', 'string'],
+            'webauthn_enrollment.attestationObject' => ['required', 'string'],
+            'webauthn_enrollment.transports' => ['nullable', 'array'],
+            'webauthn_enrollment.device_name' => ['nullable', 'string', 'max:120'],
         ];
     }
 

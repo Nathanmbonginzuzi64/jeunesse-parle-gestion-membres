@@ -2,21 +2,23 @@
 
 namespace App\Http\Requests;
 
-use App\Http\Requests\Concerns\DecodesWebAuthnEnrollment;
 use App\Enums\RoleSlug;
+use App\Http\Requests\Concerns\DecodesWebAuthnEnrollment;
 use App\Models\Role;
+use App\Models\User;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Password;
 
-class StoreUserRequest extends FormRequest
+class UpdateUserRequest extends FormRequest
 {
     use DecodesWebAuthnEnrollment;
 
     public function authorize(): bool
     {
-        return $this->user()?->can('create', \App\Models\User::class) ?? false;
+        /** @var User|null $target */
+        $target = $this->route('user');
+
+        return $target !== null && ($this->user()?->can('update', $target) ?? false);
     }
 
     protected function prepareForValidation(): void
@@ -33,12 +35,14 @@ class StoreUserRequest extends FormRequest
 
     public function rules(): array
     {
+        /** @var User $target */
+        $target = $this->route('user');
+
         return [
-            'name' => ['required', 'string', 'max:120'],
-            'email' => ['required', 'email:rfc', 'max:160', 'unique:users,email'],
-            'phone' => ['nullable', 'string', 'max:30', 'unique:users,phone'],
-            'password' => ['required', 'confirmed', Password::min(10)->letters()->numbers()->symbols()],
-            'role_id' => ['required', 'integer', 'exists:roles,id'],
+            'name' => ['sometimes', 'string', 'max:120'],
+            'email' => ['sometimes', 'email:rfc', 'max:160', 'unique:users,email,'.$target->id],
+            'phone' => ['nullable', 'string', 'max:30', 'unique:users,phone,'.$target->id],
+            'role_id' => ['sometimes', 'integer', 'exists:roles,id'],
             'province_id' => ['nullable', 'integer', 'exists:provinces,id'],
             'city_id' => ['nullable', 'integer', 'exists:cities,id'],
             'commune_id' => ['nullable', 'integer', 'exists:communes,id'],
@@ -47,8 +51,6 @@ class StoreUserRequest extends FormRequest
             'fingerprints' => ['nullable', 'array', 'min:6', 'max:6'],
             'fingerprints.*.slot' => ['required_with:fingerprints', 'string', 'max:40'],
             'fingerprints.*.template_hash' => ['required_with:fingerprints', 'string', 'min:8', 'max:255'],
-            'fingerprints.*.hand' => ['nullable', 'string', 'max:20'],
-            'fingerprints.*.finger' => ['nullable', 'string', 'max:40'],
             'fingerprints.*.captured_at' => ['nullable', 'date'],
             'webauthn_enrollment' => ['nullable', 'array'],
             'webauthn_enrollment.enrollment_key' => ['required_with:webauthn_enrollment', 'string', 'max:80'],
@@ -63,32 +65,15 @@ class StoreUserRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $v) {
-            $role = Role::find($this->input('role_id'));
-
-            if (! $role) {
+            $roleId = $this->input('role_id');
+            if (! $roleId) {
                 return;
             }
 
-            // Un rôle territorial est inutilisable sans le périmètre correspondant.
-            $required = match ($role->scope_level) {
-                1 => 'province_id',
-                2 => 'city_id',
-                3 => 'structure_id',
-                default => null,
-            };
-
-            if ($required && ! $this->input($required)) {
-                $v->errors()->add($required, 'Ce rôle exige un périmètre territorial.');
-            }
-
-            // Nul ne peut créer un compte plus puissant que le sien.
+            $role = Role::find($roleId);
             $author = $this->user();
 
-            if ($role->slug === RoleSlug::SuperAdmin->value && ! $author?->hasRole(RoleSlug::SuperAdmin)) {
-                $v->errors()->add('role_id', 'Vous ne pouvez pas attribuer ce rôle.');
-            }
-
-            if ($author && ! $author->isNationalScope() && $role->scope_level < $author->scopeLevel()) {
+            if ($role && $author && ! $author->hasRole(RoleSlug::SuperAdmin) && $role->scope_level < $author->scopeLevel()) {
                 $v->errors()->add('role_id', 'Vous ne pouvez pas attribuer un rôle plus étendu que le vôtre.');
             }
         });

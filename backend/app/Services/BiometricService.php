@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\BiometricTemplate;
 use App\Models\Member;
 use App\Models\User;
+use App\Models\WebAuthnCredential;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -72,6 +73,10 @@ class BiometricService
 
     public function userIsEnrolled(User $user): bool
     {
+        if (WebAuthnCredential::query()->where('user_id', $user->id)->exists()) {
+            return true;
+        }
+
         return $this->countForUser($user) >= count(self::REQUIRED_SLOTS);
     }
 

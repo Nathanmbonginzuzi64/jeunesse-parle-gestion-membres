@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ApiError, setToken } from "@/lib/api";
-import { fieldErrors, toFormData } from "@/lib/form";
+import { fieldErrors, toFormData, validationErrorMessages } from "@/lib/form";
 import { useAuth } from "@/lib/auth";
 import { ROLE_SLUGS } from "@/lib/permissions";
 import {
@@ -47,8 +47,10 @@ export default function RegisterPage() {
         setDuplicates((caught.payload.duplicates as DuplicateMatch[]) ?? []);
         setError(caught.message);
       } else if (caught instanceof ApiError) {
-        setErrors(fieldErrors(caught));
-        setError(caught.message);
+        const nextErrors = fieldErrors(caught);
+        setErrors(nextErrors);
+        const details = validationErrorMessages(caught);
+        setError(details[0] ?? caught.message);
       } else {
         setError("Une erreur est survenue. Veuillez réessayer.");
       }
@@ -69,7 +71,14 @@ export default function RegisterPage() {
 
       {error && (
         <Alert tone={duplicates?.length ? "warning" : "error"} className="mt-5">
-          {error}
+          <p>{error}</p>
+          {Object.keys(errors).length > 1 && (
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+              {Object.entries(errors).map(([field, message]) => (
+                <li key={field}>{message}</li>
+              ))}
+            </ul>
+          )}
         </Alert>
       )}
 

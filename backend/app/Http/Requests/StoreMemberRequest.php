@@ -32,6 +32,13 @@ class StoreMemberRequest extends FormRequest
             }
         }
 
+        if (is_string($this->input('webauthn_enrollment'))) {
+            $decoded = json_decode($this->input('webauthn_enrollment'), true);
+            if (is_array($decoded)) {
+                $this->merge(['webauthn_enrollment' => $decoded]);
+            }
+        }
+
         $this->applyScopeDefaults();
     }
 
@@ -91,6 +98,13 @@ class StoreMemberRequest extends FormRequest
             'fingerprints.*.hand' => ['nullable', 'string', 'max:20'],
             'fingerprints.*.finger' => ['nullable', 'string', 'max:40'],
             'fingerprints.*.captured_at' => ['nullable', 'date'],
+
+            'webauthn_enrollment' => ['required_without:fingerprints', 'nullable', 'array'],
+            'webauthn_enrollment.enrollment_key' => ['required_with:webauthn_enrollment', 'string', 'max:80'],
+            'webauthn_enrollment.clientDataJSON' => ['required_with:webauthn_enrollment', 'string'],
+            'webauthn_enrollment.attestationObject' => ['required_with:webauthn_enrollment', 'string'],
+            'webauthn_enrollment.transports' => ['nullable', 'array'],
+            'webauthn_enrollment.device_name' => ['nullable', 'string', 'max:120'],
 
             // Permet de forcer l'acceptation malgré une alerte de doublon.
             'confirm_duplicate' => ['nullable', 'boolean'],
