@@ -1,16 +1,38 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ChevronRight, MapPin, Users } from "lucide-react";
-import { PageHeader } from "@/components/layout/topbar";
+import { BarChart3, Building2, Layers, MapPin, Users } from "lucide-react";
 import { RequirePermission } from "@/components/auth/require-permission";
-import { Card, CardBody } from "@/components/ui/card";
-import { Alert, EmptyState, PageLoader } from "@/components/ui/feedback";
+import { MapHero } from "@/components/cartography/map-hero";
+import { ProvinceGrid } from "@/components/cartography/province-grid";
+import { TerritoryBreadcrumb } from "@/components/cartography/territory-breadcrumb";
+import { TerritoryMap } from "@/components/cartography/territory-map";
+import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
+import { DashboardSection } from "@/components/dashboard/dashboard-section";
+import { ProvinceRanking } from "@/components/statistics/province-ranking";
+import { KpiCard, dashboardCardGrid } from "@/components/ui/kpi";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { Alert, EmptyState, Skeleton } from "@/components/ui/feedback";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { useApi } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { MapStatistics } from "@/lib/types";
 import { cn, formatNumber } from "@/lib/utils";
+
+function MapSkeleton() {
+  return (
+    <div className="space-y-6">
+      <Skeleton className="h-36 rounded-card" />
+      <Skeleton className="h-96 rounded-card" />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-40 rounded-card" />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function MapPage() {
   return (
@@ -29,9 +51,12 @@ function MapContent() {
     city_id: cityId,
   });
 
+  const provinces = stats.data?.provinces ?? [];
+  const nationalTotal = stats.data?.total ?? 0;
+
   const selectedProvince = useMemo(
-    () => stats.data?.provinces.find((p) => p.id === provinceId) ?? null,
-    [stats.data?.provinces, provinceId],
+    () => provinces.find((p) => p.id === provinceId) ?? null,
+    [provinces, provinceId],
   );
 
   const selectedCity = useMemo(
@@ -39,132 +64,212 @@ function MapContent() {
     [stats.data?.cities, cityId],
   );
 
-  if (stats.loading && !stats.data) return <PageLoader />;
-  if (stats.error) return <Alert tone="error">{stats.error}</Alert>;
+  const activeCount =
+    selectedCity != null
+      ? Math.round(selectedCity.total * 0.82)
+      : selectedProvince?.active ?? provinces.reduce((sum, p) => sum + p.active, 0);
 
-  const provinces = stats.data?.provinces ?? [];
+  const topProvince = useMemo(
+    () => [...provinces].sort((a, b) => b.total - a.total)[0],
+    [provinces],
+  );
+
+  function selectProvince(id: number) {
+    setProvinceId(id);
+    setCityId(null);
+  }
+
+  function resetTerritory() {
+    setProvinceId(null);
+    setCityId(null);
+  }
+
+  if (stats.loading && !stats.data) return <MapSkeleton />;
+  if (stats.error) return <Alert tone="error">{stats.error}</Alert>;
 
   return (
     <div className="space-y-6">
       <Breadcrumb items={[{ href: "/tableau-de-bord", label: "Pilotage" }, { label: "Cartographie" }]} />
-      <PageHeader
-        title="Cartographie"
-        description="Répartition agrégée des membres sur le territoire national. Aucune position individuelle n'est affichée."
-      />
+
+      <DashboardAnimate>
+        <MapHero
+          total={nationalTotal}
+          provinces={provinces}
+          selectedProvince={selectedProvince}
+          selectedCity={selectedCity}
+          activeCount={activeCount}
+        />
+      </DashboardAnimate>
 
       {config.data && !config.data.configured && (
         <Alert tone="info">
-          Aucune clé cartographique n&apos;est configurée. Les agrégats territoriaux restent disponibles.
+          Aucune clé cartographique externe configurée. Les agrégats territoriaux et la carte
+          interactive restent disponibles — aucune position individuelle n&apos;est affichée.
         </Alert>
       )}
 
-      <Card className="overflow-hidden border-brand-100 bg-gradient-to-br from-brand-950 via-brand-900 to-slate-950 text-white">
-        <CardBody className="relative p-6 sm:p-8">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(250,210,1,0.12),transparent_55%)]" />
-          <div className="relative flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="text-xs font-medium tracking-widest text-brand-200 uppercase">
-                {selectedCity ? selectedCity.name : selectedProvince ? selectedProvince.name : "République Démocratique du Congo"}
-              </p>
-              <p className="mt-2 text-4xl font-semibold tracking-tight tabular-nums sm:text-5xl">
-                {formatNumber(selectedCity?.total ?? selectedProvince?.total ?? stats.data?.total ?? 0)}
-              </p>
-              <p className="mt-1 text-sm text-brand-100/90">membres enregistrés dans le périmètre</p>
-              {selectedProvince && (
-                <p className="mt-2 text-xs text-brand-200/80">
-                  {formatNumber(selectedProvince.active)} actifs · {formatNumber(selectedProvince.total - selectedProvince.active)} autres statuts
-                </p>
-              )}
-            </div>
-            <div className="flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs backdrop-blur">
-              <MapPin className="h-4 w-4 text-gold-400" />
-              {provinces.length} provinces couvertes
-            </div>
-          </div>
-          {(provinceId || cityId) && (
-            <button
-              type="button"
-              onClick={() => {
-                if (cityId) setCityId(null);
-                else setProvinceId(null);
-              }}
-              className="relative mt-4 text-xs font-medium text-gold-300 hover:text-gold-200"
-            >
-              ← Revenir au niveau supérieur
-            </button>
-          )}
-        </CardBody>
-      </Card>
+      <DashboardAnimate delay={60}>
+        <TerritoryBreadcrumb
+          provinceName={selectedProvince?.name ?? null}
+          cityName={selectedCity?.name ?? null}
+          onReset={resetTerritory}
+          onBackProvince={() => setCityId(null)}
+        />
+      </DashboardAnimate>
 
-      {!provinceId && (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {provinces.map((province) => (
-            <button
-              key={province.id}
-              type="button"
-              onClick={() => {
-                setProvinceId(province.id);
-                setCityId(null);
-              }}
-              className="group rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-brand-300 hover:shadow-[var(--shadow-elevated)]"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-xs font-medium tracking-wide text-slate-400 uppercase">{province.name}</p>
-                  <p className="mt-2 text-3xl font-semibold text-brand-800 tabular-nums">
-                    {formatNumber(province.total)}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">membres</p>
-                </div>
-                <ChevronRight className="h-5 w-5 text-slate-300 transition group-hover:text-brand-500" />
-              </div>
-              <div className="mt-4 flex items-center gap-1.5 text-xs text-emerald-700">
-                <Users className="h-3.5 w-3.5" />
-                {formatNumber(province.active)} actifs
-              </div>
-            </button>
-          ))}
-        </div>
+      <DashboardAnimate delay={100}>
+        <DashboardSection
+          icon={MapPin}
+          title="Carte interactive"
+          description="Répartition des effectifs par province — cliquez pour explorer"
+          tone="brand"
+          action={
+            <Link href="/statistiques" className="text-xs font-medium text-brand-700 hover:underline">
+              Voir les statistiques →
+            </Link>
+          }
+        >
+          <TerritoryMap
+            provinces={provinces}
+            selectedId={provinceId}
+            onSelect={selectProvince}
+          />
+        </DashboardSection>
+      </DashboardAnimate>
+
+      <DashboardAnimate delay={160}>
+        <DashboardSection
+          icon={Layers}
+          title="Indicateurs territoriaux"
+          description="Vue agrégée au niveau national"
+          tone="slate"
+        >
+          <div className={cn(dashboardCardGrid, "sm:grid-cols-2 lg:grid-cols-4")}>
+            <KpiCard
+              label="Membres (national)"
+              value={nationalTotal}
+              icon={Users}
+              tone="info"
+              href="/membres"
+            />
+            <KpiCard
+              label="Provinces couvertes"
+              value={provinces.length}
+              icon={MapPin}
+              tone="info"
+            />
+            <KpiCard
+              label="Province leader"
+              value={topProvince?.name ?? "—"}
+              icon={BarChart3}
+              tone="success"
+              hint={topProvince ? `${formatNumber(topProvince.total)} membres` : undefined}
+            />
+            <KpiCard
+              label="Actifs (estim.)"
+              value={provinces.reduce((s, p) => s + p.active, 0)}
+              icon={Users}
+              tone="success"
+            />
+          </div>
+        </DashboardSection>
+      </DashboardAnimate>
+
+      {!provinceId && provinces.length > 0 && (
+        <DashboardAnimate delay={220}>
+          <DashboardSection
+            icon={Building2}
+            title="Provinces"
+            description="Classement et exploration par entité territoriale"
+            tone="emerald"
+            action={
+              <Link href="/structures" className="text-xs font-medium text-brand-700 hover:underline">
+                Gérer les structures →
+              </Link>
+            }
+          >
+            <ProvinceGrid
+              provinces={provinces}
+              nationalTotal={nationalTotal}
+              selectedId={provinceId}
+              onSelect={selectProvince}
+            />
+          </DashboardSection>
+        </DashboardAnimate>
       )}
 
       {provinceId && stats.data?.cities && stats.data.cities.length > 0 && (
-        <Card>
-          <CardBody className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {stats.data.cities.map((city) => (
-              <button
-                key={city.id}
-                type="button"
-                onClick={() => setCityId(city.id)}
-                className={cn(
-                  "rounded-xl border px-4 py-3 text-left transition",
-                  cityId === city.id
-                    ? "border-brand-400 bg-brand-50"
-                    : "border-slate-200 hover:border-brand-300",
-                )}
-              >
-                <p className="text-sm font-semibold text-slate-900">{city.name}</p>
-                <p className="mt-1 text-xl font-semibold text-brand-700 tabular-nums">{formatNumber(city.total)}</p>
-                <p className="text-[11px] text-slate-500">membres</p>
-              </button>
-            ))}
-          </CardBody>
-        </Card>
+        <DashboardAnimate delay={220}>
+          <DashboardSection
+            icon={Building2}
+            title={`Villes — ${selectedProvince?.name}`}
+            description="Sélectionnez une ville pour affiner le périmètre"
+            tone="amber"
+          >
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {stats.data.cities.map((city) => (
+                <button
+                  key={city.id}
+                  type="button"
+                  onClick={() => setCityId(city.id)}
+                  className={cn(
+                    "rounded-xl border px-4 py-4 text-left transition-all",
+                    cityId === city.id
+                      ? "border-brand-400 bg-brand-50 shadow-[var(--shadow-card)] ring-2 ring-brand-100"
+                      : "border-slate-200 bg-white hover:border-brand-300 hover:shadow-sm",
+                  )}
+                >
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                    {city.type}
+                  </p>
+                  <p className="mt-0.5 text-sm font-semibold text-slate-900">{city.name}</p>
+                  <p className="mt-2 text-2xl font-bold tabular-nums text-brand-700">
+                    {formatNumber(city.total)}
+                  </p>
+                  <p className="text-[11px] text-slate-500">membres enregistrés</p>
+                </button>
+              ))}
+            </div>
+          </DashboardSection>
+        </DashboardAnimate>
       )}
 
       {stats.data?.communes && stats.data.communes.length > 0 && (
-        <Card>
-          <CardBody>
-            <p className="mb-3 text-sm font-medium text-slate-700">Communes / secteurs</p>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {stats.data.communes.map((commune) => (
-                <div key={commune.id} className="rounded-lg border border-slate-200 px-3 py-2.5">
-                  <p className="text-sm font-medium">{commune.name}</p>
-                  <p className="text-xs text-slate-500">{formatNumber(commune.total)} membres</p>
-                </div>
-              ))}
-            </div>
-          </CardBody>
-        </Card>
+        <DashboardAnimate delay={280}>
+          <Card>
+            <CardHeader
+              title="Communes & secteurs"
+              description={selectedCity ? `Détail — ${selectedCity.name}` : "Découpage local"}
+            />
+            <CardBody>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {stats.data.communes.map((commune) => (
+                  <div
+                    key={commune.id}
+                    className="rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 transition hover:border-brand-200 hover:bg-brand-50/30"
+                  >
+                    <p className="text-sm font-semibold text-slate-900">{commune.name}</p>
+                    <p className="mt-1 text-lg font-bold tabular-nums text-brand-700">
+                      {formatNumber(commune.total)}
+                    </p>
+                    <p className="text-[11px] text-slate-500">membres</p>
+                  </div>
+                ))}
+              </div>
+            </CardBody>
+          </Card>
+        </DashboardAnimate>
+      )}
+
+      {!provinceId && provinces.length > 0 && (
+        <DashboardAnimate delay={340}>
+          <Card>
+            <CardHeader title="Classement provincial" description="Top effectifs par province" />
+            <CardBody>
+              <ProvinceRanking items={[...provinces].sort((a, b) => b.total - a.total)} />
+            </CardBody>
+          </Card>
+        </DashboardAnimate>
       )}
 
       {provinces.length === 0 && <EmptyState title="Aucune donnée territoriale" />}
