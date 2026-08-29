@@ -145,6 +145,14 @@ export interface CardRender {
   qr_svg: string | null;
 }
 
+export interface CardVisualItem {
+  member_id: number;
+  member_code: string;
+  full_name: string;
+  card: MemberCard;
+  render: CardRender;
+}
+
 export interface VerificationResult {
   result: "valid" | "not_found" | "revoked" | "expired" | "inactive";
   valid: boolean;

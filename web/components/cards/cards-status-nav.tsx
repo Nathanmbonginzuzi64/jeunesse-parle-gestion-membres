@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   BadgeCheck,
   Clock,
@@ -36,8 +36,10 @@ export function getCardStatusView(status: string) {
 }
 
 export function CardsStatusNav() {
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const current = searchParams.get("status") ?? "";
+  const base = pathname.startsWith("/cartes/galerie") ? "/cartes/galerie" : "/cartes";
   const allCards = useApi<Paginated<CardRow>>("/cards", { per_page: 200 });
   const stats = useApi<StatisticsOverview>("/statistics");
 
@@ -62,7 +64,7 @@ export function CardsStatusNav() {
         return (
           <Link
             key={view.id || "all"}
-            href={view.href}
+            href={view.id ? `${base}?status=${view.id}` : base}
             className={cn(
               "inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:px-4",
               active ? "bg-brand-600 text-white shadow-sm" : "text-slate-600 hover:bg-brand-50 hover:text-brand-700",

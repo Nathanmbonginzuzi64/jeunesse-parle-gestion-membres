@@ -7,6 +7,7 @@ import {
   BadgeCheck,
   CreditCard,
   IdCard,
+  LayoutGrid,
   QrCode,
   ScanLine,
 } from "lucide-react";
@@ -129,7 +130,8 @@ function CardsList() {
 
       <DashboardAnimate delay={100}>
         <DashboardSection icon={QrCode} title="Raccourcis" description="Vérification, présence et émission" tone="emerald">
-          <div className={cn(dashboardCardGrid, "sm:grid-cols-2 lg:grid-cols-3")}>
+          <div className={cn(dashboardCardGrid, "sm:grid-cols-2 lg:grid-cols-4")}>
+            <QuickLinkCard href="/cartes/galerie" icon={LayoutGrid} title="Galerie visuelle" description="Voir toutes les cartes en aperçu graphique" tone="brand" />
             <QuickLinkCard href="/verification" icon={ScanLine} title="Vérifier un membre" description="Scan QR ou saisie manuelle" tone="emerald" />
             <QuickLinkCard href="/scan" icon={BadgeCheck} title="Scan de présence" description="Enregistrer une participation" tone="amber" />
             <QuickLinkCard href="/membres?status=pending" icon={IdCard} title="Dossiers en attente" description="Valider et émettre les cartes" tone="brand" />

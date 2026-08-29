@@ -643,6 +643,26 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     const filtered = status ? list.filter((card) => card.status === status) : list;
     return paginate(filtered, query) as T;
   }
+  if (method === "GET" && path === "/cards/visual") {
+    let list = db.members
+      .filter((member) => member.card)
+      .map((member) => ({
+        member_id: member.id,
+        member_code: member.member_code,
+        full_name: member.full_name,
+        card: member.card!,
+        render: db.cardRender(member),
+      }));
+    const q = String(query?.q ?? "").toLowerCase();
+    if (q) {
+      list = list.filter((item) =>
+        [item.full_name, item.member_code, item.card.card_number].join(" ").toLowerCase().includes(q),
+      );
+    }
+    const status = String(query?.status ?? "");
+    if (status) list = list.filter((item) => item.card.status === status);
+    return paginate(list, query) as T;
+  }
   if (method === "POST" && segments[0] === "cards" && segments[2] === "regenerate") {
     const member = db.members.find((item) => item.card && String(item.card.id) === segments[1]);
     if (!member?.card) throw new ApiError(404, "Carte introuvable.");

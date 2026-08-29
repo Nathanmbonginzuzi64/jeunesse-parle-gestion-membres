@@ -10,6 +10,7 @@ import {
   CreditCard,
   IdCard,
   LayoutDashboard,
+  LayoutGrid,
   Map,
   ScanLine,
   Settings,
@@ -76,6 +77,7 @@ export const NAV_SECTIONS: NavSection[] = [
         permissions: [PERMISSIONS.cardsView],
         children: [
           { href: "/cartes", label: "Toutes", icon: CreditCard, exact: true },
+          { href: "/cartes/galerie", label: "Galerie visuelle", icon: LayoutGrid },
           { href: "/cartes?status=active", label: "Actives", icon: BadgeCheck },
           { href: "/cartes?status=expired", label: "Expirées", icon: Clock },
           { href: "/cartes?status=suspended", label: "Suspendues", icon: ShieldOff },
