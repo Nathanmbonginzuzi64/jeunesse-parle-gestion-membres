@@ -5,6 +5,7 @@ import {
   BadgeCheck,
   CheckCircle2,
   Clock,
+  Fingerprint,
   IdCard,
   ShieldAlert,
   ShieldOff,
@@ -147,7 +148,13 @@ export function VerificationResultPanel({
                     <p className="font-mono text-xs text-brand-700">{member.member_code}</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       <Badge tone={result.valid ? "success" : "warning"}>{member.status}</Badge>
-                      <Badge tone={result.valid ? "success" : "danger"}>{member.card_status}</Badge>
+                      <Badge tone={result.valid ? "success" : "danger"}>{member.card_status || "—"}</Badge>
+                      {member.fingerprint_enrolled && (
+                        <Badge tone="info" className="gap-1">
+                          <Fingerprint className="h-3 w-3" />
+                          Biométrie OK
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -163,6 +170,12 @@ export function VerificationResultPanel({
                     { label: "Expiration", value: formatShortDate(member.expires_at) },
                     { label: "Téléphone", value: member.phone ?? "—" },
                     { label: "Ville", value: member.city ?? "—" },
+                    {
+                      label: "Empreintes",
+                      value: member.fingerprint_enrolled
+                        ? `${member.fingerprints_count ?? 6} doigt(s) enregistré(s)`
+                        : "Non enregistrées",
+                    },
                   ]}
                 />
 

@@ -1,4 +1,5 @@
 import { PERMISSIONS } from "@/lib/permissions";
+import { mockMemberFingerprints } from "@/lib/fingerprints";
 import type {
   Activity,
   AppNotification,
@@ -253,6 +254,8 @@ export const members: Member[] = [
     validated_at: "2024-11-10T10:00:00.000Z",
     consent_given: true,
     card: activeCard(1),
+    fingerprints: mockMemberFingerprints(1, "JP-RDC-00000001"),
+    fingerprint_enrolled: true,
   },
   {
     id: 2,
@@ -283,6 +286,8 @@ export const members: Member[] = [
     skills: ["Communication", "Médias"],
     interests: ["Genre", "Culture"],
     card: activeCard(2),
+    fingerprints: mockMemberFingerprints(2, "JP-RDC-00000002"),
+    fingerprint_enrolled: true,
   },
   {
     id: 3,

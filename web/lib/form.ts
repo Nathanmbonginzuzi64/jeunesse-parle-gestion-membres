@@ -20,6 +20,10 @@ export function toFormData(payload: Record<string, unknown>): FormData {
     }
 
     if (Array.isArray(value)) {
+      if (value.length > 0 && typeof value[0] === "object" && !(value[0] instanceof File)) {
+        form.append(key, JSON.stringify(value));
+        continue;
+      }
       value.forEach((item, index) => {
         if (item === null || item === undefined || item === "") return;
         form.append(`${key}[${index}]`, String(item));

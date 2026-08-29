@@ -4,11 +4,19 @@ import { useMemo, useState, type FormEvent } from "react";
 import { TerritorySelect } from "@/components/forms/territory-select";
 import { TagInput } from "@/components/forms/tag-input";
 import { PhotoField } from "@/components/members/photo-field";
+import { FingerprintCaptureField } from "@/components/members/fingerprint-capture-field";
 import { Alert } from "@/components/ui/feedback";
 import { Button } from "@/components/ui/button";
 import { Checkbox, Input, Select, Textarea } from "@/components/ui/field";
 import { usePublicStructures, useReferences } from "@/lib/hooks";
 import { Stepper } from "@/components/ui/stepper";
+import {
+  allFingerprintsCaptured,
+  emptyFingerprintMap,
+  fingerprintListFromMap,
+  fingerprintMapFromList,
+  type FingerprintCaptureMap,
+} from "@/lib/fingerprints";
 import type { DuplicateMatch, Member } from "@/lib/types";
 
 const SKILL_SUGGESTIONS = [
@@ -63,6 +71,7 @@ export interface MemberFormValues {
   notes: string;
   consent_given: boolean;
   photo: File | null;
+  fingerprints: FingerprintCaptureMap;
   confirm_duplicate: boolean;
 }
 
@@ -97,6 +106,7 @@ export const EMPTY_MEMBER_FORM: MemberFormValues = {
   notes: "",
   consent_given: false,
   photo: null,
+  fingerprints: emptyFingerprintMap(),
   confirm_duplicate: false,
 };
 
@@ -123,6 +133,7 @@ export function toMemberPayload(values: MemberFormValues, mode: MemberFormMode):
     skills: values.skills,
     interests: values.interests,
     photo: values.photo,
+    fingerprints: fingerprintListFromMap(values.fingerprints),
     confirm_duplicate: values.confirm_duplicate || undefined,
   };
 
@@ -168,14 +179,20 @@ export function valuesFromMember(member: Member): MemberFormValues {
     joined_at: member.joined_at ?? "",
     notes: member.notes ?? "",
     consent_given: member.consent_given ?? false,
+    fingerprints: fingerprintMapFromList(member.fingerprints),
   };
 }
 
 const STEPS = {
-  register: ["Identité", "Contact", "Localisation", "Profil", "Compétences", "Validation", "Confirmation"],
-  create: ["Identité", "Contact", "Localisation", "Profil", "Appartenance"],
-  edit: ["Identité", "Contact", "Localisation", "Profil", "Appartenance"],
+  register: ["Identité", "Contact", "Localisation", "Profil", "Compétences", "Biométrie", "Validation", "Confirmation"],
+  create: ["Identité", "Contact", "Localisation", "Profil", "Appartenance", "Biométrie"],
+  edit: ["Identité", "Contact", "Localisation", "Profil", "Appartenance", "Biométrie"],
 } as const;
+
+function isBiometryStep(mode: MemberFormMode, step: number) {
+  if (mode === "register") return step === 5;
+  return step === 5;
+}
 
 export function MemberForm({
   mode,
@@ -199,6 +216,7 @@ export function MemberForm({
   const references = useReferences();
   const [step, setStep] = useState(0);
   const [values, setValues] = useState<MemberFormValues>(initial ?? EMPTY_MEMBER_FORM);
+  const [biometryError, setBiometryError] = useState<string | null>(null);
   const structures = usePublicStructures(values.province_id, values.city_id);
   const steps = STEPS[mode];
 
@@ -214,11 +232,23 @@ export function MemberForm({
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (step < steps.length - 1) {
+      if (isBiometryStep(mode, step) && mode !== "edit" && !allFingerprintsCaptured(values.fingerprints)) {
+        setBiometryError("Enregistrez les 6 empreintes (auriculaire, index, majeur — mains gauche et droite).");
+        return;
+      }
+      setBiometryError(null);
       setStep((current) => current + 1);
+      return;
+    }
+    if (mode !== "edit" && !allFingerprintsCaptured(values.fingerprints)) {
+      setBiometryError("Les empreintes digitales sont obligatoires pour finaliser l'inscription.");
+      setStep(steps.findIndex((_, i) => isBiometryStep(mode, i)));
       return;
     }
     await onSubmit(values);
   }
+
+  const fingerprintSeed = [values.last_name, values.first_name, values.phone].filter(Boolean).join("-") || "membre";
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6" noValidate>
@@ -463,6 +493,24 @@ export function MemberForm({
 
       {step === 5 && mode === "register" && (
         <div className="space-y-4">
+          <Alert tone="info" title="Enregistrement biométrique obligatoire">
+            Chaque membre doit enregistrer <strong>6 empreintes</strong> : auriculaire, index et majeur sur la main
+            gauche, puis la même chose sur la main droite.
+          </Alert>
+          <FingerprintCaptureField
+            value={values.fingerprints}
+            onChange={(fingerprints) => {
+              patch({ fingerprints });
+              setBiometryError(null);
+            }}
+            memberSeed={fingerprintSeed}
+            error={biometryError ?? errors.fingerprints}
+          />
+        </div>
+      )}
+
+      {step === 6 && mode === "register" && (
+        <div className="space-y-4">
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
             <p className="font-medium text-slate-900">{fullName || "Profil incomplet"}</p>
             <p className="mt-1 text-slate-500">
@@ -481,17 +529,37 @@ export function MemberForm({
         </div>
       )}
 
-      {step === 6 && mode === "register" && (
+      {step === 7 && mode === "register" && (
         <div className="rounded-xl border border-brand-100 bg-brand-50/60 p-5 text-sm">
           <p className="font-semibold text-brand-900">Confirmer votre demande</p>
           <ul className="mt-3 space-y-1.5 text-slate-700">
             <li><strong>Identité :</strong> {fullName}</li>
             <li><strong>Contact :</strong> {values.phone}{values.email ? ` · ${values.email}` : ""}</li>
             <li><strong>Compétences :</strong> {values.skills.join(", ") || "—"}</li>
+            <li><strong>Biométrie :</strong> 6 empreintes enregistrées</li>
           </ul>
           <p className="mt-4 text-xs text-slate-500">
             En validant, votre dossier sera transmis pour vérification par un responsable territorial.
           </p>
+        </div>
+      )}
+
+      {step === 5 && mode !== "register" && (
+        <div className="space-y-4">
+          <Alert tone="info" title="Empreintes digitales">
+            {mode === "edit"
+              ? "Re-scannez les 6 empreintes si vous souhaitez mettre à jour la biométrie du membre."
+              : "Enregistrez les 6 empreintes avant de valider la création du membre."}
+          </Alert>
+          <FingerprintCaptureField
+            value={values.fingerprints}
+            onChange={(fingerprints) => {
+              patch({ fingerprints });
+              setBiometryError(null);
+            }}
+            memberSeed={fingerprintSeed}
+            error={biometryError ?? errors.fingerprints}
+          />
         </div>
       )}
 

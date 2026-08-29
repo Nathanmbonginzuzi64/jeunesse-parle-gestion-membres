@@ -1,6 +1,8 @@
 import { ApiError } from "@/lib/api";
 import { getToken } from "@/lib/api";
 import type { Member, Paginated, StatisticsCharts, StatisticsOverview, VerificationResult } from "@/lib/types";
+import type { FingerprintVerifyResult, MemberFingerprint } from "@/lib/fingerprints";
+import { FINGERPRINT_SLOTS, generateFingerprintTemplate, matchFingerprint } from "@/lib/fingerprints";
 import * as db from "./data";
 
 type Query = Record<string, string | number | boolean | null | undefined>;
@@ -202,6 +204,11 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
   if (method === "POST" && path === "/members/verify") {
     const token = String(jsonBody(body).token ?? "");
     return verifyToken(token) as T;
+  }
+
+  if (method === "POST" && path === "/members/verify-fingerprint") {
+    const memberCode = String(jsonBody(body).member_code ?? "").trim().toUpperCase();
+    return verifyFingerprint(memberCode) as T;
   }
 
   if (method === "GET" && segments[0] === "verify" && segments[1]) {
@@ -793,6 +800,80 @@ function verifyToken(token: string) {
       expires_at: member.card?.expires_at,
       phone: member.phone,
       city: member.city,
+      fingerprint_enrolled: Boolean(member.fingerprint_enrolled),
+      fingerprints_count: member.fingerprints?.length ?? 0,
     },
   };
+}
+
+function verifyFingerprint(memberCode: string): FingerprintVerifyResult {
+  const member = db.members.find((item) => item.member_code.toUpperCase() === memberCode);
+  if (!member) {
+    throw new ApiError(404, "Aucun membre ne correspond à cet identifiant.", {
+      valid: false,
+      message: "Aucun membre ne correspond à cet identifiant.",
+      matched_slot: null,
+      member_code: memberCode,
+      member_id: null,
+      full_name: null,
+      fingerprints_enrolled: 0,
+    });
+  }
+
+  const stored = member.fingerprints ?? [];
+  if (stored.length < FINGERPRINT_SLOTS.length) {
+    throw new ApiError(422, "Empreintes digitales incomplètes pour ce membre.", {
+      valid: false,
+      message: "Empreintes digitales incomplètes — enregistrement requis (6 doigts).",
+      matched_slot: null,
+      member_code: member.member_code,
+      member_id: member.id,
+      full_name: member.full_name,
+      fingerprints_enrolled: stored.length,
+    });
+  }
+
+  const inactive = member.status !== "active";
+  if (inactive) {
+    throw new ApiError(403, "Membre inactif — empreinte rejetée.", {
+      valid: false,
+      message: "Membre inactif — vérification biométrique refusée.",
+      matched_slot: null,
+      member_code: member.member_code,
+      member_id: member.id,
+      full_name: member.full_name,
+      fingerprints_enrolled: stored.length,
+    });
+  }
+
+  const scannedTemplate = generateFingerprintTemplate(
+    `${member.member_code}-${member.id}`,
+    "left_index",
+  );
+  const matched = matchFingerprint(stored, scannedTemplate) ?? stored[0];
+
+  return {
+    valid: true,
+    message: "Empreinte reconnue — identité confirmée.",
+    matched_slot: matched.slot,
+    member_code: member.member_code,
+    member_id: member.id,
+    full_name: member.full_name,
+    fingerprints_enrolled: stored.length,
+  };
+}
+
+function parseFingerprintsFromBody(body: unknown): MemberFingerprint[] {
+  const data = jsonBody(body);
+  const raw = data.fingerprints;
+  if (!raw) return [];
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw) as MemberFingerprint[];
+    } catch {
+      return [];
+    }
+  }
+  if (Array.isArray(raw)) return raw as MemberFingerprint[];
+  return [];
 }

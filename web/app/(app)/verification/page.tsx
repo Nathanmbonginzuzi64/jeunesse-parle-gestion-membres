@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   BadgeCheck,
   CreditCard,
+  Fingerprint,
   IdCard,
   LayoutGrid,
   QrCode,
@@ -15,6 +16,7 @@ import { DashboardSection } from "@/components/dashboard/dashboard-section";
 import { QuickLinkCard } from "@/components/dashboard/quick-link-card";
 import { QrScannerPanel } from "@/components/members/qr-scanner-panel";
 import { RequirePermission } from "@/components/auth/require-permission";
+import { FingerprintVerifyPanel } from "@/components/verification/fingerprint-verify-panel";
 import {
   VerificationHero,
   VerificationHistory,
@@ -26,10 +28,13 @@ import { KpiCard, dashboardCardGrid } from "@/components/ui/kpi";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { api, ApiError } from "@/lib/api";
 import { extractTokenFromQr } from "@/lib/form";
+import type { FingerprintVerifyResult } from "@/lib/fingerprints";
 import { useApi } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { StatisticsOverview, VerificationResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+type VerifyMode = "qr" | "fingerprint";
 
 export default function VerificationPage() {
   return (
@@ -41,6 +46,7 @@ export default function VerificationPage() {
 
 function VerificationTool() {
   const stats = useApi<StatisticsOverview>("/statistics");
+  const [mode, setMode] = useState<VerifyMode>("qr");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -60,21 +66,13 @@ function VerificationTool() {
     try {
       const response = await api.public.post<VerificationResult>("/members/verify", { token });
       setResult(response);
-      setHistory((prev) => [
-        { id: crypto.randomUUID(), scannedAt: new Date(), result: response },
-        ...prev.slice(0, 9),
-      ]);
+      pushHistory(response);
     } catch (caught) {
       if (caught instanceof ApiError) {
         const payload = caught.payload as unknown as VerificationResult;
         setResult(payload ?? null);
         setError(caught.message);
-        if (payload) {
-          setHistory((prev) => [
-            { id: crypto.randomUUID(), scannedAt: new Date(), result: payload },
-            ...prev.slice(0, 9),
-          ]);
-        }
+        if (payload) pushHistory(payload);
       } else {
         setError("Une erreur est survenue. Veuillez réessayer.");
         setResult(null);
@@ -82,6 +80,42 @@ function VerificationTool() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function pushHistory(entry: VerificationResult) {
+    setHistory((prev) => [
+      { id: crypto.randomUUID(), scannedAt: new Date(), result: entry },
+      ...prev.slice(0, 9),
+    ]);
+  }
+
+  function handleFingerprintVerified(fpResult: FingerprintVerifyResult) {
+    if (!fpResult.valid) return;
+    const synthetic: VerificationResult = {
+      result: "valid",
+      valid: true,
+      message: `${fpResult.message} (biométrie)`,
+      member: {
+        member_id: fpResult.member_id ?? undefined,
+        member_code: fpResult.member_code ?? "",
+        full_name: fpResult.full_name ?? "",
+        photo_url: null,
+        gender: null,
+        province: null,
+        structure: null,
+        position: null,
+        status: "Actif",
+        card_number: "",
+        card_status: "",
+        issued_at: null,
+        expires_at: null,
+        fingerprint_enrolled: true,
+        fingerprints_count: fpResult.fingerprints_enrolled,
+      },
+    };
+    setResult(synthetic);
+    setError(null);
+    pushHistory(synthetic);
   }
 
   function clearResult() {
@@ -140,17 +174,54 @@ function VerificationTool() {
         </DashboardAnimate>
       )}
 
+      <DashboardAnimate delay={80}>
+        <nav className="flex flex-wrap gap-2 rounded-card border border-slate-200/80 bg-white p-1.5 shadow-[var(--shadow-card)]">
+          <button
+            type="button"
+            onClick={() => setMode("qr")}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+              mode === "qr" ? "bg-brand-600 text-white shadow-sm" : "text-slate-600 hover:bg-brand-50",
+            )}
+          >
+            <QrCode className="h-4 w-4" />
+            QR / Code membre
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("fingerprint")}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+              mode === "fingerprint"
+                ? "bg-brand-600 text-white shadow-sm"
+                : "text-slate-600 hover:bg-brand-50",
+            )}
+          >
+            <Fingerprint className="h-4 w-4" />
+            Empreinte digitale
+          </button>
+        </nav>
+      </DashboardAnimate>
+
       <DashboardAnimate delay={100}>
         <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-          <Card className="overflow-hidden">
-            <CardHeader
-              title="Scanner ou saisir"
-              description="QR code de la carte ou identifiant JP-RDC-XXXXXXXX"
+          {mode === "qr" ? (
+            <Card className="overflow-hidden">
+              <CardHeader
+                title="Scanner ou saisir"
+                description="QR code de la carte ou identifiant JP-RDC-XXXXXXXX"
+              />
+              <CardBody>
+                <QrScannerPanel onScan={(value) => void verify(value)} loading={loading} />
+              </CardBody>
+            </Card>
+          ) : (
+            <FingerprintVerifyPanel
+              loading={loading}
+              onLoadingChange={setLoading}
+              onVerified={handleFingerprintVerified}
             />
-            <CardBody>
-              <QrScannerPanel onScan={(value) => void verify(value)} loading={loading} />
-            </CardBody>
-          </Card>
+          )}
 
           <VerificationResultPanel
             result={result}

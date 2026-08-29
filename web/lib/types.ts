@@ -1,5 +1,7 @@
 /** Contrats de données exposés par l'API Laravel. */
 
+import type { MemberFingerprint } from "@/lib/fingerprints";
+
 export type MemberStatus = "pending" | "active" | "inactive" | "suspended" | "archived";
 export type CardStatus = "active" | "inactive" | "suspended" | "expired" | "lost" | "replaced";
 export type AttendanceStatusValue = "present" | "absent" | "late" | "excused";
@@ -110,6 +112,10 @@ export interface Member {
   validated_at?: string | null;
   consent_given?: boolean;
 
+  /** Empreintes digitales (auriculaire, index, majeur — mains G/D). */
+  fingerprints?: MemberFingerprint[];
+  fingerprint_enrolled?: boolean;
+
   card?: MemberCard | null;
 }
 
@@ -174,6 +180,8 @@ export interface VerificationResult {
     phone?: string | null;
     joined_at?: string | null;
     city?: string | null;
+    fingerprint_enrolled?: boolean;
+    fingerprints_count?: number;
   } | null;
 }
 
