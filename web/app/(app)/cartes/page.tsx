@@ -1,72 +1,73 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   BadgeCheck,
-  Ban,
-  Clock,
   CreditCard,
-  Eye,
   IdCard,
-  Printer,
-  RefreshCw,
+  QrCode,
   ScanLine,
-  ShieldOff,
 } from "lucide-react";
-import { PageHeader } from "@/components/layout/topbar";
-import { RequirePermission, Can } from "@/components/auth/require-permission";
-import { Avatar } from "@/components/ui/avatar";
-import { CardStatusBadge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import {
+  CardsHero,
+  getCardStatusView,
+  type CardRow,
+} from "@/components/cards/cards-status-nav";
+import { CardsTable } from "@/components/cards/cards-table";
+import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
+import { DashboardSection } from "@/components/dashboard/dashboard-section";
+import { QuickLinkCard } from "@/components/dashboard/quick-link-card";
+import { RequirePermission } from "@/components/auth/require-permission";
+import { Card, CardHeader } from "@/components/ui/card";
 import { KpiCard, dashboardCardGrid } from "@/components/ui/kpi";
 import { Alert, EmptyState, TableSkeleton } from "@/components/ui/feedback";
 import { ConfirmDialog } from "@/components/ui/modal";
-import { Pagination, Table, Td, Th, Tr } from "@/components/ui/table";
-import { Tabs } from "@/components/ui/tabs";
+import { Pagination } from "@/components/ui/table";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
-import { Tooltip } from "@/components/ui/tooltip";
-import { QuickLinkCard } from "@/components/dashboard/quick-link-card";
 import { api, ApiError } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useToast } from "@/components/ui/toast";
-import type { MemberCard, Paginated, StatisticsOverview } from "@/lib/types";
-import { formatShortDate, cn } from "@/lib/utils";
+import type { Paginated, StatisticsOverview } from "@/lib/types";
+import { cn, formatNumber } from "@/lib/utils";
 
-interface CardRow extends MemberCard {
-  member_id: number;
-  member_code: string;
-  full_name: string;
-  photo_url: string | null;
-}
-
-const TAB_ICONS: Record<string, typeof IdCard> = {
-  "": IdCard,
-  active: BadgeCheck,
-  expired: Clock,
-  suspended: ShieldOff,
-  replaced: RefreshCw,
+const EMPTY_BY_STATUS: Record<string, { title: string; description: string }> = {
+  "": { title: "Aucune carte", description: "Aucune carte n'a encore été émise." },
+  active: { title: "Aucune carte active", description: "Aucune carte valide ne correspond à ce filtre." },
+  expired: { title: "Aucune carte expirée", description: "Toutes les cartes sont à jour." },
+  suspended: { title: "Aucune carte suspendue", description: "Aucune suspension en cours." },
+  replaced: { title: "Aucune carte remplacée", description: "Historique des remplacements vide." },
 };
 
 export default function CardsPage() {
   return (
     <RequirePermission permission={PERMISSIONS.cardsView}>
-      <CardsList />
+      <Suspense fallback={<TableSkeleton />}>
+        <CardsList />
+      </Suspense>
     </RequirePermission>
   );
 }
 
 function CardsList() {
   const toast = useToast();
-  const [status, setStatus] = useState("");
+  const searchParams = useSearchParams();
+  const statusFilter = searchParams.get("status") ?? "";
+  const view = getCardStatusView(statusFilter);
+
   const [page, setPage] = useState(1);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<CardRow | null>(null);
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter]);
+
   const stats = useApi<StatisticsOverview>("/statistics");
   const { data, loading, error, reload } = useApi<Paginated<CardRow>>("/cards", {
-    status: status || undefined,
+    status: statusFilter || undefined,
     page,
   });
 
@@ -99,207 +100,104 @@ function CardsList() {
   }
 
   const kpis = stats.data?.kpis;
+  const emptyState = EMPTY_BY_STATUS[statusFilter] ?? EMPTY_BY_STATUS[""];
 
   return (
     <div className="space-y-6">
-      <Breadcrumb items={[{ href: "/tableau-de-bord", label: "Pilotage" }, { label: "Cartes" }]} />
-      <PageHeader
-        title="Cartes membres"
-        description="Gestion des cartes JP-RDC — émission, renouvellement, désactivation et impression."
+      <Breadcrumb
+        items={[
+          { href: "/tableau-de-bord", label: "Pilotage" },
+          { label: "Cartes" },
+          { label: view.label },
+        ]}
       />
 
-      <div className={cn(dashboardCardGrid, "sm:grid-cols-2 lg:grid-cols-4")}>
-        <KpiCard
-          label="Cartes actives"
-          value={kpis?.cards.active ?? "—"}
-          icon={BadgeCheck}
-          tone="success"
-        />
-        <KpiCard
-          label="Émises ce mois"
-          value={kpis?.cards.issued_this_month ?? "—"}
-          icon={CreditCard}
-          tone="info"
-        />
-        <KpiCard
-          label="Total (filtre)"
-          value={data?.meta.total ?? "—"}
-          icon={IdCard}
-          hint={status ? "liste filtrée" : "toutes les cartes"}
-        />
-        <KpiCard
-          label="Vérifications (30 j)"
-          value={kpis?.verifications.last_30_days ?? "—"}
-          icon={ScanLine}
-          tone="neutral"
-          href="/verification"
-        />
-      </div>
+      <DashboardAnimate>
+        <CardsHero view={view} resultCount={data?.meta.total} />
+      </DashboardAnimate>
 
-      <div className={cn(dashboardCardGrid, "sm:grid-cols-2 lg:grid-cols-3")}>
-        <QuickLinkCard
-          href="/verification"
-          icon={ScanLine}
-          title="Vérifier un membre"
-          description="Scan QR ou saisie manuelle"
-          tone="emerald"
-        />
-        <QuickLinkCard
-          href="/scan"
-          icon={BadgeCheck}
-          title="Scan de présence"
-          description="Enregistrer une participation"
-          tone="amber"
-        />
-        <QuickLinkCard
-          href="/membres?status=active"
-          icon={IdCard}
-          title="Membres sans carte"
-          description="Valider les dossiers en attente"
-          tone="brand"
-        />
-      </div>
+      {kpis && (
+        <DashboardAnimate delay={60}>
+          <div className={cn(dashboardCardGrid, "sm:grid-cols-2 lg:grid-cols-4")}>
+            <KpiCard label="Cartes actives" value={kpis.cards.active} icon={BadgeCheck} tone="success" href="/cartes?status=active" />
+            <KpiCard label="Émises ce mois" value={kpis.cards.issued_this_month} icon={CreditCard} tone="info" href="/cartes" hint="période courante" />
+            <KpiCard label="Résultats (filtre)" value={data?.meta.total ?? "—"} icon={IdCard} tone="neutral" hint={statusFilter ? "liste filtrée" : "toutes les cartes"} />
+            <KpiCard label="Vérifications (30 j)" value={kpis.verifications.last_30_days} icon={ScanLine} tone="info" href="/verification" />
+          </div>
+        </DashboardAnimate>
+      )}
 
-      <Card>
-        <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 p-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-brand-100">
-            <IdCard className="h-5 w-5" />
+      <DashboardAnimate delay={100}>
+        <DashboardSection icon={QrCode} title="Raccourcis" description="Vérification, présence et émission" tone="emerald">
+          <div className={cn(dashboardCardGrid, "sm:grid-cols-2 lg:grid-cols-3")}>
+            <QuickLinkCard href="/verification" icon={ScanLine} title="Vérifier un membre" description="Scan QR ou saisie manuelle" tone="emerald" />
+            <QuickLinkCard href="/scan" icon={BadgeCheck} title="Scan de présence" description="Enregistrer une participation" tone="amber" />
+            <QuickLinkCard href="/membres?status=pending" icon={IdCard} title="Dossiers en attente" description="Valider et émettre les cartes" tone="brand" />
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-slate-900">Registre des cartes</p>
-            <p className="text-xs text-slate-500">Filtrer par statut et agir sur chaque carte</p>
-          </div>
-          <Tabs
-            tabs={[
-              { id: "", label: "Toutes" },
-              { id: "active", label: "Actives" },
-              { id: "expired", label: "Expirées" },
-              { id: "suspended", label: "Suspendues" },
-              { id: "replaced", label: "Remplacées" },
-            ]}
-            value={status}
-            onChange={(id) => {
-              setStatus(id);
-              setPage(1);
-            }}
-            className="w-full lg:w-auto"
+        </DashboardSection>
+      </DashboardAnimate>
+
+      <DashboardAnimate delay={160}>
+        <Card>
+          <CardHeader
+            title={`Registre — ${view.label}`}
+            description={
+              loading
+                ? "Chargement…"
+                : `${formatNumber(data?.meta.total ?? 0)} carte(s) · émission, renouvellement et désactivation`
+            }
           />
-        </div>
 
-        {error && <Alert tone="error">{error}</Alert>}
-        {loading && <TableSkeleton />}
-        {!loading && data && data.data.length === 0 && (
-          <EmptyState title="Aucune carte" description="Aucune carte ne correspond à ce filtre." />
-        )}
-        {!loading && data && data.data.length > 0 && (
-          <>
-            <Table>
-              <thead>
-                <tr>
-                  <Th>Membre</Th>
-                  <Th>N° carte</Th>
-                  <Th>Statut</Th>
-                  <Th>Émise</Th>
-                  <Th>Expire</Th>
-                  <Th className="text-right">Actions</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.data.map((card) => {
-                  const TabIcon = TAB_ICONS[card.status] ?? IdCard;
-                  return (
-                    <Tr key={card.id}>
-                      <Td>
-                        <div className="flex items-center gap-3">
-                          <Avatar src={card.photo_url} name={card.full_name} size="sm" />
-                          <span>
-                            <span className="block font-medium">{card.full_name}</span>
-                            <span className="font-mono text-[11px] text-slate-500">{card.member_code}</span>
-                          </span>
-                        </div>
-                      </Td>
-                      <Td>
-                        <span className="inline-flex items-center gap-1.5 font-mono text-xs text-slate-700">
-                          <TabIcon className="h-3.5 w-3.5 text-brand-500" aria-hidden />
-                          {card.card_number}
-                        </span>
-                      </Td>
-                      <Td>
-                        <CardStatusBadge status={card.status} label={card.status_label} />
-                      </Td>
-                      <Td className="text-xs text-slate-600">{formatShortDate(card.issued_at)}</Td>
-                      <Td className="text-xs text-slate-600">{formatShortDate(card.expires_at)}</Td>
-                      <Td>
-                        <div className="flex justify-end gap-0.5 rounded-lg border border-slate-100 bg-slate-50/80 p-1">
-                          <Tooltip content="Aperçu de la carte">
-                            <Link href={`/cartes/apercu/${card.member_id}`} aria-label="Aperçu">
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-brand-700 hover:bg-brand-50">
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                            </Link>
-                          </Tooltip>
-                          <Tooltip content="Imprimer">
-                            <Link href={`/cartes/apercu/${card.member_id}`} aria-label="Imprimer">
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-600 hover:bg-white">
-                                <Printer className="h-4 w-4" />
-                              </Button>
-                            </Link>
-                          </Tooltip>
-                          <Can permission={PERMISSIONS.cardsIssue}>
-                            <Tooltip content="Régénérer la carte">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-amber-700 hover:bg-amber-50"
-                                aria-label="Régénérer"
-                                loading={busyId === card.id}
-                                onClick={() => void regenerate(card)}
-                              >
-                                <RefreshCw className="h-4 w-4" />
-                              </Button>
-                            </Tooltip>
-                          </Can>
-                          <Can permission={PERMISSIONS.cardsRevoke}>
-                            {card.status === "active" && (
-                              <Tooltip content="Désactiver">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-red-600 hover:bg-red-50"
-                                  aria-label="Désactiver"
-                                  onClick={() => setRevokeTarget(card)}
-                                >
-                                  <Ban className="h-4 w-4" />
-                                </Button>
-                              </Tooltip>
-                            )}
-                          </Can>
-                        </div>
-                      </Td>
-                    </Tr>
-                  );
-                })}
-              </tbody>
-            </Table>
-            <Pagination
-              page={data.meta.current_page}
-              lastPage={data.meta.last_page}
-              total={data.meta.total}
-              perPage={data.meta.per_page}
-              onChange={setPage}
-              label="cartes"
+          {error && <Alert tone="error" className="m-4">{error}</Alert>}
+          {loading && !data && <TableSkeleton />}
+          {!loading && data && data.data.length === 0 && (
+            <EmptyState
+              title={emptyState.title}
+              description={emptyState.description}
+              action={
+                statusFilter ? (
+                  <Link href="/cartes" className="text-sm font-medium text-brand-700 hover:underline">
+                    Voir toutes les cartes
+                  </Link>
+                ) : undefined
+              }
             />
-          </>
-        )}
-      </Card>
+          )}
+          {!loading && data && data.data.length > 0 && (
+            <>
+              <CardsTable
+                cards={data.data}
+                busyId={busyId}
+                onRegenerate={(card) => void regenerate(card)}
+                onRevoke={setRevokeTarget}
+              />
+              <Pagination
+                page={data.meta.current_page}
+                lastPage={data.meta.last_page}
+                total={data.meta.total}
+                perPage={data.meta.per_page}
+                onChange={setPage}
+                label="cartes"
+              />
+            </>
+          )}
+        </Card>
+      </DashboardAnimate>
 
       <ConfirmDialog
         open={Boolean(revokeTarget)}
-        onClose={() => setRevokeTarget(null)}
+        onClose={() => !busyId && setRevokeTarget(null)}
         onConfirm={() => void revoke()}
         loading={busyId !== null}
         title="Désactiver cette carte ?"
-        message="Le membre ne pourra plus l'utiliser pour se faire identifier."
+        message={
+          revokeTarget ? (
+            <>
+              La carte <strong>{revokeTarget.card_number}</strong> de {revokeTarget.full_name} sera désactivée.
+              Le membre ne pourra plus l&apos;utiliser pour s&apos;identifier.
+            </>
+          ) : null
+        }
         confirmLabel="Désactiver"
         tone="danger"
       />

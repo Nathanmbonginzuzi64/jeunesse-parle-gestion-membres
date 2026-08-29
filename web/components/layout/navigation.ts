@@ -1,10 +1,12 @@
 import {
   Activity,
+  BadgeCheck,
   BarChart3,
   Bell,
   Building2,
   CalendarDays,
   CheckSquare,
+  Clock,
   CreditCard,
   IdCard,
   LayoutDashboard,
@@ -12,6 +14,7 @@ import {
   ScanLine,
   Settings,
   ShieldCheck,
+  ShieldOff,
   UserCog,
   Users,
   type LucideIcon,
@@ -71,6 +74,12 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Cartes membres",
         icon: CreditCard,
         permissions: [PERMISSIONS.cardsView],
+        children: [
+          { href: "/cartes", label: "Toutes", icon: CreditCard, exact: true },
+          { href: "/cartes?status=active", label: "Actives", icon: BadgeCheck },
+          { href: "/cartes?status=expired", label: "Expirées", icon: Clock },
+          { href: "/cartes?status=suspended", label: "Suspendues", icon: ShieldOff },
+        ],
       },
       {
         href: "/verification",
