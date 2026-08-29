@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CheckCircle2, Fingerprint, Loader2, ShieldAlert, XCircle } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,8 @@ import {
   BIOMETRIC_CONTEXT_COPY,
   type BiometricContext,
 } from "@/lib/biometrics/contexts";
-import { isWebAuthnAvailable, webAuthnCreate, webAuthnGet } from "@/lib/biometrics/webauthn-client";
+import { useWebAuthnCeremony } from "@/lib/biometrics/use-webauthn-ceremony";
+import { isWebAuthnAvailable } from "@/lib/biometrics/webauthn-client";
 import type { AuthUser } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -60,6 +61,8 @@ export function BiometricModal({
   const [phase, setPhase] = useState<"idle" | "waiting" | "success" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [result, setResult] = useState<BiometricResult | null>(null);
+  const { awaitingCeremony, clearPending, runCreate, runGet, formatError } = useWebAuthnCeremony();
+  const challengeRef = useRef<ChallengeResponse | null>(null);
 
   const available = USE_MOCKS || isWebAuthnAvailable();
   const needsAuth = context === "ATTENDANCE" || context === "BIOMETRIC_REGISTRATION" || context === "SECURITY_CONFIRMATION";
@@ -117,10 +120,12 @@ export function BiometricModal({
       }
 
       if (context === "BIOMETRIC_REGISTRATION") {
-        const options = await api.post<{ options: { publicKey: Record<string, unknown> } }>(
-          "/biometrics/register/options",
-        );
-        const attestation = await webAuthnCreate(options.options);
+        const attestation = await runCreate(async () => {
+          const options = await api.post<{ options: { publicKey: Record<string, unknown> } }>(
+            "/biometrics/register/options",
+          );
+          return options.options;
+        });
         const registered = await api.post<{ message?: string }>("/biometrics/register", {
           ...attestation,
           device_name: "Windows Hello",
@@ -133,16 +138,21 @@ export function BiometricModal({
         setResult(payload);
         setPhase("success");
         onSuccess?.(payload);
+        challengeRef.current = null;
         return;
       }
 
-      const challengePayload = await postJson<ChallengeResponse>(
-        "/biometrics/authenticate/options",
-        { context },
-        needsAuth,
-      );
+      let challengePayload = challengeRef.current;
+      if (!awaitingCeremony || !challengePayload) {
+        challengePayload = await postJson<ChallengeResponse>(
+          "/biometrics/authenticate/options",
+          { context },
+          needsAuth,
+        );
+        challengeRef.current = challengePayload;
+      }
 
-      const assertion = await webAuthnGet(challengePayload.options);
+      const assertion = await runGet(async () => challengePayload!.options);
       const authResult = await postJson<BiometricResult>(
         "/biometrics/authenticate",
         {
@@ -157,9 +167,10 @@ export function BiometricModal({
       setResult(authResult);
       setPhase("success");
       onSuccess?.(authResult);
+      challengeRef.current = null;
     } catch (caught) {
       setPhase("error");
-        if (caught instanceof ApiError) {
+      if (caught instanceof ApiError) {
         setMessage(
           caught.fieldError("credential") ??
             caught.fieldError("context") ??
@@ -167,15 +178,16 @@ export function BiometricModal({
             Object.values(caught.errors)[0]?.[0] ??
             caught.message,
         );
-      } else if (caught instanceof Error) {
-        setMessage(caught.message);
+        clearPending();
       } else {
-        setMessage("Identification échouée.");
+        setMessage(formatError(caught));
       }
     }
   }
 
   function handleClose() {
+    clearPending();
+    challengeRef.current = null;
     setPhase("idle");
     setMessage(null);
     setResult(null);
@@ -188,6 +200,12 @@ export function BiometricModal({
         {!available && (
           <Alert tone="warning">
             Biométrie indisponible. Utilisez le mot de passe, le QR ou l&apos;identifiant membre.
+          </Alert>
+        )}
+
+        {awaitingCeremony && phase !== "success" && (
+          <Alert tone="info">
+            Gardez cette fenêtre active, puis cliquez à nouveau sur le bouton pour lancer Windows Hello.
           </Alert>
         )}
 
@@ -261,7 +279,7 @@ export function BiometricModal({
               disabled={!available || phase === "waiting"}
             >
               <Fingerprint className="h-4 w-4" />
-              {phase === "waiting" ? "En cours…" : "Utiliser mon empreinte"}
+              {phase === "waiting" ? "En cours…" : awaitingCeremony ? "Lancer Windows Hello" : "Utiliser mon empreinte"}
             </Button>
           )}
           <Button type="button" variant="outline" className="w-full" onClick={handleClose}>

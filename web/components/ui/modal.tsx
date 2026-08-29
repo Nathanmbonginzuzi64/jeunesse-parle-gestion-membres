@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -40,6 +40,16 @@ export function Modal({
     };
   }, [open, onClose]);
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = requestAnimationFrame(() => {
+      dialogRef.current?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
+
   if (!open || typeof document === "undefined") return null;
 
   const widths = {
@@ -50,18 +60,19 @@ export function Modal({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-900/40 p-0 backdrop-blur-[2px] sm:items-center sm:p-4">
-      <button
-        type="button"
-        aria-label="Fermer"
-        className="absolute inset-0 h-full w-full cursor-default"
+    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto p-0 sm:items-center sm:p-4">
+      <div
+        aria-hidden
+        className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]"
         onClick={onClose}
       />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
+        tabIndex={-1}
         className={cn(
-          "animate-fade-in relative z-10 w-full rounded-t-2xl bg-white shadow-xl sm:rounded-2xl",
+          "animate-fade-in relative z-10 w-full rounded-t-2xl bg-white shadow-xl outline-none sm:rounded-2xl",
           widths[size],
         )}
       >

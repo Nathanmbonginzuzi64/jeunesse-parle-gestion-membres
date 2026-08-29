@@ -72,6 +72,56 @@ export function isWebAuthnAvailable(): boolean {
   return typeof window !== "undefined" && !!window.PublicKeyCredential;
 }
 
+/** Windows Hello exige que l'onglet ait le focus au moment de l'appel. */
+export async function ensureDocumentFocus(): Promise<void> {
+  if (typeof document === "undefined") return;
+
+  if (document.hasFocus()) return;
+
+  window.focus();
+
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+
+  if (!document.hasFocus()) {
+    throw new WebAuthnFocusError();
+  }
+}
+
+export class WebAuthnFocusError extends Error {
+  constructor() {
+    super(
+      "La fenêtre du navigateur doit être active. Cliquez sur « Lancer Windows Hello » sans changer d'onglet.",
+    );
+    this.name = "WebAuthnFocusError";
+  }
+}
+
+export function isWebAuthnFocusError(error: unknown): boolean {
+  if (error instanceof WebAuthnFocusError) return true;
+  if (!(error instanceof DOMException || error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return (
+    error.name === "NotAllowedError" &&
+    (message.includes("page does not have focus") ||
+      message.includes("document is not focused") ||
+      message.includes("operation is not allowed"))
+  );
+}
+
+export function formatWebAuthnError(error: unknown): string {
+  if (error instanceof WebAuthnFocusError) return error.message;
+  if (isWebAuthnFocusError(error)) {
+    return "La fenêtre du navigateur doit être active. Cliquez sur « Lancer Windows Hello » sans changer d'onglet.";
+  }
+  if (error instanceof DOMException && error.name === "NotAllowedError") {
+    return "Authentification biométrique annulée ou refusée.";
+  }
+  if (error instanceof Error) return error.message;
+  return "Opération biométrique impossible.";
+}
+
 export async function webAuthnCreate(
   serverOptions: { publicKey?: Record<string, unknown> } | Record<string, unknown>,
 ): Promise<{
@@ -86,18 +136,24 @@ export async function webAuthnCreate(
   const root = serverOptions as { publicKey?: Record<string, unknown> };
   const publicKey = reviveCreateOptions(root.publicKey ?? (serverOptions as Record<string, unknown>));
 
-  const credential = (await navigator.credentials.create({ publicKey })) as PublicKeyCredential | null;
-  if (!credential) throw new Error("Enregistrement biométrique annulé.");
+  try {
+    await ensureDocumentFocus();
+    const credential = (await navigator.credentials.create({ publicKey })) as PublicKeyCredential | null;
+    if (!credential) throw new Error("Enregistrement biométrique annulé.");
 
-  const response = credential.response as AuthenticatorAttestationResponse;
-  const transports =
-    typeof response.getTransports === "function" ? response.getTransports() : ["internal"];
+    const response = credential.response as AuthenticatorAttestationResponse;
+    const transports =
+      typeof response.getTransports === "function" ? response.getTransports() : ["internal"];
 
-  return {
-    clientDataJSON: bufferToB64url(response.clientDataJSON),
-    attestationObject: bufferToB64url(response.attestationObject),
-    transports,
-  };
+    return {
+      clientDataJSON: bufferToB64url(response.clientDataJSON),
+      attestationObject: bufferToB64url(response.attestationObject),
+      transports,
+    };
+  } catch (error) {
+    if (isWebAuthnFocusError(error)) throw new WebAuthnFocusError();
+    throw error;
+  }
 }
 
 export async function webAuthnGet(
@@ -117,17 +173,23 @@ export async function webAuthnGet(
   const root = serverOptions as { publicKey?: Record<string, unknown> };
   const publicKey = reviveGetOptions(root.publicKey ?? (serverOptions as Record<string, unknown>));
 
-  const credential = (await navigator.credentials.get({ publicKey })) as PublicKeyCredential | null;
-  if (!credential) throw new Error("Identification biométrique annulée.");
+  try {
+    await ensureDocumentFocus();
+    const credential = (await navigator.credentials.get({ publicKey })) as PublicKeyCredential | null;
+    if (!credential) throw new Error("Identification biométrique annulée.");
 
-  const response = credential.response as AuthenticatorAssertionResponse;
+    const response = credential.response as AuthenticatorAssertionResponse;
 
-  return {
-    id: bufferToB64url(credential.rawId),
-    rawId: bufferToB64url(credential.rawId),
-    clientDataJSON: bufferToB64url(response.clientDataJSON),
-    authenticatorData: bufferToB64url(response.authenticatorData),
-    signature: bufferToB64url(response.signature),
-    userHandle: response.userHandle ? bufferToB64url(response.userHandle) : null,
-  };
+    return {
+      id: bufferToB64url(credential.rawId),
+      rawId: bufferToB64url(credential.rawId),
+      clientDataJSON: bufferToB64url(response.clientDataJSON),
+      authenticatorData: bufferToB64url(response.authenticatorData),
+      signature: bufferToB64url(response.signature),
+      userHandle: response.userHandle ? bufferToB64url(response.userHandle) : null,
+    };
+  } catch (error) {
+    if (isWebAuthnFocusError(error)) throw new WebAuthnFocusError();
+    throw error;
+  }
 }

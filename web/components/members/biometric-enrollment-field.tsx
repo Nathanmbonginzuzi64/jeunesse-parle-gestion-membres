@@ -7,7 +7,8 @@ import { Alert } from "@/components/ui/feedback";
 import { api, ApiError } from "@/lib/api";
 import { USE_MOCKS } from "@/lib/config";
 import { hasWebAuthnEnrollment, type WebAuthnEnrollmentPayload } from "@/lib/biometrics/types";
-import { isWebAuthnAvailable, webAuthnCreate } from "@/lib/biometrics/webauthn-client";
+import { useWebAuthnCeremony } from "@/lib/biometrics/use-webauthn-ceremony";
+import { isWebAuthnAvailable } from "@/lib/biometrics/webauthn-client";
 import { cn } from "@/lib/utils";
 
 export function BiometricEnrollmentField({
@@ -33,8 +34,10 @@ export function BiometricEnrollmentField({
       ? crypto.randomUUID()
       : `enroll-${Date.now()}`,
   );
+  const pendingEnrollmentRef = useRef<{ enrollment_key: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const { awaitingCeremony, clearPending, runCreate, formatError } = useWebAuthnCeremony();
 
   const available = USE_MOCKS || isWebAuthnAvailable();
   const enrolled = hasWebAuthnEnrollment(value) || alreadyEnrolled;
@@ -64,22 +67,28 @@ export function BiometricEnrollmentField({
         return;
       }
 
-      const options = await api.public.post<{
-        options: { publicKey: Record<string, unknown> };
-        enrollment_key: string;
-      }>("/biometrics/member-enroll/options", {
-        enrollment_key: enrollmentKeyRef.current,
-        user_name: userName.trim(),
-        display_name: displayName.trim(),
+      let enrollmentKey = enrollmentKeyRef.current;
+
+      const attestation = await runCreate(async () => {
+        const serverOptions = await api.public.post<{
+          options: { publicKey: Record<string, unknown> };
+          enrollment_key: string;
+        }>("/biometrics/member-enroll/options", {
+          enrollment_key: enrollmentKeyRef.current,
+          user_name: userName.trim(),
+          display_name: displayName.trim(),
+        });
+        pendingEnrollmentRef.current = { enrollment_key: serverOptions.enrollment_key };
+        enrollmentKey = serverOptions.enrollment_key;
+        return serverOptions.options;
       });
 
-      const attestation = await webAuthnCreate(options.options);
-
       onChange({
-        enrollment_key: options.enrollment_key,
+        enrollment_key: pendingEnrollmentRef.current?.enrollment_key ?? enrollmentKey,
         ...attestation,
         device_name: "Windows Hello",
       });
+      pendingEnrollmentRef.current = null;
     } catch (caught) {
       if (caught instanceof ApiError) {
         setLocalError(
@@ -87,10 +96,9 @@ export function BiometricEnrollmentField({
             caught.fieldError("credential") ??
             caught.message,
         );
-      } else if (caught instanceof Error) {
-        setLocalError(caught.message);
+        clearPending();
       } else {
-        setLocalError("Enregistrement biométrique impossible.");
+        setLocalError(formatError(caught));
       }
     } finally {
       setBusy(false);
@@ -102,15 +110,30 @@ export function BiometricEnrollmentField({
       typeof crypto !== "undefined" && crypto.randomUUID
         ? crypto.randomUUID()
         : `enroll-${Date.now()}`;
+    clearPending();
+    pendingEnrollmentRef.current = null;
     onChange(null);
     setLocalError(null);
   }
+
+  const actionLabel = awaitingCeremony
+    ? "Lancer Windows Hello"
+    : busy
+      ? "En cours…"
+      : "Enregistrer l'empreinte";
 
   return (
     <div className="space-y-4">
       {!available && (
         <Alert tone="warning">
           Biométrie indisponible. Utilisez Chrome ou Edge sur localhost avec Windows Hello activé.
+        </Alert>
+      )}
+
+      {awaitingCeremony && (
+        <Alert tone="info">
+          Gardez cette fenêtre active, puis cliquez sur « Lancer Windows Hello » pour ouvrir la lecture
+          biométrique.
         </Alert>
       )}
 
@@ -143,7 +166,7 @@ export function BiometricEnrollmentField({
         <p className="mt-1 text-xs text-slate-500">
           {enrolled
             ? `Le credential sera lié à l'${subjectLabel} à la validation du formulaire.`
-            : `L'${subjectLabel} pose son doigt sur le lecteur de l'appareil — aucune image n'est stockée.`}
+            : `L'${subjectLabel} pose son doigt sur le lecteur — ne changez pas d'onglet pendant l'opération.`}
         </p>
 
         <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-center">
@@ -155,7 +178,7 @@ export function BiometricEnrollmentField({
               onClick={() => void enroll()}
             >
               <Fingerprint className="h-4 w-4" />
-              {busy ? "En cours…" : "Enregistrer l'empreinte"}
+              {actionLabel}
             </Button>
           ) : (
             <Button type="button" variant="outline" onClick={reset}>
