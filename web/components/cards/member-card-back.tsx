@@ -17,9 +17,9 @@ function FlagStripe() {
 
 function MetaRow({ label, value }: { label: string; value?: string | null }) {
   return (
-    <div className="grid grid-cols-[9.5rem_minmax(0,1fr)] items-baseline gap-3 border-b border-slate-100 py-1.5 last:border-0">
-      <span className="text-[9px] font-semibold tracking-[0.12em] text-slate-400 uppercase">{label}</span>
-      <span className="truncate text-right text-[12px] font-semibold text-brand-950" title={value ?? undefined}>
+    <div className="grid grid-cols-[8.25rem_minmax(0,1fr)] items-baseline gap-2 border-b border-slate-100 py-1 last:border-0">
+      <span className="text-[8px] font-semibold tracking-[0.1em] text-slate-400 uppercase">{label}</span>
+      <span className="truncate text-right text-[10px] font-semibold text-brand-950" title={value ?? undefined}>
         {value?.trim() || "—"}
       </span>
     </div>
@@ -45,21 +45,21 @@ export function MemberCardBack({
         className,
       )}
     >
-      <header className="relative flex items-center gap-2.5 bg-gradient-to-r from-brand-950 via-brand-900 to-brand-800 px-3.5 py-2.5 sm:px-4">
-        <Logo size={30} className="ring-white/25" />
-        <p className="truncate text-xs font-bold tracking-[0.08em] text-white uppercase sm:text-[13px]">
+      <header className="relative flex items-center gap-2 bg-gradient-to-r from-brand-950 via-brand-900 to-brand-800 px-3.5 py-2 sm:px-4">
+        <Logo size={26} className="ring-white/25" />
+        <p className="truncate text-[11px] font-bold tracking-[0.08em] text-white uppercase">
           {render.organization} — RDC
         </p>
       </header>
 
-      <div className="relative flex min-h-0 flex-1 flex-col px-4 py-3">
-        <h2 className="text-[15px] font-bold tracking-wide text-brand-800 uppercase">Carte de membre</h2>
-        <p className="mt-1.5 max-w-prose text-[10px] leading-relaxed text-slate-500">
+      <div className="relative flex min-h-0 flex-1 flex-col px-3.5 py-2 sm:px-4">
+        <h2 className="text-[12px] font-bold tracking-wide text-brand-800 uppercase">Carte de membre</h2>
+        <p className="mt-1 max-w-prose text-[8px] leading-snug text-slate-500">
           Cette carte atteste de l&apos;enregistrement du titulaire dans le système Jeunesse Parle. La validité peut
           être vérifiée via le QR Code. En cas de perte, contactez immédiatement votre structure.
         </p>
 
-        <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-1">
+        <div className="mt-2 rounded-lg border border-slate-100 bg-slate-50/80 px-2.5 py-0.5">
           <MetaRow label="ID membre" value={render.member_code} />
           <MetaRow label="Date d'émission" value={formatShortDate(render.issued_at)} />
           <MetaRow label="Date d'expiration" value={formatShortDate(render.expires_at)} />
@@ -67,26 +67,26 @@ export function MemberCardBack({
           <MetaRow label="Structure d'appartenance" value={structure} />
         </div>
 
-        <div className="mt-auto flex items-end justify-between gap-4 pt-3">
+        <div className="mt-auto flex items-end justify-between gap-3 pt-2">
           <div className="min-w-0 flex-1 pb-0.5">
-            <div className="mb-1.5 h-px w-full max-w-[10rem] bg-slate-300" />
-            <p className="text-[9px] tracking-wide text-slate-400 uppercase">Signature du titulaire</p>
+            <div className="mb-1 h-px w-full max-w-[9rem] bg-slate-300" />
+            <p className="text-[8px] tracking-wide text-slate-400 uppercase">Signature du titulaire</p>
           </div>
 
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 border-brand-700/80 text-center shadow-sm">
-            <span className="px-1 text-[8px] font-bold leading-tight tracking-wide text-brand-800 uppercase">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-brand-700/80 text-center shadow-sm">
+            <span className="px-0.5 text-[7px] font-bold leading-tight tracking-wide text-brand-800 uppercase">
               Cachet
               <br />
               officiel
             </span>
           </div>
 
-          <MemberQrCode value={qrValue} size={52} label="QR secondaire" compact className="shrink-0" />
+          <MemberQrCode value={qrValue} size={44} label="QR secondaire" compact className="shrink-0" />
         </div>
       </div>
 
-      <div className="relative mt-auto">
-        <p className="px-4 pb-1.5 text-center text-[9px] text-slate-400">
+      <div className="relative mt-auto border-t border-slate-100 bg-slate-50/60">
+        <p className="px-4 py-2 text-center text-[11px] font-semibold tracking-wide text-brand-800">
           www.jeunesseparle.cd · contact@jeunesseparle.cd
         </p>
         <FlagStripe />

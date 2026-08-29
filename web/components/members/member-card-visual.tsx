@@ -102,9 +102,9 @@ export function MemberCardVisual({
         </span>
       </header>
 
-      <div className="relative grid min-h-0 flex-1 grid-cols-[5.25rem_minmax(0,1fr)_auto] gap-3 px-3.5 py-3 sm:grid-cols-[5.75rem_minmax(0,1fr)_auto] sm:gap-3.5 sm:px-4 sm:py-3.5">
-        {/* Photo */}
-        <div className="relative self-stretch overflow-hidden rounded-lg border border-slate-200 bg-slate-100 shadow-inner">
+      <div className="relative grid min-h-0 flex-1 grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-3 px-3.5 py-3 sm:grid-cols-[4.75rem_minmax(0,1fr)_auto] sm:gap-3.5 sm:px-4 sm:py-3.5">
+        {/* Photo — hauteur réduite */}
+        <div className="relative h-[4.75rem] w-full self-center overflow-hidden rounded-lg border border-slate-200 bg-slate-100 shadow-inner sm:h-[5.25rem]">
           {photo ? (
             <img
               src={photo}
@@ -112,12 +112,12 @@ export function MemberCardVisual({
               className="absolute inset-0 h-full w-full object-cover"
             />
           ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-gradient-to-b from-slate-50 to-slate-200">
-              <span className="text-lg font-bold tracking-wide text-slate-400">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 bg-gradient-to-b from-slate-50 to-slate-200">
+              <span className="text-base font-bold tracking-wide text-slate-400">
                 {(render.first_name?.[0] ?? "").toUpperCase()}
                 {(render.last_name?.[0] ?? "").toUpperCase()}
               </span>
-              <span className="text-[8px] font-medium tracking-wide text-slate-400 uppercase">Photo</span>
+              <span className="text-[7px] font-medium tracking-wide text-slate-400 uppercase">Photo</span>
             </div>
           )}
         </div>
