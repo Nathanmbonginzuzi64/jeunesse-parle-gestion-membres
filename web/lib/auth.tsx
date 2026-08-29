@@ -25,6 +25,7 @@ interface AuthContextValue {
   member: Member | null;
   loading: boolean;
   login: (payload: LoginPayload) => Promise<AuthUser>;
+  loginWithFingerprint: (user: AuthUser, token: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
   can: (permission: string | string[]) => boolean;
@@ -86,6 +87,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return me.user;
   }, []);
 
+  const loginWithFingerprint = useCallback(async (authenticated: AuthUser, token: string) => {
+    setToken(token);
+    setUser(authenticated);
+
+    const me = await api.get<{ user: AuthUser; member: Member | null }>("/auth/me");
+    setUser(me.user);
+    setMember(me.member);
+    setLoading(false);
+
+    return me.user;
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await api.post("/auth/logout");
@@ -118,13 +131,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       member,
       loading,
       login,
+      loginWithFingerprint,
       logout,
       refresh,
       can,
       hasRole,
       isMemberOnly: user?.role?.slug === ROLE_SLUGS.membre,
     }),
-    [user, member, loading, login, logout, refresh, can, hasRole],
+    [user, member, loading, login, loginWithFingerprint, logout, refresh, can, hasRole],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

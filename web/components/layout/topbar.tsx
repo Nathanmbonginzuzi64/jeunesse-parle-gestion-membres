@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Bell, ChevronDown, CircleHelp, KeyRound, LogOut, Menu, UserRound } from "lucide-react";
+import { Avatar } from "@/components/ui/avatar";
 import { api } from "@/lib/api";
 import { USE_MOCKS } from "@/lib/config";
 import { useAuth } from "@/lib/auth";
-import { cn, initials } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { CommandSearch } from "./command-search";
 
 export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
@@ -98,9 +99,7 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
           aria-expanded={menuOpen}
           aria-haspopup="menu"
         >
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700">
-            {initials(user?.name)}
-          </span>
+          <Avatar src={user?.photo_url} name={user?.name} size="sm" />
           <span className="hidden text-left sm:block">
             <span className="block max-w-[10rem] truncate text-xs font-medium text-slate-900">
               {user?.name}

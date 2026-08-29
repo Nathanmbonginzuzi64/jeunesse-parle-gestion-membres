@@ -64,6 +64,13 @@ async function resolveActivityImage(input: Record<string, unknown>): Promise<str
   return null;
 }
 
+async function resolveUserPhoto(input: Record<string, unknown>): Promise<string | null> {
+  const photo = input.photo;
+  if (photo instanceof File) return fileToDataUrl(photo);
+  if (typeof input.photo_url === "string" && input.photo_url) return input.photo_url;
+  return null;
+}
+
 function jsonBody(body: unknown): Record<string, unknown> {
   if (!body) return {};
   if (body instanceof FormData) {
@@ -179,7 +186,17 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
         errors: { login: ["Identifiants incorrects."] },
       });
     }
+    if (!user.is_active) {
+      throw new ApiError(403, "Ce compte est désactivé. Contactez un administrateur.", {
+        errors: { login: ["Compte désactivé."] },
+      });
+    }
+    user.last_login_at = new Date().toISOString();
     return { message: "Connexion réussie.", token: `mock.${user.id}`, user } as T;
+  }
+
+  if (method === "POST" && path === "/auth/login-fingerprint") {
+    return loginWithFingerprint(jsonBody(body)) as T;
   }
 
   if (method === "POST" && path === "/auth/register") {
@@ -656,11 +673,14 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
   if (method === "POST" && path === "/users") {
     const input = jsonBody(body);
     const role = db.roles.find((item) => item.id === Number(input.role_id));
+    const fingerprints = parseFingerprintsFromBody(body);
+    const photoUrl = await resolveUserPhoto(input);
     const created = db.makeUser({
       id: db.users.length + 1,
       name: String(input.name ?? "Utilisateur"),
       email: String(input.email ?? ""),
       phone: (input.phone as string) ?? null,
+      photo_url: photoUrl,
       role: role ? { slug: role.slug, name: role.name, scope_level: role.scope_level } : { slug: "membre", name: "Membre", scope_level: 4 },
       scope: {
         province_id: input.province_id ? Number(input.province_id) : null,
@@ -671,7 +691,13 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
         structure_id: input.structure_id ? Number(input.structure_id) : null,
         structure: db.structures.find((s) => s.id === Number(input.structure_id))?.name ?? null,
       },
+      fingerprints,
+      fingerprint_enrolled: fingerprints.length >= FINGERPRINT_SLOTS.length,
     });
+    if (input.fingerprint_enrollment === "0") {
+      created.fingerprints = [];
+      created.fingerprint_enrolled = false;
+    }
     db.users.unshift(created);
     return { message: "Compte créé.", data: created } as T;
   }
@@ -683,6 +709,10 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
       if (input.name) user.name = String(input.name);
       if (input.email) user.email = String(input.email);
       if (input.phone !== undefined) user.phone = (input.phone as string) || null;
+      if (input.photo instanceof File || typeof input.photo_url === "string") {
+        const photoUrl = await resolveUserPhoto(input);
+        if (photoUrl) user.photo_url = photoUrl;
+      }
       if (input.role_id) {
         const role = db.roles.find((item) => item.id === Number(input.role_id));
         if (role) user.role = { slug: role.slug, name: role.name, scope_level: role.scope_level };
@@ -698,6 +728,16 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
       if (input.structure_id !== undefined) {
         user.scope.structure_id = input.structure_id ? Number(input.structure_id) : null;
         user.scope.structure = db.structures.find((s) => s.id === Number(input.structure_id))?.name ?? null;
+      }
+      if (input.fingerprint_enrollment === "0") {
+        user.fingerprints = [];
+        user.fingerprint_enrolled = false;
+      } else {
+        const fingerprints = parseFingerprintsFromBody(body);
+        if (fingerprints.length > 0) {
+          user.fingerprints = fingerprints;
+          user.fingerprint_enrolled = fingerprints.length >= FINGERPRINT_SLOTS.length;
+        }
       }
       return { message: "Compte mis à jour.", data: user } as T;
     }
@@ -979,6 +1019,79 @@ function verifyFingerprint(memberCode: string): FingerprintVerifyResult {
     member_id: member.id,
     full_name: member.full_name,
     fingerprints_enrolled: stored.length,
+  };
+}
+
+function loginWithFingerprint(input: Record<string, unknown>) {
+  const login = String(input.login ?? "").trim().toLowerCase();
+  if (!login) {
+    throw new ApiError(422, "Saisissez votre e-mail ou téléphone.", {
+      errors: { login: ["Identifiant requis pour la connexion biométrique."] },
+    });
+  }
+
+  const user = db.users.find(
+    (item) => item.email?.toLowerCase() === login || item.phone === String(input.login ?? "").trim(),
+  );
+
+  if (!user) {
+    throw new ApiError(422, "Aucun compte ne correspond à cet identifiant.", {
+      valid: false,
+      message: "Aucun compte ne correspond à cet identifiant.",
+    });
+  }
+
+  if (!user.is_active) {
+    throw new ApiError(403, "Compte désactivé — connexion par empreinte refusée.", {
+      valid: false,
+      message: "Ce compte est désactivé. Contactez un administrateur.",
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        is_active: false,
+        role: user.role?.slug ?? null,
+        fingerprint_enrolled: Boolean(user.fingerprint_enrolled),
+      },
+    });
+  }
+
+  const stored = user.fingerprints ?? [];
+  if (stored.length < FINGERPRINT_SLOTS.length) {
+    throw new ApiError(422, "Empreintes non enregistrées pour ce compte.", {
+      valid: false,
+      message: "Aucune empreinte enregistrée — demandez à un administrateur de configurer la biométrie.",
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        is_active: true,
+        role: user.role?.slug ?? null,
+        fingerprint_enrolled: false,
+      },
+    });
+  }
+
+  const loginSeed = user.email ?? user.phone ?? String(user.id);
+  const scannedTemplate = generateFingerprintTemplate(`user-${loginSeed}-${user.id}`, "left_index");
+  const matched = matchFingerprint(stored, scannedTemplate) ?? stored[0];
+
+  if (!matched) {
+    throw new ApiError(422, "Empreinte non reconnue.", {
+      valid: false,
+      message: "Empreinte non reconnue — réessayez ou utilisez votre mot de passe.",
+    });
+  }
+
+  user.last_login_at = new Date().toISOString();
+
+  return {
+    valid: true,
+    message: user.must_change_password
+      ? "Connexion biométrique réussie — vous devez changer votre mot de passe."
+      : "Connexion biométrique réussie.",
+    token: `mock.${user.id}`,
+    user,
   };
 }
 

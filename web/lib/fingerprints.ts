@@ -83,6 +83,32 @@ export function mockMemberFingerprints(memberId: number, memberCode: string): Me
   }));
 }
 
+export function mockUserFingerprints(userId: number, loginSeed: string): MemberFingerprint[] {
+  const seed = `user-${loginSeed}-${userId}`;
+  const capturedAt = new Date().toISOString();
+  return FINGERPRINT_SLOTS.map((item) => ({
+    slot: item.slot,
+    hand: item.hand,
+    finger: item.finger,
+    template_hash: generateFingerprintTemplate(seed, item.slot),
+    captured_at: capturedAt,
+  }));
+}
+
+export interface FingerprintLoginResult {
+  valid: boolean;
+  message: string;
+  token?: string;
+  user?: {
+    id: number;
+    name: string;
+    email: string | null;
+    is_active: boolean;
+    role: string | null;
+    fingerprint_enrolled: boolean;
+  };
+}
+
 export function matchFingerprint(
   stored: MemberFingerprint[],
   scannedTemplate: string,

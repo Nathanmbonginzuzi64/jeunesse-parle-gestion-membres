@@ -3,7 +3,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, LogIn } from "lucide-react";
+import { Eye, EyeOff, Fingerprint, LogIn } from "lucide-react";
+import { FingerprintLoginPanel } from "@/components/auth/fingerprint-login-panel";
 import { ApiError } from "@/lib/api";
 import { USE_MOCKS } from "@/lib/config";
 import { useAuth } from "@/lib/auth";
@@ -11,11 +12,16 @@ import { ROLE_SLUGS } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { Alert } from "@/components/ui/feedback";
+import { cn } from "@/lib/utils";
+import type { AuthUser } from "@/lib/types";
+
+type LoginMode = "password" | "fingerprint";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, user, loading: sessionLoading } = useAuth();
+  const { login, loginWithFingerprint, user, loading: sessionLoading } = useAuth();
 
+  const [mode, setMode] = useState<LoginMode>("password");
   const [login_, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -29,6 +35,14 @@ export default function LoginPage() {
     }
   }, [sessionLoading, user, router]);
 
+  function redirectAfterLogin(authenticated: AuthUser) {
+    if (authenticated.must_change_password) {
+      router.replace("/compte/mot-de-passe");
+      return;
+    }
+    router.replace(authenticated.role?.slug === ROLE_SLUGS.membre ? "/mon-espace" : "/tableau-de-bord");
+  }
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
@@ -37,9 +51,7 @@ export default function LoginPage() {
 
     try {
       const authenticated = await login({ login: login_, password });
-      router.replace(
-        authenticated.role?.slug === ROLE_SLUGS.membre ? "/mon-espace" : "/tableau-de-bord",
-      );
+      redirectAfterLogin(authenticated);
     } catch (caught) {
       if (caught instanceof ApiError) {
         setError(caught.fieldError("login") ?? caught.message);
@@ -54,64 +66,109 @@ export default function LoginPage() {
     }
   }
 
+  async function handleFingerprintSuccess(authenticated: AuthUser, token: string) {
+    try {
+      const user = await loginWithFingerprint(authenticated, token);
+      redirectAfterLogin(user);
+    } catch {
+      setError("Session biométrique impossible à établir.");
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Connexion</h1>
       <p className="mt-1.5 text-sm text-slate-500">
-        Accédez à votre espace avec votre e-mail ou votre numéro de téléphone.
+        Mot de passe ou empreinte digitale (compte actif avec biométrie enregistrée).
       </p>
 
-      <form onSubmit={onSubmit} className="mt-7 space-y-4" noValidate>
-        {error && <Alert tone="error">{error}</Alert>}
-
-        <Input
-          label="E-mail ou téléphone"
-          type="text"
-          autoComplete="username"
-          value={login_}
-          onChange={(event) => setLogin(event.target.value)}
-          placeholder="nom@exemple.cd ou +243 …"
-          error={fieldErrors.login || undefined}
-          required
-          autoFocus
-        />
-
-        <div className="relative">
-          <Input
-            label="Mot de passe"
-            type={showPassword ? "text" : "password"}
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="••••••••"
-            error={fieldErrors.password || undefined}
-            className="pr-10"
-            required
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword((value) => !value)}
-            className="absolute top-[1.85rem] right-2 rounded p-1 text-slate-400 hover:text-slate-600"
-            aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
-          >
-            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
-        </div>
-
-        <div className="flex justify-end">
-          <Link
-            href="/mot-de-passe-oublie"
-            className="text-xs font-medium text-brand-600 hover:text-brand-700"
-          >
-            Mot de passe oublié ?
-          </Link>
-        </div>
-
-        <Button type="submit" size="lg" loading={submitting} className="w-full">
+      <div className="mt-6 flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+        <button
+          type="button"
+          onClick={() => setMode("password")}
+          className={cn(
+            "flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition",
+            mode === "password" ? "bg-white text-brand-700 shadow-sm" : "text-slate-600 hover:text-slate-900",
+          )}
+        >
           <LogIn className="h-4 w-4" />
-          Se connecter
-        </Button>
-      </form>
+          Mot de passe
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("fingerprint")}
+          className={cn(
+            "flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition",
+            mode === "fingerprint" ? "bg-white text-brand-700 shadow-sm" : "text-slate-600 hover:text-slate-900",
+          )}
+        >
+          <Fingerprint className="h-4 w-4" />
+          Empreinte
+        </button>
+      </div>
+
+      <div className="mt-7">
+        {error && mode === "password" && <Alert tone="error" className="mb-4">{error}</Alert>}
+
+        {mode === "password" ? (
+          <form onSubmit={onSubmit} className="space-y-4" noValidate>
+            <Input
+              label="E-mail ou téléphone"
+              type="text"
+              autoComplete="username"
+              value={login_}
+              onChange={(event) => setLogin(event.target.value)}
+              placeholder="nom@exemple.cd ou +243 …"
+              error={fieldErrors.login || undefined}
+              required
+              autoFocus
+            />
+
+            <div className="relative">
+              <Input
+                label="Mot de passe"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="••••••••"
+                error={fieldErrors.password || undefined}
+                className="pr-10"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((value) => !value)}
+                className="absolute top-[1.85rem] right-2 rounded p-1 text-slate-400 hover:text-slate-600"
+                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+
+            <div className="flex justify-end">
+              <Link
+                href="/mot-de-passe-oublie"
+                className="text-xs font-medium text-brand-600 hover:text-brand-700"
+              >
+                Mot de passe oublié ?
+              </Link>
+            </div>
+
+            <Button type="submit" size="lg" loading={submitting} className="w-full">
+              <LogIn className="h-4 w-4" />
+              Se connecter
+            </Button>
+          </form>
+        ) : (
+          <FingerprintLoginPanel
+            onSuccess={handleFingerprintSuccess}
+            loading={submitting}
+            onLoadingChange={setSubmitting}
+          />
+        )}
+      </div>
 
       <p className="mt-6 text-center text-sm text-slate-500">
         Pas encore membre ?{" "}
@@ -125,8 +182,8 @@ export default function LoginPage() {
           <p className="font-medium text-brand-800">Mode design — comptes de démonstration</p>
           <ul className="mt-1.5 space-y-0.5">
             {[
-              { email: "superadmin@jeunesseparle.test", label: "Super administrateur" },
-              { email: "admin@jeunesseparle.test", label: "Admin national" },
+              { email: "superadmin@jeunesseparle.test", label: "Super administrateur (biométrie ✓)" },
+              { email: "admin@jeunesseparle.test", label: "Admin national (biométrie ✓)" },
               { email: "kinshasa@jeunesseparle.test", label: "Responsable Kinshasa" },
               { email: "nordkivu@jeunesseparle.test", label: "Responsable Nord-Kivu" },
               { email: "agent@jeunesseparle.test", label: "Agent de vérification" },
@@ -146,7 +203,9 @@ export default function LoginPage() {
               </li>
             ))}
           </ul>
-          <p className="mt-1.5 text-slate-500">Cliquez un compte. Mot de passe : n&apos;importe lequel.</p>
+          <p className="mt-1.5 text-slate-500">
+            Mot de passe : n&apos;importe lequel. Empreinte : superadmin ou admin (compte actif requis).
+          </p>
         </div>
       )}
     </div>

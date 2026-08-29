@@ -36,6 +36,7 @@ export interface AuthUser {
   name: string;
   email: string | null;
   phone: string | null;
+  photo_url: string | null;
   is_active: boolean;
   must_change_password: boolean;
   role: Role | null;
@@ -51,6 +52,8 @@ export interface AuthUser {
   member_id: number | null;
   member_code?: string | null;
   permissions?: string[];
+  fingerprints?: MemberFingerprint[];
+  fingerprint_enrolled?: boolean;
   last_login_at: string | null;
   created_at: string | null;
 }

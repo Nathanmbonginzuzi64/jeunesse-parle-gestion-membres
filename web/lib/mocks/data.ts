@@ -1,5 +1,5 @@
 import { PERMISSIONS } from "@/lib/permissions";
-import { mockMemberFingerprints } from "@/lib/fingerprints";
+import { mockMemberFingerprints, mockUserFingerprints } from "@/lib/fingerprints";
 import type {
   Activity,
   AppNotification,
@@ -576,6 +576,7 @@ export const roles: RoleDetail[] = [
 export function makeUser(partial: Partial<AuthUser> & Pick<AuthUser, "id" | "name" | "email" | "role">): AuthUser {
   return {
     phone: null,
+    photo_url: null,
     is_active: true,
     must_change_password: false,
     scope: {
@@ -590,6 +591,8 @@ export function makeUser(partial: Partial<AuthUser> & Pick<AuthUser, "id" | "nam
     member_id: null,
     member_code: null,
     permissions: [],
+    fingerprints: [],
+    fingerprint_enrolled: false,
     last_login_at: now,
     created_at: now,
     ...partial,
@@ -604,6 +607,8 @@ export const users: AuthUser[] = [
     phone: "+243900000001",
     role: { slug: "super-admin", name: "Super administrateur", scope_level: 0 },
     permissions: ALL_PERMISSIONS,
+    fingerprints: mockUserFingerprints(1, "superadmin@jeunesseparle.test"),
+    fingerprint_enrolled: true,
   }),
   makeUser({
     id: 2,
@@ -612,6 +617,8 @@ export const users: AuthUser[] = [
     phone: "+243900000002",
     role: { slug: "admin-national", name: "Administrateur national", scope_level: 0 },
     permissions: ALL_PERMISSIONS.filter((p) => p !== "settings.manage"),
+    fingerprints: mockUserFingerprints(2, "admin@jeunesseparle.test"),
+    fingerprint_enrolled: true,
   }),
   makeUser({
     id: 3,
