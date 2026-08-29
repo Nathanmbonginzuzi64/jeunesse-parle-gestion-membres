@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Jeunesse Parle">
+  <path d="M24 2 42 8v16.5C42 35.4 34.4 43.9 24 46 13.6 43.9 6 35.4 6 24.5V8L24 2Z" fill="#1d45f5"/>
+  <path d="M6 30.5 42 12.5v5.2L6 35.7v-5.2Z" fill="#ce1021"/>
+  <path d="M6 33.4 42 15.4v1.6L6 35v-1.6Z" fill="#f7d618"/>
+  <path d="m17 11 1.9 5.1 5.1.2-4 3.3 1.4 5-4.4-2.9-4.4 2.9 1.4-5-4-3.3 5.1-.2L17 11Z" fill="#f7d618"/>
+</svg>

@@ -1,0 +1,335 @@
+@import "tailwindcss";
+
+/*
+  Design system Jeunesse Parle.
+  Bleu institutionnel, jaune et rouge du drapeau — utilisés avec sobriété
+  sur une base neutre. Les tokens dark préparent un thème ultérieur.
+*/
+@theme {
+  --color-brand-50: #e7f4fb;
+  --color-brand-100: #cfe9f7;
+  --color-brand-200: #9ed3ef;
+  --color-brand-300: #6dbce6;
+  --color-brand-400: #3ca6de;
+  --color-brand-500: #0087d1;
+  --color-brand-600: #0076b8;
+  --color-brand-700: #00649c;
+  --color-brand-800: #0a4f7a;
+  --color-brand-900: #0a3d5c;
+  --color-brand-950: #072a40;
+
+  --color-gold-400: #fce56a;
+  --color-gold-500: #fad201;
+  --color-gold-600: #e0b800;
+
+  --color-flag-red: #ce1126;
+  --color-flag-blue: #0087d1;
+  --color-flag-yellow: #fad201;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-card: 0.875rem;
+  --radius-control: 0.625rem;
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --shadow-elevated: 0 8px 24px rgba(16, 24, 40, 0.08);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:root {
+  --background: #f4f6fa;
+  --surface: #ffffff;
+  --foreground: #101426;
+  --muted: #667085;
+  --border: #e4e7ec;
+  --ring: #0087d1;
+}
+
+.dark {
+  --background: #07111c;
+  --surface: #0e1a28;
+  --foreground: #e8eef5;
+  --muted: #94a3b8;
+  --border: #1e3348;
+  --ring: #3ca6de;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d0d5dd;
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #b0b7c3;
+  background-clip: content-box;
+}
+
+@keyframes jp-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes jp-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes jp-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes jp-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-fade-in {
+  animation: jp-fade-in 0.5s var(--ease-out) both;
+  animation-delay: var(--animation-delay, 0ms);
+}
+
+.animate-slide-up {
+  animation: jp-slide-up 0.55s var(--ease-out) both;
+  animation-delay: var(--animation-delay, 0ms);
+}
+
+.animate-slide-in {
+  animation: jp-slide-in-right 0.5s var(--ease-out) both;
+  animation-delay: var(--animation-delay, 0ms);
+}
+
+.animate-scale-in {
+  animation: jp-scale-in 0.45s var(--ease-out) both;
+  animation-delay: var(--animation-delay, 0ms);
+}
+
+@keyframes jp-slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-slide-in-left {
+  animation: jp-slide-in-left 0.55s var(--ease-out) both;
+  animation-delay: var(--animation-delay, 0ms);
+}
+
+.jp-reveal-hidden {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.jp-reveal-hidden.jp-reveal-left {
+  transform: translateX(-20px);
+}
+
+.jp-reveal-hidden.jp-reveal-scale {
+  transform: scale(0.96);
+}
+
+@keyframes jp-float {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-14px) scale(1.04);
+  }
+}
+
+.jp-float {
+  animation: jp-float 6s ease-in-out infinite;
+}
+
+.jp-float-delay {
+  animation-delay: 1.5s;
+}
+
+@keyframes jp-progress-shine {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+.jp-progress-shine {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.65) 50%,
+    transparent 100%
+  );
+  animation: jp-progress-shine 1.2s ease-in-out infinite;
+}
+
+@keyframes jp-progress-indeterminate {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(420%);
+  }
+}
+
+.jp-progress-indeterminate {
+  animation: jp-progress-indeterminate 1.1s ease-in-out infinite;
+}
+
+@keyframes jp-pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 135, 209, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(0, 135, 209, 0);
+  }
+}
+
+.jp-pulse-glow {
+  animation: jp-pulse-glow 2.4s ease-in-out infinite;
+}
+
+@keyframes jp-clock-colon {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.jp-clock-colon {
+  animation: jp-clock-colon 1s step-end infinite;
+}
+
+@keyframes jp-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: #eaecf0;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0,
+    rgba(255, 255, 255, 0.55) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: jp-shimmer 1.4s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-slide-in,
+  .animate-scale-in,
+  .animate-slide-in-left,
+  .jp-float,
+  .jp-progress-shine,
+  .jp-progress-indeterminate,
+  .jp-pulse-glow {
+    animation: none !important;
+    animation-delay: 0ms !important;
+  }
+
+  .jp-clock-colon {
+    animation: none !important;
+  }
+
+  .jp-reveal-hidden,
+  .jp-reveal-hidden.jp-reveal-left,
+  .jp-reveal-hidden.jp-reveal-scale {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media print {
+  body {
+    background: #ffffff;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-area {
+    margin: 0;
+    padding: 0;
+    box-shadow: none !important;
+  }
+
+  @page {
+    size: auto;
+    margin: 12mm;
+  }
+}

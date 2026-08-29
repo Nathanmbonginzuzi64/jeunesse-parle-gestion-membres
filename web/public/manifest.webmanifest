@@ -1,0 +1,18 @@
+{
+  "name": "Jeunesse Parle — Gestion des membres",
+  "short_name": "Jeunesse Parle",
+  "description": "Plateforme nationale de gestion des membres de Jeunesse Parle en RDC.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f7fb",
+  "theme_color": "#0087d1",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
