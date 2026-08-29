@@ -201,6 +201,8 @@ export interface Activity {
   location: string | null;
   capacity: number | null;
   is_public: boolean;
+  /** Image de couverture (affiche / illustration). */
+  image_url: string | null;
   province?: NamedRef | null;
   structure?: NamedRef | null;
   organizer?: { id: number; name: string } | null;

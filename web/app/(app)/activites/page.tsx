@@ -6,6 +6,7 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock3,
+  Eye,
   FileEdit,
   LayoutGrid,
   MapPin,
@@ -236,12 +237,28 @@ function ActivitiesList() {
                   <tbody>
                     {data.data.map((activity) => (
                       <Tr key={activity.id}>
-                        <Td>
+                    <Td>
+                      <div className="flex items-center gap-3">
+                        {activity.image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={activity.image_url}
+                            alt=""
+                            className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
+                          />
+                        ) : (
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-400 ring-1 ring-brand-100">
+                            <CalendarDays className="h-4 w-4" />
+                          </span>
+                        )}
+                        <div>
                           <Link href={`/activites/${activity.id}`} className="font-medium hover:text-brand-700">
                             {activity.title}
                           </Link>
                           <p className="font-mono text-[11px] text-slate-400">{activity.code}</p>
-                        </Td>
+                        </div>
+                      </div>
+                    </Td>
                         <Td className="text-xs">{activity.type_label}</Td>
                         <Td className="text-xs">{formatDateTime(activity.starts_at)}</Td>
                         <Td className="max-w-[10rem] truncate text-xs text-slate-500">
@@ -253,25 +270,30 @@ function ActivitiesList() {
                         <Td>
                           <ActivityStatusBadge status={activity.status} label={activity.status_label} />
                         </Td>
-                        <Td>
-                          <Can permission={PERMISSIONS.activitiesManage}>
-                            <div className="flex gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => {
-                                  setEditing(activity);
-                                  setOpen(true);
-                                }}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(activity)}>
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </Can>
-                        </Td>
+                    <Td>
+                      <div className="flex gap-1">
+                        <Link href={`/activites/${activity.id}`}>
+                          <Button variant="ghost" size="icon" title="Voir le détail">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                        <Can permission={PERMISSIONS.activitiesManage}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setEditing(activity);
+                              setOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(activity)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </Can>
+                      </div>
+                    </Td>
                       </Tr>
                     ))}
                   </tbody>
@@ -358,49 +380,64 @@ function ActivityCard({
   onDelete: () => void;
 }) {
   return (
-    <article className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[var(--shadow-card)] transition hover:border-brand-300 hover:shadow-[var(--shadow-elevated)]">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-500 via-gold-400 to-emerald-500 opacity-80" />
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{activity.type_label}</p>
-          <Link href={`/activites/${activity.id}`} className="mt-0.5 block truncate font-semibold text-slate-900 hover:text-brand-700">
-            {activity.title}
-          </Link>
-          <p className="font-mono text-[11px] text-brand-700">{activity.code}</p>
+    <article className="group overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[var(--shadow-card)] transition hover:border-brand-300 hover:shadow-[var(--shadow-elevated)]">
+      <Link href={`/activites/${activity.id}`} className="block">
+        <div className="relative h-36 overflow-hidden bg-slate-100">
+          {activity.image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={activity.image_url}
+              alt=""
+              className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center bg-gradient-to-br from-brand-100 to-brand-50">
+              <CalendarDays className="h-10 w-10 text-brand-300" />
+            </div>
+          )}
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-3 pb-2 pt-8">
+            <ActivityStatusBadge status={activity.status} label={activity.status_label} />
+          </div>
         </div>
-        <ActivityStatusBadge status={activity.status} label={activity.status_label} />
-      </div>
-      <div className="mt-3 space-y-1.5 text-xs text-slate-500">
-        <p className="flex items-center gap-1.5">
-          <Clock3 className="h-3.5 w-3.5 text-brand-500" />
-          {formatDateTime(activity.starts_at)}
-        </p>
-        {activity.location && (
-          <p className="flex items-center gap-1.5">
-            <MapPin className="h-3.5 w-3.5 text-brand-500" />
-            {activity.location}
-          </p>
-        )}
-        <p className="flex items-center gap-1.5">
-          <Users className="h-3.5 w-3.5 text-brand-500" />
-          {activity.attendances_count ?? 0}/{activity.participants_count ?? 0} présents
-        </p>
-      </div>
-      <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
-        <Link href={`/activites/${activity.id}`}>
-          <Button variant="outline" size="sm">
-            Détail
-          </Button>
+      </Link>
+      <div className="p-4">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{activity.type_label}</p>
+        <Link href={`/activites/${activity.id}`} className="mt-0.5 block truncate font-semibold text-slate-900 hover:text-brand-700">
+          {activity.title}
         </Link>
-        <Can permission={PERMISSIONS.activitiesManage}>
-          <Button variant="ghost" size="sm" onClick={onEdit}>
-            <Pencil className="h-3.5 w-3.5" />
-            Modifier
-          </Button>
-          <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={onDelete}>
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </Can>
+        <p className="font-mono text-[11px] text-brand-700">{activity.code}</p>
+        <div className="mt-3 space-y-1.5 text-xs text-slate-500">
+          <p className="flex items-center gap-1.5">
+            <Clock3 className="h-3.5 w-3.5 text-brand-500" />
+            {formatDateTime(activity.starts_at)}
+          </p>
+          {activity.location && (
+            <p className="flex items-center gap-1.5">
+              <MapPin className="h-3.5 w-3.5 text-brand-500" />
+              {activity.location}
+            </p>
+          )}
+          <p className="flex items-center gap-1.5">
+            <Users className="h-3.5 w-3.5 text-brand-500" />
+            {activity.attendances_count ?? 0}/{activity.participants_count ?? 0} présents
+          </p>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+          <Link href={`/activites/${activity.id}`}>
+            <Button variant="outline" size="sm">
+              Voir le détail
+            </Button>
+          </Link>
+          <Can permission={PERMISSIONS.activitiesManage}>
+            <Button variant="ghost" size="sm" onClick={onEdit}>
+              <Pencil className="h-3.5 w-3.5" />
+              Modifier
+            </Button>
+            <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={onDelete}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </Can>
+        </div>
       </div>
     </article>
   );

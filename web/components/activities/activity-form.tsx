@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { ActivityImageField } from "@/components/activities/activity-image-field";
 import { TerritorySelect } from "@/components/forms/territory-select";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea, Checkbox } from "@/components/ui/field";
 import { Alert } from "@/components/ui/feedback";
 import { api, ApiError } from "@/lib/api";
-import { fieldErrors } from "@/lib/form";
+import { fieldErrors, toFormData } from "@/lib/form";
 import { usePublicStructures, useReferences } from "@/lib/hooks";
 import type { Activity } from "@/lib/types";
 
@@ -32,6 +33,7 @@ export function ActivityForm({
   const [location, setLocation] = useState("");
   const [capacity, setCapacity] = useState("");
   const [isPublic, setIsPublic] = useState(false);
+  const [image, setImage] = useState<File | null>(null);
   const [territory, setTerritory] = useState({
     province_id: null as number | null,
     city_id: null as number | null,
@@ -52,6 +54,7 @@ export function ActivityForm({
     setLocation(initial.location ?? "");
     setCapacity(initial.capacity ? String(initial.capacity) : "");
     setIsPublic(initial.is_public);
+    setImage(null);
     setTerritory({
       province_id: initial.province?.id ?? null,
       city_id: null,
@@ -80,11 +83,13 @@ export function ActivityForm({
       city_id: territory.city_id,
       commune_id: territory.commune_id,
       structure_id: structureId,
+      image,
     };
     try {
+      const body = toFormData(payload);
       const response = editing
-        ? await api.patch<{ data: Activity; message: string }>(`/activities/${initial!.id}`, payload)
-        : await api.post<{ data: Activity; message: string }>("/activities", payload);
+        ? await api.patch<{ data: Activity; message: string }>(`/activities/${initial!.id}`, body)
+        : await api.post<{ data: Activity; message: string }>("/activities", body);
       onSaved(response.data, response.message);
     } catch (caught) {
       if (caught instanceof ApiError) {
@@ -101,6 +106,7 @@ export function ActivityForm({
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       {error && <Alert tone="error">{error}</Alert>}
+      <ActivityImageField previewUrl={initial?.image_url} onChange={setImage} error={errors.image} />
       <Input label="Titre" required value={title} onChange={(event) => setTitle(event.target.value)} error={errors.title} />
       <Textarea label="Description" value={description} onChange={(event) => setDescription(event.target.value)} />
       <div className="grid gap-4 sm:grid-cols-2">

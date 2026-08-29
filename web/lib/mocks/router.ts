@@ -48,6 +48,22 @@ function requireUser() {
   return user;
 }
 
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("Lecture image impossible."));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function resolveActivityImage(input: Record<string, unknown>): Promise<string | null> {
+  const image = input.image;
+  if (image instanceof File) return fileToDataUrl(image);
+  if (typeof input.image_url === "string" && input.image_url) return input.image_url;
+  return null;
+}
+
 function jsonBody(body: unknown): Record<string, unknown> {
   if (!body) return {};
   if (body instanceof FormData) {
@@ -523,6 +539,7 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
   }
   if (method === "POST" && path === "/activities") {
     const input = jsonBody(body);
+    const imageUrl = await resolveActivityImage(input);
     const created = {
       id: db.activities.length + 1,
       code: `JP-ACT-${String(db.activities.length + 1).padStart(5, "0")}`,
@@ -537,6 +554,7 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
       location: (input.location as string) ?? null,
       capacity: input.capacity ? Number(input.capacity) : null,
       is_public: Boolean(input.is_public),
+      image_url: imageUrl,
       province: db.provinces.find((p) => p.id === Number(input.province_id))
         ? { id: Number(input.province_id), name: db.provinces.find((p) => p.id === Number(input.province_id))!.name }
         : null,
@@ -565,6 +583,11 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
       if (input.starts_at) activity.starts_at = String(input.starts_at);
       if (input.ends_at !== undefined) activity.ends_at = (input.ends_at as string) || null;
       if (input.location !== undefined) activity.location = (input.location as string) || null;
+      if (input.capacity !== undefined) activity.capacity = input.capacity ? Number(input.capacity) : null;
+      if (input.is_public !== undefined) activity.is_public = Boolean(input.is_public);
+      if (input.image instanceof File || input.image_url !== undefined) {
+        activity.image_url = await resolveActivityImage(input);
+      }
       return { message: "Activité mise à jour.", data: activity } as T;
     }
     if (method === "DELETE") {
