@@ -751,7 +751,22 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     }
   }
   if (method === "GET" && path === "/roles") return { data: db.roles } as T;
-  if (method === "GET" && path === "/audit") return paginate(db.auditLogs, query) as T;
+  if (method === "GET" && path === "/audit") {
+    const action = String(query?.action ?? "").toLowerCase();
+    const q = String(query?.q ?? "").toLowerCase();
+    let logs = [...db.auditLogs];
+    if (action) logs = logs.filter((log) => log.action.toLowerCase().startsWith(action));
+    if (q) {
+      logs = logs.filter((log) =>
+        [log.action, log.description, log.user?.name, log.subject_type, log.ip_address]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(q),
+      );
+    }
+    return paginate(logs, query) as T;
+  }
 
   if (method === "GET" && path === "/search") {
     const q = String(query?.q ?? "").toLowerCase();
