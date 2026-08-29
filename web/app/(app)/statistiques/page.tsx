@@ -128,6 +128,7 @@ function StatisticsContent() {
   const [territory, setTerritory] = useState({
     province_id: null as number | null,
     city_id: null as number | null,
+    district_id: null as number | null,
     commune_id: null as number | null,
     zone_id: null as number | null,
   });
@@ -163,6 +164,7 @@ function StatisticsContent() {
     setTerritory({
       province_id: null,
       city_id: null,
+      district_id: null,
       commune_id: null,
       zone_id: null,
     });

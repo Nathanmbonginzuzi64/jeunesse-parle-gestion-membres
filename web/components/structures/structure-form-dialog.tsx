@@ -32,6 +32,7 @@ export function StructureFormDialog({
   const [territory, setTerritory] = useState({
     province_id: null as number | null,
     city_id: null as number | null,
+    district_id: null as number | null,
     commune_id: null as number | null,
     zone_id: null as number | null,
   });
@@ -46,15 +47,16 @@ export function StructureFormDialog({
       setTerritory({
         province_id: structure.province?.id ?? null,
         city_id: structure.city?.id ?? null,
+        district_id: structure.district?.id ?? null,
         commune_id: structure.commune?.id ?? null,
-        zone_id: structure.zone?.id ?? null,
+        zone_id: structure.quartier?.id ?? structure.zone?.id ?? null,
       });
     } else {
       setName("");
       setType("");
       setDescription("");
       setAddress("");
-      setTerritory({ province_id: null, city_id: null, commune_id: null, zone_id: null });
+      setTerritory({ province_id: null, city_id: null, district_id: null, commune_id: null, zone_id: null });
     }
     setErrors({});
   }, [open, structure]);
@@ -70,6 +72,7 @@ export function StructureFormDialog({
       address: address || null,
       province_id: territory.province_id,
       city_id: territory.city_id,
+      district_id: territory.district_id,
       commune_id: territory.commune_id,
       zone_id: territory.zone_id,
     };

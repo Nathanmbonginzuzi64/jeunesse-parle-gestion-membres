@@ -87,8 +87,10 @@ export interface Member {
 
   province?: NamedRef | null;
   city?: NamedRef | null;
+  district?: NamedRef | null;
   commune?: NamedRef | null;
   zone?: NamedRef | null;
+  quartier?: NamedRef | null;
   structure?: NamedRef | null;
 
   position: string | null;
@@ -244,8 +246,10 @@ export interface Structure {
   is_active: boolean;
   province?: NamedRef | null;
   city?: NamedRef | null;
+  district?: NamedRef | null;
   commune?: NamedRef | null;
   zone?: NamedRef | null;
+  quartier?: NamedRef | null;
   leader?: { id: number; full_name: string; member_code: string } | null;
   members_count?: number;
   created_at: string | null;
@@ -305,7 +309,7 @@ export interface StatisticsOverview {
       new_this_month: number;
       new_last_30_days: number;
     };
-    coverage: { provinces: number; cities: number; structures: number };
+    coverage: { provinces: number; cities: number; districts: number; quartiers: number; structures: number };
     cards: { active: number; issued_this_month: number };
     activities: { total: number; upcoming: number };
     verifications: { last_30_days: number };
@@ -365,7 +369,7 @@ export interface City {
   type: string;
 }
 
-export interface Commune {
+export interface District {
   id: number;
   city_id: number;
   province_id: number;
@@ -373,14 +377,28 @@ export interface Commune {
   type: string;
 }
 
-export interface Zone {
+export interface Commune {
+  id: number;
+  city_id: number;
+  province_id: number;
+  district_id?: number | null;
+  name: string;
+  type: string;
+}
+
+/** Quartier — niveau le plus fin avant la structure (alias technique : zone). */
+export interface Quartier {
   id: number;
   commune_id: number;
+  district_id?: number | null;
   city_id: number;
   province_id: number;
   name: string;
   type: string;
 }
+
+/** @deprecated Préférer Quartier — conservé pour compatibilité API. */
+export type Zone = Quartier;
 
 export interface Option {
   value: string;

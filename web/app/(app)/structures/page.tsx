@@ -61,7 +61,7 @@ function StructuresHub() {
 
   const [structureOpen, setStructureOpen] = useState(false);
   const [editing, setEditing] = useState<Structure | null>(null);
-  const [territoryKind, setTerritoryKind] = useState<"province" | "city" | "commune" | null>(null);
+  const [territoryKind, setTerritoryKind] = useState<"province" | "city" | "district" | "commune" | "quartier" | null>(null);
   const [disableTarget, setDisableTarget] = useState<Structure | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -105,16 +105,20 @@ function StructuresHub() {
           structuresCount={kpis?.coverage.structures ?? data?.meta.total}
           provincesCount={kpis?.coverage.provinces}
           citiesCount={kpis?.coverage.cities}
+          districtsCount={kpis?.coverage.districts}
+          quartiersCount={kpis?.coverage.quartiers}
         />
       </DashboardAnimate>
 
       {kpis && (
         <DashboardAnimate delay={60}>
-          <div className={cn(dashboardCardGrid, "sm:grid-cols-2 lg:grid-cols-4")}>
+          <div className={cn(dashboardCardGrid, "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6")}>
             <KpiCard label="Structures" value={kpis.coverage.structures} icon={Building2} tone="info" />
-            <KpiCard label="Provinces couvertes" value={kpis.coverage.provinces} icon={MapPin} tone="info" href="/cartographie" />
-            <KpiCard label="Villes / territoires" value={kpis.coverage.cities} icon={Network} tone="neutral" />
-            <KpiCard label="Membres (total)" value={kpis.members.total} icon={Users} tone="success" href="/membres" />
+            <KpiCard label="Provinces" value={kpis.coverage.provinces} icon={MapPin} tone="info" href="/cartographie" />
+            <KpiCard label="Villes" value={kpis.coverage.cities} icon={Network} tone="neutral" />
+            <KpiCard label="Districts" value={kpis.coverage.districts} icon={Network} tone="neutral" />
+            <KpiCard label="Quartiers" value={kpis.coverage.quartiers} icon={MapPin} tone="neutral" />
+            <KpiCard label="Membres" value={kpis.members.total} icon={Users} tone="success" href="/membres" />
           </div>
         </DashboardAnimate>
       )}
@@ -133,9 +137,17 @@ function StructuresHub() {
                   <Network className="h-4 w-4" />
                   Ville
                 </Button>
+                <Button variant="outline" size="sm" onClick={() => setTerritoryKind("district")}>
+                  <Network className="h-4 w-4" />
+                  District
+                </Button>
                 <Button variant="outline" size="sm" onClick={() => setTerritoryKind("commune")}>
                   <Building2 className="h-4 w-4" />
                   Commune
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setTerritoryKind("quartier")}>
+                  <MapPin className="h-4 w-4" />
+                  Quartier
                 </Button>
               </Can>
               <Button size="sm" onClick={openCreateStructure}>
@@ -150,7 +162,7 @@ function StructuresHub() {
       {view === "tree" && (
         <DashboardAnimate delay={140}>
           <Card>
-            <CardHeader title="Arbre territorial" description="Navigation hiérarchique province → ville → structure" />
+            <CardHeader title="Arbre territorial" description="Province → ville → district → commune → quartier → structure" />
             <CardBody>
               {tree.loading && <TableSkeleton />}
               {tree.error && <Alert tone="error">{tree.error}</Alert>}

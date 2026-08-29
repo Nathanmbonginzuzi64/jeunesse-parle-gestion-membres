@@ -44,7 +44,9 @@ export function StructuresTable({
               <Td className="text-xs text-slate-600">
                 {structure.province?.name}
                 {structure.city ? ` · ${structure.city.name}` : ""}
+                {structure.district ? ` · ${structure.district.name}` : ""}
                 {structure.commune ? ` · ${structure.commune.name}` : ""}
+                {structure.quartier ? ` · ${structure.quartier.name}` : structure.zone ? ` · ${structure.zone.name}` : ""}
               </Td>
               <Td className="text-xs">{structure.leader?.full_name ?? "—"}</Td>
               <Td className="font-semibold tabular-nums text-brand-700">{structure.members_count ?? 0}</Td>

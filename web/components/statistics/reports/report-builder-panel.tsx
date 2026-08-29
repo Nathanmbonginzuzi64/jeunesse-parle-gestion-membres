@@ -41,6 +41,7 @@ export function ReportBuilderPanel() {
   const [territory, setTerritory] = useState({
     province_id: null as number | null,
     city_id: null as number | null,
+    district_id: null as number | null,
     commune_id: null as number | null,
     zone_id: null as number | null,
   });
@@ -93,7 +94,7 @@ export function ReportBuilderPanel() {
     setPeriod("30d");
     setStatus("");
     setStructureId("");
-    setTerritory({ province_id: null, city_id: null, commune_id: null, zone_id: null });
+    setTerritory({ province_id: null, city_id: null, district_id: null, commune_id: null, zone_id: null });
   }
 
   async function handleExport() {

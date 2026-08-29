@@ -7,10 +7,14 @@ export function StructuresHero({
   structuresCount,
   provincesCount,
   citiesCount,
+  districtsCount,
+  quartiersCount,
 }: {
   structuresCount?: number;
   provincesCount?: number;
   citiesCount?: number;
+  districtsCount?: number;
+  quartiersCount?: number;
 }) {
   return (
     <div className="relative overflow-hidden rounded-card border border-brand-200/60 bg-gradient-to-br from-brand-600 via-brand-700 to-brand-900 px-5 py-4 text-white shadow-[var(--shadow-elevated)] sm:px-6 sm:py-5">
@@ -28,7 +32,7 @@ export function StructuresHero({
             </p>
             <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Structures & territoires</h1>
             <p className="mt-1 max-w-xl text-sm text-brand-100/90">
-              Provinces, villes, communes et structures de mobilisation JP-RDC.
+              Provinces, villes, districts, communes, quartiers et structures de mobilisation JP-RDC.
             </p>
           </div>
         </div>
@@ -44,6 +48,18 @@ export function StructuresHero({
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-3 py-1.5 font-medium ring-1 ring-inset ring-white/15">
               <Network className="h-3.5 w-3.5" />
               {formatNumber(citiesCount)} villes
+            </span>
+          )}
+          {districtsCount !== undefined && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-3 py-1.5 font-medium ring-1 ring-inset ring-white/15">
+              <Layers className="h-3.5 w-3.5" />
+              {formatNumber(districtsCount)} districts
+            </span>
+          )}
+          {quartiersCount !== undefined && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-3 py-1.5 font-medium ring-1 ring-inset ring-white/15">
+              <MapPin className="h-3.5 w-3.5" />
+              {formatNumber(quartiersCount)} quartiers
             </span>
           )}
           {structuresCount !== undefined && (

@@ -184,13 +184,24 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     const provinceId = Number(query?.province_id);
     return { data: db.cities.filter((city) => !provinceId || city.province_id === provinceId) } as T;
   }
+  if (method === "GET" && path === "/territories/districts") {
+    const cityId = Number(query?.city_id);
+    return { data: db.districts.filter((district) => !cityId || district.city_id === cityId) } as T;
+  }
   if (method === "GET" && path === "/territories/communes") {
     const cityId = Number(query?.city_id);
-    return { data: db.communes.filter((commune) => !cityId || commune.city_id === cityId) } as T;
+    const districtId = Number(query?.district_id);
+    return {
+      data: db.communes.filter(
+        (commune) =>
+          (!cityId || commune.city_id === cityId) &&
+          (!districtId || commune.district_id === districtId),
+      ),
+    } as T;
   }
-  if (method === "GET" && path === "/territories/zones") {
+  if (method === "GET" && (path === "/territories/quartiers" || path === "/territories/zones")) {
     const communeId = Number(query?.commune_id);
-    return { data: db.zones.filter((zone) => !communeId || zone.commune_id === communeId) } as T;
+    return { data: db.quartiers.filter((quartier) => !communeId || quartier.commune_id === communeId) } as T;
   }
   if (method === "GET" && path === "/territories/structures") {
     const provinceId = Number(query?.province_id);
@@ -338,8 +349,24 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
       city: db.cities.find((c) => c.id === Number(input.city_id))
         ? { id: Number(input.city_id), name: db.cities.find((c) => c.id === Number(input.city_id))!.name }
         : null,
-      commune: null,
-      zone: null,
+      district: db.districts.find((d) => d.id === Number(input.district_id))
+        ? { id: Number(input.district_id), name: db.districts.find((d) => d.id === Number(input.district_id))!.name }
+        : null,
+      commune: db.communes.find((c) => c.id === Number(input.commune_id))
+        ? { id: Number(input.commune_id), name: db.communes.find((c) => c.id === Number(input.commune_id))!.name }
+        : null,
+      quartier: db.quartiers.find((q) => q.id === Number(input.zone_id ?? input.quartier_id))
+        ? {
+            id: Number(input.zone_id ?? input.quartier_id),
+            name: db.quartiers.find((q) => q.id === Number(input.zone_id ?? input.quartier_id))!.name,
+          }
+        : null,
+      zone: db.quartiers.find((q) => q.id === Number(input.zone_id ?? input.quartier_id))
+        ? {
+            id: Number(input.zone_id ?? input.quartier_id),
+            name: db.quartiers.find((q) => q.id === Number(input.zone_id ?? input.quartier_id))!.name,
+          }
+        : null,
       leader: null,
       members_count: 0,
       created_at: new Date().toISOString(),
@@ -388,6 +415,19 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     db.cities.push(item);
     return { message: "Ville ajoutée.", data: item } as T;
   }
+  if (method === "POST" && path === "/territories/districts") {
+    const input = jsonBody(body);
+    const city = db.cities.find((c) => c.id === Number(input.city_id));
+    const item = {
+      id: db.districts.length + 1,
+      city_id: Number(input.city_id),
+      province_id: city?.province_id ?? Number(input.province_id),
+      name: String(input.name ?? "District"),
+      type: String(input.type ?? "district"),
+    };
+    db.districts.push(item);
+    return { message: "District ajouté.", data: item } as T;
+  }
   if (method === "POST" && path === "/territories/communes") {
     const input = jsonBody(body);
     const city = db.cities.find((c) => c.id === Number(input.city_id));
@@ -395,13 +435,49 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
       id: db.communes.length + 1,
       city_id: Number(input.city_id),
       province_id: city?.province_id ?? Number(input.province_id),
+      district_id: input.district_id ? Number(input.district_id) : null,
       name: String(input.name ?? "Commune"),
       type: String(input.type ?? "commune"),
     };
     db.communes.push(item);
     return { message: "Commune ajoutée.", data: item } as T;
   }
+  if (method === "POST" && (path === "/territories/quartiers" || path === "/territories/zones")) {
+    const input = jsonBody(body);
+    const commune = db.communes.find((c) => c.id === Number(input.commune_id));
+    const item = {
+      id: db.quartiers.length + 1,
+      commune_id: Number(input.commune_id),
+      district_id: commune?.district_id ?? (input.district_id ? Number(input.district_id) : null),
+      city_id: commune?.city_id ?? Number(input.city_id),
+      province_id: commune?.province_id ?? Number(input.province_id),
+      name: String(input.name ?? "Quartier"),
+      type: String(input.type ?? "quartier"),
+    };
+    db.quartiers.push(item);
+    db.zones.push(item);
+    return { message: "Quartier ajouté.", data: item } as T;
+  }
   if (method === "GET" && path === "/territories/tree") {
+    const structuresForQuartier = (quartierId: number) =>
+      db.structures.filter((s) => (s.quartier?.id ?? s.zone?.id) === quartierId);
+    const structuresForCommune = (communeId: number) =>
+      db.structures.filter(
+        (s) => s.commune?.id === communeId && !s.quartier?.id && !s.zone?.id,
+      );
+    const structuresForDistrict = (districtId: number) =>
+      db.structures.filter(
+        (s) => s.district?.id === districtId && !s.commune?.id,
+      );
+    const structuresForCity = (cityId: number, provinceId: number) =>
+      db.structures.filter(
+        (s) =>
+          s.city?.id === cityId &&
+          s.province?.id === provinceId &&
+          !s.district?.id &&
+          !s.commune?.id,
+      );
+
     return {
       data: db.provinces.map((province) => ({
         ...province,
@@ -409,10 +485,29 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
           .filter((city) => city.province_id === province.id)
           .map((city) => ({
             ...city,
-            communes: db.communes.filter((commune) => commune.city_id === city.id),
-            structures: db.structures.filter((structure) => structure.province?.id === province.id && structure.city?.id === city.id),
+            districts: db.districts
+              .filter((district) => district.city_id === city.id)
+              .map((district) => ({
+                ...district,
+                communes: db.communes
+                  .filter((commune) => commune.district_id === district.id)
+                  .map((commune) => ({
+                    ...commune,
+                    quartiers: db.quartiers
+                      .filter((quartier) => quartier.commune_id === commune.id)
+                      .map((quartier) => ({
+                        ...quartier,
+                        structures: structuresForQuartier(quartier.id),
+                      })),
+                    structures: structuresForCommune(commune.id),
+                  })),
+                structures: structuresForDistrict(district.id),
+              })),
+            structures: structuresForCity(city.id, province.id),
           })),
-        structures: db.structures.filter((structure) => structure.province?.id === province.id && !structure.city),
+        structures: db.structures.filter(
+          (structure) => structure.province?.id === province.id && !structure.city,
+        ),
       })),
     } as T;
   }

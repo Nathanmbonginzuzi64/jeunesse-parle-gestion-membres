@@ -9,11 +9,13 @@ import type {
   CardRender,
   City,
   Commune,
+  District,
   MapStatistics,
   Member,
   MemberCard,
   NamedRef,
   Province,
+  Quartier,
   References,
   RoleDetail,
   StatisticsCharts,
@@ -120,19 +122,32 @@ export const cities: City[] = [
   { id: 6, province_id: 5, name: "Tshikapa", type: "ville" },
 ];
 
-export const communes: Commune[] = [
-  { id: 1, city_id: 1, province_id: 1, name: "Kintambo", type: "commune" },
-  { id: 2, city_id: 1, province_id: 1, name: "Gombe", type: "commune" },
-  { id: 3, city_id: 1, province_id: 1, name: "Ngaliema", type: "commune" },
-  { id: 4, city_id: 2, province_id: 2, name: "Goma", type: "commune" },
-  { id: 5, city_id: 5, province_id: 4, name: "Lubumbashi", type: "commune" },
+export const districts: District[] = [
+  { id: 1, city_id: 1, province_id: 1, name: "Lukunga", type: "district" },
+  { id: 2, city_id: 1, province_id: 1, name: "Funa", type: "district" },
+  { id: 3, city_id: 1, province_id: 1, name: "Mont-Amba", type: "district" },
+  { id: 4, city_id: 1, province_id: 1, name: "Tshangu", type: "district" },
+  { id: 5, city_id: 2, province_id: 2, name: "Goma", type: "district" },
+  { id: 6, city_id: 5, province_id: 4, name: "Lubumbashi", type: "district" },
 ];
 
-export const zones: Zone[] = [
-  { id: 1, commune_id: 1, city_id: 1, province_id: 1, name: "Camp Tartre", type: "quartier" },
-  { id: 2, commune_id: 2, city_id: 1, province_id: 1, name: "Batetela", type: "quartier" },
-  { id: 3, commune_id: 4, city_id: 2, province_id: 2, name: "Himbi", type: "quartier" },
+export const communes: Commune[] = [
+  { id: 1, city_id: 1, province_id: 1, district_id: 1, name: "Kintambo", type: "commune" },
+  { id: 2, city_id: 1, province_id: 1, district_id: 2, name: "Gombe", type: "commune" },
+  { id: 3, city_id: 1, province_id: 1, district_id: 1, name: "Ngaliema", type: "commune" },
+  { id: 4, city_id: 2, province_id: 2, district_id: 5, name: "Goma", type: "commune" },
+  { id: 5, city_id: 5, province_id: 4, district_id: 6, name: "Lubumbashi", type: "commune" },
 ];
+
+export const quartiers: Quartier[] = [
+  { id: 1, commune_id: 1, district_id: 1, city_id: 1, province_id: 1, name: "Camp Tartre", type: "quartier" },
+  { id: 2, commune_id: 2, district_id: 2, city_id: 1, province_id: 1, name: "Batetela", type: "quartier" },
+  { id: 3, commune_id: 3, district_id: 1, city_id: 1, province_id: 1, name: "Binza Pigeon", type: "quartier" },
+  { id: 4, commune_id: 4, district_id: 5, city_id: 2, province_id: 2, name: "Himbi", type: "quartier" },
+];
+
+/** Alias rétrocompatible */
+export const zones: Zone[] = quartiers;
 
 export const structures: Structure[] = [
   {
@@ -147,6 +162,10 @@ export const structures: Structure[] = [
     is_active: true,
     province: { id: 1, name: "Kinshasa" },
     city: { id: 1, name: "Kinshasa" },
+    district: { id: 2, name: "Funa" },
+    commune: { id: 2, name: "Gombe" },
+    quartier: { id: 2, name: "Batetela" },
+    zone: { id: 2, name: "Batetela" },
     members_count: 42,
     created_at: now,
   },
@@ -162,6 +181,7 @@ export const structures: Structure[] = [
     is_active: true,
     province: { id: 1, name: "Kinshasa" },
     city: { id: 1, name: "Kinshasa" },
+    district: { id: 1, name: "Lukunga" },
     members_count: 28,
     created_at: now,
   },
@@ -177,7 +197,10 @@ export const structures: Structure[] = [
     is_active: true,
     province: { id: 1, name: "Kinshasa" },
     city: { id: 1, name: "Kinshasa" },
+    district: { id: 1, name: "Lukunga" },
     commune: { id: 1, name: "Kintambo" },
+    quartier: { id: 1, name: "Camp Tartre" },
+    zone: { id: 1, name: "Camp Tartre" },
     members_count: 18,
     created_at: now,
   },
@@ -193,6 +216,10 @@ export const structures: Structure[] = [
     is_active: true,
     province: { id: 2, name: "Nord-Kivu" },
     city: { id: 2, name: "Goma" },
+    district: { id: 5, name: "Goma" },
+    commune: { id: 4, name: "Goma" },
+    quartier: { id: 4, name: "Himbi" },
+    zone: { id: 4, name: "Himbi" },
     members_count: 14,
     created_at: now,
   },
@@ -233,8 +260,10 @@ export const members: Member[] = [
     status_reason: null,
     province: ref(1, "Kinshasa"),
     city: ref(1, "Kinshasa"),
+    district: ref(1, "Lukunga"),
     commune: ref(1, "Kintambo"),
     zone: ref(1, "Camp Tartre"),
+    quartier: ref(1, "Camp Tartre"),
     structure: ref(3, "Cellule Kintambo", "JP-STR-00003"),
     position: "Secrétaire de cellule",
     profession: "Informaticien",
@@ -636,7 +665,7 @@ export const statisticsOverview: StatisticsOverview = {
   scope: { level: 0, role: "Super administrateur", province: null, city: null, structure: null },
   kpis: {
     members: { total: 12840, active: 10210, pending: 940, inactive: 1100, suspended: 420, archived: 170, new_this_month: 318, new_last_30_days: 412 },
-    coverage: { provinces: 26, cities: 84, structures: 146 },
+    coverage: { provinces: 26, cities: 84, districts: 48, quartiers: 312, structures: 146 },
     cards: { active: 9860, issued_this_month: 290 },
     activities: { total: 64, upcoming: 9 },
     verifications: { last_30_days: 1870 },

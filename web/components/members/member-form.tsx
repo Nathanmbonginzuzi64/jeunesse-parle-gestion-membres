@@ -57,6 +57,7 @@ export interface MemberFormValues {
   password_confirmation: string;
   province_id: number | null;
   city_id: number | null;
+  district_id: number | null;
   commune_id: number | null;
   zone_id: number | null;
   structure_id: number | null;
@@ -92,6 +93,7 @@ export const EMPTY_MEMBER_FORM: MemberFormValues = {
   password_confirmation: "",
   province_id: null,
   city_id: null,
+  district_id: null,
   commune_id: null,
   zone_id: null,
   structure_id: null,
@@ -123,6 +125,7 @@ export function toMemberPayload(values: MemberFormValues, mode: MemberFormMode):
     address: values.address.trim() || null,
     province_id: values.province_id,
     city_id: values.city_id,
+    district_id: values.district_id,
     commune_id: values.commune_id,
     zone_id: values.zone_id,
     structure_id: values.structure_id,
@@ -166,8 +169,9 @@ export function valuesFromMember(member: Member): MemberFormValues {
     address: member.address ?? "",
     province_id: member.province?.id ?? null,
     city_id: member.city?.id ?? null,
+    district_id: member.district?.id ?? null,
     commune_id: member.commune?.id ?? null,
-    zone_id: member.zone?.id ?? null,
+    zone_id: member.quartier?.id ?? member.zone?.id ?? null,
     structure_id: member.structure?.id ?? null,
     education_level: member.education_level ?? "",
     profession: member.profession ?? "",
@@ -377,6 +381,7 @@ export function MemberForm({
             value={{
               province_id: values.province_id,
               city_id: values.city_id,
+              district_id: values.district_id,
               commune_id: values.commune_id,
               zone_id: values.zone_id,
             }}

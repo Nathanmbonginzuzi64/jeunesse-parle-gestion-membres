@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, fetchProtectedImage } from "./api";
-import type { City, Commune, Province, References, Zone } from "./types";
+import type { City, Commune, District, Province, Quartier, References } from "./types";
 
 interface FetchState<T> {
   data: T | null;
@@ -92,11 +92,17 @@ export function useReferences(): References | null {
  * Charge la hiérarchie territoriale depuis la base : aucune donnée
  * administrative n'est codée en dur dans le frontend.
  */
-export function useTerritories(provinceId?: number | null, cityId?: number | null, communeId?: number | null) {
+export function useTerritories(
+  provinceId?: number | null,
+  cityId?: number | null,
+  districtId?: number | null,
+  communeId?: number | null,
+) {
   const [provinces, setProvinces] = useState<Province[]>([]);
   const [cities, setCities] = useState<City[]>([]);
+  const [districts, setDistricts] = useState<District[]>([]);
   const [communes, setCommunes] = useState<Commune[]>([]);
-  const [zones, setZones] = useState<Zone[]>([]);
+  const [quartiers, setQuartiers] = useState<Quartier[]>([]);
 
   useEffect(() => {
     api.public
@@ -118,27 +124,41 @@ export function useTerritories(provinceId?: number | null, cityId?: number | nul
 
   useEffect(() => {
     if (!cityId) {
+      setDistricts([]);
+      return;
+    }
+    api.public
+      .get<{ data: District[] }>("/territories/districts", { city_id: cityId })
+      .then((response) => setDistricts(response.data))
+      .catch(() => setDistricts([]));
+  }, [cityId]);
+
+  useEffect(() => {
+    if (!cityId) {
       setCommunes([]);
       return;
     }
     api.public
-      .get<{ data: Commune[] }>("/territories/communes", { city_id: cityId })
+      .get<{ data: Commune[] }>("/territories/communes", {
+        city_id: cityId,
+        district_id: districtId ?? undefined,
+      })
       .then((response) => setCommunes(response.data))
       .catch(() => setCommunes([]));
-  }, [cityId]);
+  }, [cityId, districtId]);
 
   useEffect(() => {
     if (!communeId) {
-      setZones([]);
+      setQuartiers([]);
       return;
     }
     api.public
-      .get<{ data: Zone[] }>("/territories/zones", { commune_id: communeId })
-      .then((response) => setZones(response.data))
-      .catch(() => setZones([]));
+      .get<{ data: Quartier[] }>("/territories/quartiers", { commune_id: communeId })
+      .then((response) => setQuartiers(response.data))
+      .catch(() => setQuartiers([]));
   }, [communeId]);
 
-  return { provinces, cities, communes, zones };
+  return { provinces, cities, districts, communes, quartiers, zones: quartiers };
 }
 
 export function usePublicStructures(provinceId?: number | null, cityId?: number | null) {

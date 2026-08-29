@@ -44,6 +44,7 @@ export function UserFormDialog({
   const [territory, setTerritory] = useState({
     province_id: null as number | null,
     city_id: null as number | null,
+    district_id: null as number | null,
     commune_id: null as number | null,
     zone_id: null as number | null,
   });
@@ -67,6 +68,7 @@ export function UserFormDialog({
       setTerritory({
         province_id: user.scope.province_id,
         city_id: user.scope.city_id,
+        district_id: null,
         commune_id: user.scope.commune_id,
         zone_id: null,
       });
@@ -77,7 +79,7 @@ export function UserFormDialog({
       setPhone("");
       setPassword("");
       setRoleId("");
-      setTerritory({ province_id: null, city_id: null, commune_id: null, zone_id: null });
+      setTerritory({ province_id: null, city_id: null, district_id: null, commune_id: null, zone_id: null });
       setStructureId(null);
     }
     setErrors({});
@@ -159,11 +161,11 @@ export function UserFormDialog({
             value={territory}
             onChange={setTerritory}
             errors={errors}
-            levels={{ city: false, commune: false, zone: false }}
+            levels={{ city: false, district: false, commune: false, zone: false }}
           />
         )}
         {level === "city" && (
-          <TerritorySelect value={territory} onChange={setTerritory} errors={errors} levels={{ commune: false, zone: false }} />
+          <TerritorySelect value={territory} onChange={setTerritory} errors={errors} levels={{ district: false, commune: false, zone: false }} />
         )}
         {level === "full" && (
           <>
