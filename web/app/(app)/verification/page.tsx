@@ -1,20 +1,35 @@
 "use client";
 
 import { useState } from "react";
-import { PageHeader } from "@/components/layout/topbar";
+import {
+  BadgeCheck,
+  CreditCard,
+  IdCard,
+  LayoutGrid,
+  QrCode,
+  ScanLine,
+  ShieldCheck,
+} from "lucide-react";
+import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
+import { DashboardSection } from "@/components/dashboard/dashboard-section";
+import { QuickLinkCard } from "@/components/dashboard/quick-link-card";
 import { QrScannerPanel } from "@/components/members/qr-scanner-panel";
 import { RequirePermission } from "@/components/auth/require-permission";
-import { PublicAvatar } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardBody } from "@/components/ui/card";
-import { Alert } from "@/components/ui/feedback";
-import { DefinitionList } from "@/components/ui/table";
+import {
+  VerificationHero,
+  VerificationHistory,
+  type VerificationHistoryEntry,
+} from "@/components/verification/verification-history";
+import { VerificationResultPanel } from "@/components/verification/verification-result-panel";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { KpiCard, dashboardCardGrid } from "@/components/ui/kpi";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { api, ApiError } from "@/lib/api";
 import { extractTokenFromQr } from "@/lib/form";
+import { useApi } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
-import type { VerificationResult } from "@/lib/types";
-import { formatShortDate } from "@/lib/utils";
+import type { StatisticsOverview, VerificationResult } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 export default function VerificationPage() {
   return (
@@ -25,14 +40,17 @@ export default function VerificationPage() {
 }
 
 function VerificationTool() {
+  const stats = useApi<StatisticsOverview>("/statistics");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [history, setHistory] = useState<VerificationHistoryEntry[]>([]);
 
   async function verify(tokenSource: string) {
     const token = extractTokenFromQr(tokenSource);
     if (!token.toUpperCase().startsWith("JP-RDC-") && token.length < 16) {
       setError("Identifiant ou jeton QR invalide.");
+      setResult(null);
       return;
     }
 
@@ -42,75 +60,152 @@ function VerificationTool() {
     try {
       const response = await api.public.post<VerificationResult>("/members/verify", { token });
       setResult(response);
+      setHistory((prev) => [
+        { id: crypto.randomUUID(), scannedAt: new Date(), result: response },
+        ...prev.slice(0, 9),
+      ]);
     } catch (caught) {
       if (caught instanceof ApiError) {
-        setResult((caught.payload as unknown as VerificationResult) ?? null);
+        const payload = caught.payload as unknown as VerificationResult;
+        setResult(payload ?? null);
         setError(caught.message);
+        if (payload) {
+          setHistory((prev) => [
+            { id: crypto.randomUUID(), scannedAt: new Date(), result: payload },
+            ...prev.slice(0, 9),
+          ]);
+        }
       } else {
         setError("Une erreur est survenue. Veuillez réessayer.");
+        setResult(null);
       }
     } finally {
       setLoading(false);
     }
   }
 
-  const member = result?.member;
-  const valid = result?.valid === true;
+  function clearResult() {
+    setResult(null);
+    setError(null);
+  }
+
+  const kpis = stats.data?.kpis;
 
   return (
     <div className="space-y-6">
-      <Breadcrumb items={[{ href: "/membres", label: "Membres" }, { label: "Vérification" }]} />
-      <PageHeader
-        title="Vérifier une carte"
-        description="Scannez le QR code ou saisissez l'identifiant membre. Une carte désactivée est immédiatement rejetée."
+      <Breadcrumb
+        items={[
+          { href: "/tableau-de-bord", label: "Pilotage" },
+          { href: "/membres", label: "Membres" },
+          { label: "Vérification" },
+        ]}
       />
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardBody>
-            <QrScannerPanel onScan={(value) => void verify(value)} loading={loading} />
-          </CardBody>
-        </Card>
+      <DashboardAnimate>
+        <VerificationHero sessionCount={history.length} />
+      </DashboardAnimate>
 
-        <Card>
-          <CardBody>
-            {error && !member && <Alert tone="error">{error}</Alert>}
-            {!result && !error && (
-              <p className="text-sm text-slate-500">En attente d&apos;un scan ou d&apos;une saisie.</p>
-            )}
-            {result && (
-              <div className="space-y-4">
-                <Alert tone={valid ? "success" : "error"}>{result.message}</Alert>
-                {member && (
-                  <>
-                    <div className="flex items-center gap-3">
-                      <PublicAvatar src={member.photo_url} name={member.full_name} />
-                      <div>
-                        <p className="font-semibold">{member.full_name}</p>
-                        <p className="font-mono text-xs text-brand-700">{member.member_code}</p>
-                        <div className="mt-1 flex gap-1.5">
-                          <Badge tone={valid ? "success" : "danger"}>{member.status}</Badge>
-                          <Badge>{member.card_status}</Badge>
-                        </div>
-                      </div>
-                    </div>
-                    <DefinitionList
-                      columns={1}
-                      items={[
-                        { label: "Structure", value: member.structure },
-                        { label: "Province", value: member.province },
-                        { label: "Carte", value: member.card_status },
-                        { label: "Émission", value: formatShortDate(member.issued_at) },
-                        { label: "Téléphone", value: member.phone },
-                      ]}
-                    />
-                  </>
-                )}
-              </div>
-            )}
-          </CardBody>
-        </Card>
-      </div>
+      {kpis && (
+        <DashboardAnimate delay={60}>
+          <div className={cn(dashboardCardGrid, "sm:grid-cols-2 lg:grid-cols-4")}>
+            <KpiCard
+              label="Vérifications (30 j)"
+              value={kpis.verifications.last_30_days}
+              icon={ScanLine}
+              tone="info"
+              hint="période glissante"
+            />
+            <KpiCard
+              label="Cartes actives"
+              value={kpis.cards.active}
+              icon={BadgeCheck}
+              tone="success"
+              href="/cartes?status=active"
+            />
+            <KpiCard
+              label="Membres actifs"
+              value={kpis.members.active}
+              icon={ShieldCheck}
+              tone="info"
+              href="/membres?status=active"
+            />
+            <KpiCard
+              label="Cartes émises (mois)"
+              value={kpis.cards.issued_this_month}
+              icon={CreditCard}
+              tone="neutral"
+              href="/cartes"
+            />
+          </div>
+        </DashboardAnimate>
+      )}
+
+      <DashboardAnimate delay={100}>
+        <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+          <Card className="overflow-hidden">
+            <CardHeader
+              title="Scanner ou saisir"
+              description="QR code de la carte ou identifiant JP-RDC-XXXXXXXX"
+            />
+            <CardBody>
+              <QrScannerPanel onScan={(value) => void verify(value)} loading={loading} />
+            </CardBody>
+          </Card>
+
+          <VerificationResultPanel
+            result={result}
+            error={error}
+            loading={loading}
+            onClear={clearResult}
+          />
+        </div>
+      </DashboardAnimate>
+
+      {history.length > 0 && (
+        <DashboardAnimate delay={140}>
+          <VerificationHistory entries={history} />
+        </DashboardAnimate>
+      )}
+
+      <DashboardAnimate delay={180}>
+        <DashboardSection
+          icon={QrCode}
+          title="Raccourcis"
+          description="Actions liées à la vérification et aux cartes"
+          tone="emerald"
+        >
+          <div className={cn(dashboardCardGrid, "sm:grid-cols-2 lg:grid-cols-4")}>
+            <QuickLinkCard
+              href="/scan"
+              icon={ScanLine}
+              title="Scan de présence"
+              description="Enregistrer la participation à une activité"
+              tone="emerald"
+            />
+            <QuickLinkCard
+              href="/cartes/galerie"
+              icon={LayoutGrid}
+              title="Galerie des cartes"
+              description="Aperçu visuel de toutes les cartes émises"
+              tone="brand"
+            />
+            <QuickLinkCard
+              href="/cartes"
+              icon={IdCard}
+              title="Registre cartes"
+              description="Gestion, renouvellement et révocation"
+              tone="brand"
+            />
+            <QuickLinkCard
+              href="/membres?status=pending"
+              icon={BadgeCheck}
+              title="Dossiers en attente"
+              description="Valider les membres avant émission"
+              tone="amber"
+            />
+          </div>
+        </DashboardSection>
+      </DashboardAnimate>
     </div>
   );
 }

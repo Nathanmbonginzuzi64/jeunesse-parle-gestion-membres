@@ -1,6 +1,6 @@
 import { ApiError } from "@/lib/api";
 import { getToken } from "@/lib/api";
-import type { Member, Paginated, StatisticsCharts, StatisticsOverview } from "@/lib/types";
+import type { Member, Paginated, StatisticsCharts, StatisticsOverview, VerificationResult } from "@/lib/types";
 import * as db from "./data";
 
 type Query = Record<string, string | number | boolean | null | undefined>;
@@ -752,15 +752,36 @@ function verifyToken(token: string) {
   }
 
   const member = byCode ?? db.members[0];
-  const inactive = member.status !== "active" || member.card?.status !== "active";
+  const cardStatus = member.card?.status;
+  const inactive = member.status !== "active" || cardStatus !== "active";
+  const expired = cardStatus === "expired";
+  const revoked = cardStatus === "suspended" || cardStatus === "replaced";
+
+  let result: VerificationResult["result"] = "valid";
+  let message = "Membre vérifié — carte valide.";
+  if (!byCode && normalized.replace(/[^A-Za-z0-9]/g, "").length >= 16) {
+    result = "valid";
+    message = "Membre vérifié — carte valide.";
+  } else if (expired) {
+    result = "expired";
+    message = "Carte expirée — renouvellement requis.";
+  } else if (revoked) {
+    result = "revoked";
+    message = "Carte désactivée ou remplacée.";
+  } else if (inactive) {
+    result = "inactive";
+    message = "Membre ou carte inactive.";
+  }
+
   return {
-    result: inactive ? "inactive" : "valid",
-    valid: !inactive,
-    message: inactive ? "Carte inactive." : "Membre vérifié.",
+    result,
+    valid: result === "valid",
+    message,
     member: {
+      member_id: member.id,
       member_code: member.member_code,
       full_name: member.full_name,
-      photo_url: null,
+      photo_url: member.photo_url,
       gender: member.gender_label,
       province: member.province?.name ?? null,
       structure: member.structure?.name ?? null,
@@ -770,6 +791,8 @@ function verifyToken(token: string) {
       card_status: member.card?.status_label,
       issued_at: member.card?.issued_at,
       expires_at: member.card?.expires_at,
+      phone: member.phone,
+      city: member.city,
     },
   };
 }

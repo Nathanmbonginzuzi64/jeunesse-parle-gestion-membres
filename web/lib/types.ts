@@ -158,6 +158,7 @@ export interface VerificationResult {
   valid: boolean;
   message: string;
   member: {
+    member_id?: number;
     member_code: string;
     full_name: string;
     photo_url: string | null;
