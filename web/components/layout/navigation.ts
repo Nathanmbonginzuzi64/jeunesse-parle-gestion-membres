@@ -7,6 +7,7 @@ import {
   CheckSquare,
   CreditCard,
   IdCard,
+  FileText,
   LayoutDashboard,
   Map,
   ScanLine,
@@ -43,6 +44,10 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Statistiques",
         icon: BarChart3,
         permissions: [PERMISSIONS.statisticsView],
+        children: [
+          { href: "/statistiques", label: "Analyses", icon: BarChart3, exact: true },
+          { href: "/statistiques/rapports", label: "Rapports", icon: FileText, permissions: [PERMISSIONS.statisticsView] },
+        ],
       },
       { href: "/cartographie", label: "Cartographie", icon: Map, permissions: [PERMISSIONS.mapView] },
     ],
