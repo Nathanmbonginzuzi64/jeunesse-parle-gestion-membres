@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { BarChart3, Building2, Layers, MapPin, Users } from "lucide-react";
 import { RequirePermission } from "@/components/auth/require-permission";
+import { DeviceLocationPanel } from "@/components/cartography/device-location-panel";
 import { MapHero } from "@/components/cartography/map-hero";
 import { ProvinceGrid } from "@/components/cartography/province-grid";
 import { TerritoryBreadcrumb } from "@/components/cartography/territory-breadcrumb";
@@ -16,6 +17,8 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Alert, EmptyState, Skeleton } from "@/components/ui/feedback";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { useApi } from "@/lib/hooks";
+import { useDeviceLocation } from "@/lib/hooks/use-device-location";
+import { findNearestProvince } from "@/lib/geo";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { MapStatistics } from "@/lib/types";
 import { cn, formatNumber } from "@/lib/utils";
@@ -45,6 +48,7 @@ export default function MapPage() {
 function MapContent() {
   const [provinceId, setProvinceId] = useState<number | null>(null);
   const [cityId, setCityId] = useState<number | null>(null);
+  const device = useDeviceLocation();
   const config = useApi<{ provider: string; configured: boolean }>("/map/config");
   const stats = useApi<MapStatistics>("/map/statistics", {
     province_id: provinceId,
@@ -73,6 +77,11 @@ function MapContent() {
     () => [...provinces].sort((a, b) => b.total - a.total)[0],
     [provinces],
   );
+
+  const nearestProvince = useMemo(() => {
+    if (!device.location) return null;
+    return findNearestProvince(device.location.latitude, device.location.longitude, provinces);
+  }, [device.location, provinces]);
 
   function selectProvince(id: number) {
     setProvinceId(id);
@@ -104,9 +113,26 @@ function MapContent() {
       {config.data && !config.data.configured && (
         <Alert tone="info">
           Aucune clé cartographique externe configurée. Les agrégats territoriaux et la carte
-          interactive restent disponibles — aucune position individuelle n&apos;est affichée.
+          interactive restent disponibles. Vous pouvez activer la position de votre appareil admin
+          ci-dessous — seule votre position est affichée, jamais celle des membres.
         </Alert>
       )}
+
+      <DashboardAnimate delay={40}>
+        <DeviceLocationPanel
+          enabled={device.enabled}
+          location={device.location}
+          status={device.status}
+          error={device.error}
+          inRdc={device.inRdc}
+          onToggle={device.toggle}
+          onRefresh={device.refresh}
+          nearestProvince={nearestProvince?.name}
+          onFocusProvince={
+            nearestProvince ? () => selectProvince(nearestProvince.id) : undefined
+          }
+        />
+      </DashboardAnimate>
 
       <DashboardAnimate delay={60}>
         <TerritoryBreadcrumb
@@ -133,6 +159,7 @@ function MapContent() {
             provinces={provinces}
             selectedId={provinceId}
             onSelect={selectProvince}
+            deviceLocation={device.enabled ? device.location : null}
           />
         </DashboardSection>
       </DashboardAnimate>
