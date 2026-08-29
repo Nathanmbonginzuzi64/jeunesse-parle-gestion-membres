@@ -3,6 +3,7 @@ import { getToken } from "@/lib/api";
 import type { Member, Paginated, StatisticsCharts, StatisticsOverview, VerificationResult } from "@/lib/types";
 import type { FingerprintVerifyResult, MemberFingerprint } from "@/lib/fingerprints";
 import { FINGERPRINT_SLOTS, generateFingerprintTemplate, matchFingerprint } from "@/lib/fingerprints";
+import { getMapConfig } from "@/lib/maps-config";
 import * as db from "./data";
 
 type Query = Record<string, string | number | boolean | null | undefined>;
@@ -589,7 +590,7 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     return payload as T;
   }
   if (method === "GET" && path === "/map/config") {
-    return { provider: "none", configured: false } as T;
+    return getMapConfig() as T;
   }
 
   if (method === "GET" && path === "/notifications") return paginate(db.notifications, query) as T;

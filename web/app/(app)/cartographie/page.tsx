@@ -9,6 +9,7 @@ import { MapHero } from "@/components/cartography/map-hero";
 import { ProvinceGrid } from "@/components/cartography/province-grid";
 import { TerritoryBreadcrumb } from "@/components/cartography/territory-breadcrumb";
 import { TerritoryMap } from "@/components/cartography/territory-map";
+import { GoogleTerritoryMap } from "@/components/cartography/google-territory-map";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
 import { DashboardSection } from "@/components/dashboard/dashboard-section";
 import { ProvinceRanking } from "@/components/statistics/province-ranking";
@@ -112,9 +113,9 @@ function MapContent() {
 
       {config.data && !config.data.configured && (
         <Alert tone="info">
-          Aucune clé cartographique externe configurée. Les agrégats territoriaux et la carte
-          interactive restent disponibles. Vous pouvez activer la position de votre appareil admin
-          ci-dessous — seule votre position est affichée, jamais celle des membres.
+          Aucune clé Google Maps configurée (`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`). La carte SVG de
+          secours reste disponible. Activez votre position admin ci-dessous — seule votre position
+          est affichée, jamais celle des membres.
         </Alert>
       )}
 
@@ -155,12 +156,21 @@ function MapContent() {
             </Link>
           }
         >
-          <TerritoryMap
-            provinces={provinces}
-            selectedId={provinceId}
-            onSelect={selectProvince}
-            deviceLocation={device.enabled ? device.location : null}
-          />
+          {config.data?.configured ? (
+            <GoogleTerritoryMap
+              provinces={provinces}
+              selectedId={provinceId}
+              onSelect={selectProvince}
+              deviceLocation={device.enabled ? device.location : null}
+            />
+          ) : (
+            <TerritoryMap
+              provinces={provinces}
+              selectedId={provinceId}
+              onSelect={selectProvince}
+              deviceLocation={device.enabled ? device.location : null}
+            />
+          )}
         </DashboardSection>
       </DashboardAnimate>
 
