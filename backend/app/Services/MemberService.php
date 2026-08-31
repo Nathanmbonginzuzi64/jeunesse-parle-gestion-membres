@@ -89,6 +89,10 @@ class MemberService
 
             $this->audit->log('member.created', $member, "Inscription du membre {$member->member_code}");
 
+            $member = $member->fresh();
+            $this->notifications->memberWelcome($member);
+            $this->notifications->adminNewMember($member, $author);
+
             if ($member->status === MemberStatus::Active) {
                 $this->cards->issue($member, $author, 'Émission initiale');
             }
@@ -164,7 +168,7 @@ class MemberService
             ])->save();
 
             $this->cards->issue($member, $author, 'Émission après validation');
-            $this->notifications->memberValidated($member);
+            $this->notifications->memberValidated($member, $author);
             $this->audit->log('member.validated', $member, "Validation du membre {$member->member_code}");
 
             return $member->fresh(['activeCard.activeQrToken']);

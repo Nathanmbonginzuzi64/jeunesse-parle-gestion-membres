@@ -1,19 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Newspaper } from "lucide-react";
 import { RequirePermission } from "@/components/auth/require-permission";
-import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
-import { NewsPostCard, type NewsPostItem } from "@/components/news/news-post-card";
+import { NewsFilters } from "@/components/news/news-filters";
+import { NewsHero } from "@/components/news/news-hero";
+import { NewsPostCard } from "@/components/news/news-post-card";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
-import { Card, CardBody } from "@/components/ui/card";
-import { Input, Textarea } from "@/components/ui/field";
 import { Alert, EmptyState, Skeleton } from "@/components/ui/feedback";
-import { api, ApiError } from "@/lib/api";
-import { useApi } from "@/lib/hooks";
+import { useDebounced } from "@/lib/hooks";
+import { useNewsFeed } from "@/lib/hooks/use-news-feed";
+import { useNotificationFeed } from "@/lib/hooks/use-notification-feed";
 import { PERMISSIONS } from "@/lib/permissions";
-import { useToast } from "@/components/ui/toast";
 
 export default function ActualitesPage() {
   return (
@@ -24,68 +22,49 @@ export default function ActualitesPage() {
 }
 
 function ActualitesFeed() {
-  const toast = useToast();
-  const { data, loading, error, reload } = useApi<{ data: NewsPostItem[] }>("/news");
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
-  const [publishing, setPublishing] = useState(false);
-
-  async function publish(e: React.FormEvent) {
-    e.preventDefault();
-    setPublishing(true);
-    try {
-      await api.post("/news", { title, body });
-      toast.success("Actualité publiée.");
-      setTitle("");
-      setBody("");
-      reload();
-    } catch (caught) {
-      toast.error(caught instanceof ApiError ? caught.message : "Publication impossible.");
-    } finally {
-      setPublishing(false);
-    }
-  }
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("all");
+  const debouncedSearch = useDebounced(search, 400);
+  const { unreadCount } = useNotificationFeed();
+  const { posts, loading, loadingMore, error, loadMore, hasMore, reload } = useNewsFeed({
+    q: debouncedSearch,
+    category,
+  });
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <Breadcrumb items={[{ href: "/activites", label: "Mobilisation" }, { label: "JP Actualités" }]} />
+    <div className="mx-auto max-w-2xl space-y-5 pb-10">
+      <Breadcrumb items={[{ href: "/activites", label: "Mobilisation" }, { label: "Actualités" }]} />
 
-      <DashboardAnimate>
-        <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-100 text-brand-700">
-            <Newspaper className="h-5 w-5" />
-          </span>
-          <div>
-            <h1 className="text-xl font-semibold">JP Actualités</h1>
-            <p className="text-sm text-slate-600">Fil d&apos;information — réactions et commentaires</p>
-          </div>
-        </div>
-      </DashboardAnimate>
+      <NewsHero search={search} onSearchChange={setSearch} unreadNotifications={unreadCount} />
 
-      <Card>
-        <CardBody>
-          <form onSubmit={publish} className="space-y-3">
-            <Input label="Titre" value={title} onChange={(e) => setTitle(e.target.value)} required />
-            <Textarea label="Contenu" value={body} onChange={(e) => setBody(e.target.value)} rows={4} required />
-            <Button type="submit" loading={publishing}>
-              Publier
-            </Button>
-          </form>
-        </CardBody>
-      </Card>
+      <NewsFilters category={category} onCategoryChange={setCategory} />
 
       {error ? <Alert tone="danger">{error}</Alert> : null}
-      {loading ? <Skeleton className="h-40 w-full" /> : null}
 
-      {!loading && !data?.data.length ? (
-        <EmptyState title="Aucune actualité" description="Soyez le premier à publier une information." />
-      ) : (
+      {loading ? (
         <div className="space-y-4">
-          {data?.data.map((post) => (
-            <NewsPostCard key={post.id} post={post} onUpdated={reload} />
-          ))}
+          <Skeleton className="h-48 w-full rounded-2xl" />
+          <Skeleton className="h-48 w-full rounded-2xl" />
         </div>
-      )}
+      ) : null}
+
+      {!loading && posts.length === 0 ? (
+        <EmptyState title="Aucune actualité" description="Revenez bientôt pour les dernières informations de Jeunesse Parle." />
+      ) : null}
+
+      <div className="space-y-4">
+        {posts.map((post) => (
+          <NewsPostCard key={post.id} post={post} compact onUpdated={reload} />
+        ))}
+      </div>
+
+      {hasMore ? (
+        <div className="flex justify-center pt-2">
+          <Button type="button" variant="secondary" loading={loadingMore} onClick={loadMore}>
+            Charger plus
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

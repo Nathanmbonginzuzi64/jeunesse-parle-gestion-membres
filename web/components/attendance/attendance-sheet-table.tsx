@@ -26,16 +26,19 @@ function territory(row: AttendanceRow): string {
 
 export function AttendanceSheetTable({
   rows,
+  rowOffset = 0,
   onSelect,
 }: {
   rows: AttendanceRow[];
+  /** Index de départ pour la numérotation (pagination). */
+  rowOffset?: number;
   onSelect?: (row: AttendanceRow) => void;
 }) {
   return (
     <>
       {/* Mobile */}
       <div className="divide-y divide-slate-100 md:hidden">
-        {rows.map((row) => (
+        {rows.map((row, index) => (
           <article
             key={row.member_id}
             className={cn("p-4 transition", onSelect && "cursor-pointer hover:bg-brand-50/30")}
@@ -50,6 +53,9 @@ export function AttendanceSheetTable({
             tabIndex={onSelect ? 0 : undefined}
           >
             <div className="flex items-start gap-3">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-semibold tabular-nums text-slate-600">
+                {rowOffset + index + 1}
+              </span>
               <Avatar src={row.photo_url} name={row.full_name} size="md" />
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-slate-900">{row.full_name}</p>
@@ -85,7 +91,8 @@ export function AttendanceSheetTable({
         <Table className="min-w-[56rem]">
           <thead>
             <tr className="bg-gradient-to-r from-brand-50/90 to-slate-50">
-              <Th className="min-w-[14rem] rounded-tl-lg border-b-brand-100 bg-transparent">Membre</Th>
+              <Th className="w-12 rounded-tl-lg border-b-brand-100 bg-transparent">N°</Th>
+              <Th className="min-w-[14rem] border-b-brand-100 bg-transparent">Membre</Th>
               <Th className="border-b-brand-100 bg-transparent">Identifiant</Th>
               <Th className="border-b-brand-100 bg-transparent">Structure</Th>
               <Th className="border-b-brand-100 bg-transparent">Territoire</Th>
@@ -98,12 +105,15 @@ export function AttendanceSheetTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {rows.map((row, index) => (
               <Tr
                 key={row.member_id}
                 className={cn(onSelect && "cursor-pointer")}
                 onClick={() => onSelect?.(row)}
               >
+                <Td className="py-3.5 text-center text-xs font-semibold tabular-nums text-slate-500">
+                  {rowOffset + index + 1}
+                </Td>
                 <Td className="py-3.5">
                   <div className="flex items-center gap-3">
                     <Avatar src={row.photo_url} name={row.full_name} size="sm" />

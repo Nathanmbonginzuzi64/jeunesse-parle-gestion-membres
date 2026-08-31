@@ -150,7 +150,11 @@ export function AttendanceSheetSection({
         ) : (
           <>
             <div className="overflow-hidden rounded-xl border border-slate-100">
-              <AttendanceSheetTable rows={data.rows} onSelect={onSelectRow} />
+              <AttendanceSheetTable
+                rows={data.rows}
+                rowOffset={(page - 1) * perPage}
+                onSelect={onSelectRow}
+              />
             </div>
             {data.meta ? (
               <Pagination

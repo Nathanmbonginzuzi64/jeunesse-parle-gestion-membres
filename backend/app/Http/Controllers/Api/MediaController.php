@@ -7,7 +7,9 @@ use App\Models\Activity;
 use App\Models\Member;
 use App\Models\QrToken;
 use App\Services\ActivityImageStorageService;
+use App\Services\NewsMediaStorageService;
 use App\Services\PhotoStorageService;
+use App\Models\NewsPost;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
@@ -16,6 +18,7 @@ class MediaController extends Controller
     public function __construct(
         private readonly PhotoStorageService $photos,
         private readonly ActivityImageStorageService $activityImages,
+        private readonly NewsMediaStorageService $newsMedia,
     ) {}
 
     /**
@@ -65,6 +68,36 @@ class MediaController extends Controller
         abort_unless($record->image_path, 404, 'Ressource introuvable.');
 
         return $this->streamActivity($record->image_path, $record->code);
+    }
+
+    /** Média principal d'une actualité (image ou PDF). */
+    public function newsFile(Request $request, NewsPost $newsPost): Response
+    {
+        abort_unless($newsPost->media_path, 404, 'Ressource introuvable.');
+
+        return $this->streamNews($newsPost->media_path, 'news-'.$newsPost->id);
+    }
+
+    /** Image de galerie d'une actualité. */
+    public function newsGallery(Request $request, NewsPost $newsPost, int $index): Response
+    {
+        $paths = $newsPost->gallery_paths ?? [];
+        abort_unless(isset($paths[$index]), 404, 'Ressource introuvable.');
+
+        return $this->streamNews($paths[$index], 'news-'.$newsPost->id.'-'.$index);
+    }
+
+    private function streamNews(string $path, string $reference): Response
+    {
+        $contents = $this->newsMedia->get($path);
+
+        abort_unless($contents !== null, 404, 'Ressource introuvable.');
+
+        return response($contents, 200, [
+            'Content-Type' => $this->newsMedia->mimeFor($path),
+            'Cache-Control' => 'private, max-age=600',
+            'Content-Disposition' => 'inline; filename="'.$reference.'.'.pathinfo($path, PATHINFO_EXTENSION).'"',
+        ]);
     }
 
     private function stream(string $path, string $reference): Response

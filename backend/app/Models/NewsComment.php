@@ -18,6 +18,11 @@ class NewsComment extends Model
         return $this->belongsTo(NewsPost::class, 'news_post_id');
     }
 
+    public function newsPost(): BelongsTo
+    {
+        return $this->belongsTo(NewsPost::class, 'news_post_id');
+    }
+
     public function member(): BelongsTo
     {
         return $this->belongsTo(Member::class);

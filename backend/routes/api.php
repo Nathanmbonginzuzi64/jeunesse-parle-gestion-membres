@@ -10,6 +10,8 @@ use App\Http\Controllers\Api\MapController;
 use App\Http\Controllers\Api\MediaController;
 use App\Http\Controllers\Api\MemberCardController;
 use App\Http\Controllers\Api\MemberController;
+use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\NotificationPreferenceController;
 use App\Http\Controllers\Api\JpMessageController;
 use App\Http\Controllers\Api\NewsController;
 use App\Http\Controllers\Api\ReferenceController;
@@ -176,13 +178,19 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
     });
 
     Route::prefix('news')->group(function () {
-        Route::get('/', [NewsController::class, 'index']);
+        Route::get('manage', [NewsController::class, 'manage']);
         Route::get('stats', [NewsController::class, 'stats']);
-        Route::get('{newsPost}', [NewsController::class, 'show']);
+        Route::get('categories', [NewsController::class, 'categories']);
+        Route::delete('comments/{newsComment}', [NewsController::class, 'deleteComment']);
+        Route::get('/', [NewsController::class, 'index']);
         Route::post('/', [NewsController::class, 'store']);
+        Route::post('{newsPost}/restore', [NewsController::class, 'restore']);
         Route::post('{newsPost}/react', [NewsController::class, 'react']);
         Route::post('{newsPost}/comments', [NewsController::class, 'comment']);
         Route::post('{newsPost}/share', [NewsController::class, 'share']);
+        Route::get('{newsPost}', [NewsController::class, 'show']);
+        Route::match(['put', 'post'], '{newsPost}', [NewsController::class, 'update']);
+        Route::delete('{newsPost}', [NewsController::class, 'destroy']);
     });
 
     Route::prefix('jp-messages')->group(function () {
@@ -222,11 +230,21 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
 
     // ------------------------------------------------------------ Notifications
     Route::prefix('notifications')->group(function () {
-        Route::get('/', [NotificationController::class, 'index']);
+        Route::get('categories', [NotificationController::class, 'categories']);
+        Route::get('since', [NotificationController::class, 'since']);
+        Route::get('stats', [NotificationController::class, 'stats']);
         Route::get('unread-count', [NotificationController::class, 'unreadCount']);
+        Route::get('/', [NotificationController::class, 'index']);
+        Route::post('/', [NotificationController::class, 'store']);
         Route::post('read-all', [NotificationController::class, 'markAllAsRead']);
+        Route::post('device-token', [NotificationController::class, 'registerDevice']);
         Route::post('{notification}/read', [NotificationController::class, 'markAsRead']);
         Route::delete('{notification}', [NotificationController::class, 'destroy']);
+    });
+
+    Route::prefix('notification-preferences')->group(function () {
+        Route::get('/', [NotificationPreferenceController::class, 'show']);
+        Route::put('/', [NotificationPreferenceController::class, 'update']);
     });
 
     // ------------------------------------------------------------ Administration
@@ -243,4 +261,8 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
         ->name('media.member-photo');
     Route::get('media/activities/{activity}/image', [MediaController::class, 'activityImage'])
         ->name('media.activity-image');
+    Route::get('media/news/{newsPost}/file', [MediaController::class, 'newsFile'])
+        ->name('media.news-file');
+    Route::get('media/news/{newsPost}/gallery/{index}', [MediaController::class, 'newsGallery'])
+        ->name('media.news-gallery');
 });

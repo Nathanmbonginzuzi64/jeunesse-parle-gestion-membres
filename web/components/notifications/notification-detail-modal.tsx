@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { notificationLevelMeta } from "@/components/notifications/notification-level";
+import { resolveNotificationAction, categoryLabel } from "@/lib/notifications/catalog";
 import type { AppNotification } from "@/lib/types";
 import { cn, formatDateTime, formatRelative } from "@/lib/utils";
 
@@ -15,6 +17,7 @@ export function NotificationDetailModal({
 }) {
   const meta = notification ? notificationLevelMeta(notification.level) : notificationLevelMeta("info");
   const Icon = meta.icon;
+  const action = notification ? resolveNotificationAction(notification) : null;
 
   return (
     <Modal
@@ -24,7 +27,12 @@ export function NotificationDetailModal({
       description="Détail de l'alerte"
       size="md"
       footer={
-        <div className="flex justify-end">
+        <div className="flex flex-wrap justify-end gap-2">
+          {action ? (
+            <Link href={action.href}>
+              <Button>{action.label}</Button>
+            </Link>
+          ) : null}
           <Button variant="outline" onClick={onClose}>
             Fermer
           </Button>
@@ -62,6 +70,10 @@ export function NotificationDetailModal({
           </div>
 
           <dl className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50/60 p-3 sm:grid-cols-2">
+            <div>
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Catégorie</dt>
+              <dd className="mt-0.5 text-sm font-medium text-slate-800">{categoryLabel(notification.category)}</dd>
+            </div>
             <div>
               <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Type</dt>
               <dd className="mt-0.5 text-sm font-medium text-slate-800">{notification.type.replaceAll("_", " ")}</dd>

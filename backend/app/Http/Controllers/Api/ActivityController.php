@@ -100,6 +100,8 @@ class ActivityController extends Controller
             return $activity;
         });
 
+        $this->notifications->adminNewActivity($activity, $request->user());
+
         return response()->json([
             'message' => 'Activité créée.',
             'data' => new ActivityResource($activity->load(['province', 'city', 'commune', 'zone', 'avenue', 'structure', 'organizer', 'liveSharer'])->loadCount(['members', 'attendances'])),
@@ -136,6 +138,21 @@ class ActivityController extends Controller
                     $activity->image_path,
                 ),
             ]);
+        }
+
+        $changes = [];
+        if ($activity->wasChanged('starts_at') && $activity->starts_at) {
+            $changes['date'] = $activity->starts_at->translatedFormat('d F Y à H:i');
+        }
+        if ($activity->wasChanged('location') && $activity->location) {
+            $changes['lieu'] = $activity->location;
+        }
+
+        if ($changes !== []) {
+            $activity->load('members');
+            foreach ($activity->members as $member) {
+                $this->notifications->activityUpdated($member, $activity, $changes, $request->user());
+            }
         }
 
         $this->audit->logChanges('activity.updated', $activity, $before, "Modification de {$activity->code}");
@@ -286,14 +303,7 @@ class ActivityController extends Controller
         $members = $activity->members()->whereNotNull('user_id')->get();
 
         foreach ($members as $member) {
-            $this->notifications->push(
-                $member,
-                'activity_live_location',
-                '📍 Localisation disponible',
-                'Le responsable de l\'activité est en route. Suivez l\'emplacement du lieu en temps réel.',
-                ['activity_id' => $activity->id, 'code' => $activity->code, 'event' => $event],
-                'info',
-            );
+            $this->notifications->liveLocationAvailable($member, $activity);
         }
     }
 

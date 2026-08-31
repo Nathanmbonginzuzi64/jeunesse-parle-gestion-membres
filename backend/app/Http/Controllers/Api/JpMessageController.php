@@ -61,6 +61,8 @@ class JpMessageController extends Controller
 
         $this->audit->log('jp_message.created', $message, "Message {$message->reference} — {$member->member_code}");
 
+        $this->notifications->jpMessageCreatedForAdmins($message);
+
         return response()->json([
             'message' => 'Votre message a été envoyé.',
             'data' => $this->formatMessage($message->load('member')),
@@ -100,6 +102,13 @@ class JpMessageController extends Controller
         }
 
         $this->audit->log('jp_message.replied', $jpMessage, "Réponse sur {$jpMessage->reference}");
+
+        if ($request->user()->hasPermission(\App\Enums\Permission::UsersView)) {
+            $jpMessage->load('member');
+            if ($jpMessage->member) {
+                $this->notifications->jpMessageReplyReceived($jpMessage->member, $jpMessage);
+            }
+        }
 
         return response()->json(['message' => 'Réponse envoyée.', 'data' => $reply], 201);
     }

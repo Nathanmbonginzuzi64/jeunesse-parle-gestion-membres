@@ -308,10 +308,12 @@ export interface Structure {
 export interface AppNotification {
   id: number;
   type: string;
+  category?: string | null;
   title: string;
   body: string | null;
   data: Record<string, unknown> | null;
   level: string;
+  channel?: string | null;
   read_at: string | null;
   is_read: boolean;
   created_at: string | null;

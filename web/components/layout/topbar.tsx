@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Bell, ChevronDown, CircleHelp, Fingerprint, KeyRound, LogOut, Menu, UserRound } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { NotificationsInboxPopover } from "@/components/notifications/notifications-inbox-popover";
-import { api } from "@/lib/api";
+import { useNotificationFeed } from "@/lib/hooks/use-notification-feed";
 import { USE_MOCKS } from "@/lib/config";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -13,25 +13,16 @@ import { CommandSearch } from "./command-search";
 
 export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const { user, logout } = useAuth();
-  const [unread, setUnread] = useState(0);
+  const { unreadCount: unread, setUnreadCount, refreshCount } = useNotificationFeed();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let active = true;
-    const load = () =>
-      api
-        .get<{ count: number }>("/notifications/unread-count")
-        .then((response) => active && setUnread(response.count))
-        .catch(() => undefined);
-    void load();
-    const interval = setInterval(load, 60_000);
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
-  }, []);
+    const onRefresh = () => void refreshCount();
+    window.addEventListener("jp:notifications", onRefresh);
+    return () => window.removeEventListener("jp:notifications", onRefresh);
+  }, [refreshCount]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -108,7 +99,7 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
           open={notificationsOpen}
           onClose={() => setNotificationsOpen(false)}
           unreadCount={unread}
-          onUnreadChange={setUnread}
+          onUnreadChange={setUnreadCount}
         />
       </div>
 
