@@ -247,6 +247,46 @@ body {
   animation: jp-pulse-glow 2.4s ease-in-out infinite;
 }
 
+@keyframes jp-signal-wave {
+  0% {
+    transform: scale(0.4);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.75);
+    opacity: 0;
+  }
+}
+
+.jp-signal-wave {
+  animation: jp-signal-wave 2.1s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+}
+
+.jp-signal-wave-delay-1 {
+  animation-delay: 0.7s;
+}
+
+.jp-signal-wave-delay-2 {
+  animation-delay: 1.4s;
+}
+
+@keyframes jp-signal-bar {
+  0%,
+  100% {
+    height: 4px;
+    opacity: 0.4;
+  }
+  50% {
+    height: 18px;
+    opacity: 1;
+  }
+}
+
+.jp-signal-bar {
+  height: 4px;
+  animation: jp-signal-bar 1.15s ease-in-out infinite;
+}
+
 @keyframes jp-clock-colon {
   0%,
   100% {
@@ -296,7 +336,9 @@ body {
   .jp-float,
   .jp-progress-shine,
   .jp-progress-indeterminate,
-  .jp-pulse-glow {
+  .jp-pulse-glow,
+  .jp-signal-wave,
+  .jp-signal-bar {
     animation: none !important;
     animation-delay: 0ms !important;
   }
