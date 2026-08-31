@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Enums\Gender;
 use App\Http\Requests\Concerns\ValidatesTerritorialScope;
+use App\Http\Requests\Concerns\ValidatesWebAuthnEnrollment;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -11,6 +12,7 @@ use Illuminate\Validation\Rule;
 class UpdateMemberRequest extends FormRequest
 {
     use ValidatesTerritorialScope;
+    use ValidatesWebAuthnEnrollment;
 
     public function authorize(): bool
     {
@@ -25,12 +27,7 @@ class UpdateMemberRequest extends FormRequest
             'email' => $this->input('email') ? mb_strtolower(trim($this->input('email'))) : null,
         ], fn ($v) => $v !== null && $v !== ''));
 
-        if (is_string($this->input('webauthn_enrollment'))) {
-            $decoded = json_decode($this->input('webauthn_enrollment'), true);
-            if (is_array($decoded)) {
-                $this->merge(['webauthn_enrollment' => $decoded]);
-            }
-        }
+        $this->decodeWebAuthnEnrollmentInput();
     }
 
     public function rules(): array
@@ -83,8 +80,8 @@ class UpdateMemberRequest extends FormRequest
 
             'webauthn_enrollment' => ['nullable', 'array'],
             'webauthn_enrollment.enrollment_key' => ['required_with:webauthn_enrollment', 'string', 'max:80'],
-            'webauthn_enrollment.clientDataJSON' => ['required_with:webauthn_enrollment', 'string'],
-            'webauthn_enrollment.attestationObject' => ['required_with:webauthn_enrollment', 'string'],
+            'webauthn_enrollment.clientDataJSON' => ['nullable', 'string'],
+            'webauthn_enrollment.attestationObject' => ['nullable', 'string'],
             'webauthn_enrollment.transports' => ['nullable', 'array'],
             'webauthn_enrollment.device_name' => ['nullable', 'string', 'max:120'],
         ];
@@ -92,7 +89,10 @@ class UpdateMemberRequest extends FormRequest
 
     public function withValidator(Validator $validator): void
     {
-        $validator->after(fn (Validator $v) => $this->enforceTerritorialScope($v));
+        $validator->after(function (Validator $v) {
+            $this->enforceTerritorialScope($v);
+            $this->assertPendingWebAuthnEnrollment($v);
+        });
     }
 
     public function messages(): array

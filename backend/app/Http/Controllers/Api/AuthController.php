@@ -290,7 +290,10 @@ class AuthController extends Controller
 
         $this->audit->log('auth.password-changed', $user, 'Changement de mot de passe');
 
-        return response()->json(['message' => 'Mot de passe mis à jour.']);
+        return response()->json([
+            'message' => 'Mot de passe mis à jour.',
+            'user' => new UserResource($user->fresh()->load(['role.permissions', 'province', 'city', 'structure', 'member'])),
+        ]);
     }
 
     /**

@@ -20,6 +20,7 @@ class UserResource extends JsonResource
             'phone' => $this->phone,
             'is_active' => $this->is_active,
             'must_change_password' => $this->must_change_password,
+            'must_confirm_biometric' => $this->must_confirm_biometric,
             'role' => $this->role ? [
                 'slug' => $this->role->slug,
                 'name' => $this->role->name,

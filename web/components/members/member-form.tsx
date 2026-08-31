@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox, Input, Select, Textarea } from "@/components/ui/field";
 import { usePublicStructures, useReferences } from "@/lib/hooks";
 import { Stepper } from "@/components/ui/stepper";
+import { PasswordStrength } from "@/components/ui/password-strength";
 import { hasWebAuthnEnrollment, type WebAuthnEnrollmentPayload } from "@/lib/biometrics/types";
 import type { DuplicateMatch, Member } from "@/lib/types";
 
@@ -139,9 +140,12 @@ export function toMemberPayload(values: MemberFormValues, mode: MemberFormMode):
     payload.webauthn_enrollment = values.webauthnEnrollment;
   }
 
-  if (mode === "register") {
+  if (mode === "register" || mode === "create") {
     payload.password = values.password;
     payload.password_confirmation = values.password_confirmation;
+  }
+
+  if (mode === "register") {
     payload.consent_given = values.consent_given;
   } else {
     payload.phone_alt = values.phone_alt.trim() || null;
@@ -188,14 +192,19 @@ export function valuesFromMember(member: Member): MemberFormValues {
 }
 
 const STEPS = {
-  register: ["Identité", "Contact", "Localisation", "Profil", "Compétences", "Biométrie", "Validation", "Confirmation"],
-  create: ["Identité", "Contact", "Localisation", "Profil", "Appartenance", "Biométrie"],
+  register: ["Identité", "Contact", "Localisation", "Profil", "Compétences", "Accès portail", "Biométrie", "Validation", "Confirmation"],
+  create: ["Identité", "Contact", "Localisation", "Profil", "Appartenance", "Accès portail", "Biométrie"],
   edit: ["Identité", "Contact", "Localisation", "Profil", "Appartenance", "Biométrie"],
 } as const;
 
+function isPortalAccessStep(mode: MemberFormMode, step: number) {
+  return (mode === "register" || mode === "create") && step === 5;
+}
+
 function isBiometryStep(mode: MemberFormMode, step: number) {
-  if (mode === "register") return step === 5;
-  return step === 5;
+  if (mode === "edit") return step === 5;
+  if (mode === "register" || mode === "create") return step === 6;
+  return false;
 }
 
 export function MemberForm({
@@ -221,6 +230,7 @@ export function MemberForm({
   const [step, setStep] = useState(0);
   const [values, setValues] = useState<MemberFormValues>(initial ?? EMPTY_MEMBER_FORM);
   const [biometryError, setBiometryError] = useState<string | null>(null);
+  const [portalError, setPortalError] = useState<string | null>(null);
   const structures = usePublicStructures(values.province_id, values.city_id);
   const steps = STEPS[mode];
 
@@ -236,10 +246,21 @@ export function MemberForm({
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (step < steps.length - 1) {
+      if (isPortalAccessStep(mode, step)) {
+        if (!values.password || values.password.length < 8) {
+          setPortalError("Le mot de passe doit contenir au moins 8 caractères.");
+          return;
+        }
+        if (values.password !== values.password_confirmation) {
+          setPortalError("La confirmation du mot de passe ne correspond pas.");
+          return;
+        }
+      }
       if (isBiometryStep(mode, step) && mode !== "edit" && !hasWebAuthnEnrollment(values.webauthnEnrollment)) {
         setBiometryError("Enregistrez la biométrie Windows Hello du membre avant de continuer.");
         return;
       }
+      setPortalError(null);
       setBiometryError(null);
       setStep((current) => current + 1);
       return;
@@ -328,7 +349,7 @@ export function MemberForm({
             placeholder="+243 …"
             error={errors.phone}
           />
-          {mode !== "register" && (
+          {mode !== "register" && mode !== "create" && (
             <Input
               label="Téléphone secondaire"
               value={values.phone_alt}
@@ -350,27 +371,6 @@ export function MemberForm({
             error={errors.address}
             wrapperClassName="sm:col-span-2"
           />
-          {mode === "register" && (
-            <>
-              <Input
-                label="Mot de passe"
-                type="password"
-                required
-                hint="8 caractères minimum, lettres et chiffres."
-                value={values.password}
-                onChange={(event) => patch({ password: event.target.value })}
-                error={errors.password}
-              />
-              <Input
-                label="Confirmation"
-                type="password"
-                required
-                value={values.password_confirmation}
-                onChange={(event) => patch({ password_confirmation: event.target.value })}
-                error={errors.password_confirmation}
-              />
-            </>
-          )}
         </div>
       )}
 
@@ -497,7 +497,44 @@ export function MemberForm({
         </div>
       )}
 
-      {step === 5 && mode === "register" && (
+      {step === 5 && (mode === "register" || mode === "create") && (
+        <div className="space-y-4">
+          <Alert tone="info" title="Accès au portail membre">
+            {mode === "create"
+              ? "Définissez un mot de passe provisoire. Le membre devra le changer et confirmer son empreinte lors de sa première connexion sur le portail web ou mobile."
+              : "Choisissez un mot de passe pour accéder à votre espace membre sur le portail web et mobile."}
+          </Alert>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label="Mot de passe"
+              type="password"
+              required
+              hint="8 caractères minimum, lettres et chiffres."
+              value={values.password}
+              onChange={(event) => {
+                patch({ password: event.target.value });
+                setPortalError(null);
+              }}
+              error={errors.password ?? portalError ?? undefined}
+            />
+            <Input
+              label="Confirmation"
+              type="password"
+              required
+              value={values.password_confirmation}
+              onChange={(event) => {
+                patch({ password_confirmation: event.target.value });
+                setPortalError(null);
+              }}
+              error={errors.password_confirmation}
+            />
+          </div>
+          <PasswordStrength password={values.password} />
+          {portalError && <p className="text-xs text-red-600">{portalError}</p>}
+        </div>
+      )}
+
+      {step === 6 && mode === "register" && (
         <div className="space-y-4">
           <Alert tone="info" title="Enregistrement biométrique obligatoire">
             Le membre configure <strong>Windows Hello</strong> sur cet appareil. Aucune image d&apos;empreinte
@@ -516,7 +553,7 @@ export function MemberForm({
         </div>
       )}
 
-      {step === 6 && mode === "register" && (
+      {step === 7 && mode === "register" && (
         <div className="space-y-4">
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
             <p className="font-medium text-slate-900">{fullName || "Profil incomplet"}</p>
@@ -536,13 +573,14 @@ export function MemberForm({
         </div>
       )}
 
-      {step === 7 && mode === "register" && (
+      {step === 8 && mode === "register" && (
         <div className="rounded-xl border border-brand-100 bg-brand-50/60 p-5 text-sm">
           <p className="font-semibold text-brand-900">Confirmer votre demande</p>
           <ul className="mt-3 space-y-1.5 text-slate-700">
             <li><strong>Identité :</strong> {fullName}</li>
             <li><strong>Contact :</strong> {values.phone}{values.email ? ` · ${values.email}` : ""}</li>
             <li><strong>Compétences :</strong> {values.skills.join(", ") || "—"}</li>
+            <li><strong>Accès portail :</strong> Mot de passe défini</li>
             <li><strong>Biométrie :</strong> Windows Hello configuré</li>
           </ul>
           <p className="mt-4 text-xs text-slate-500">
@@ -551,12 +589,10 @@ export function MemberForm({
         </div>
       )}
 
-      {step === 5 && mode !== "register" && (
+      {step === 6 && mode === "create" && (
         <div className="space-y-4">
           <Alert tone="info" title="Biométrie du membre">
-            {mode === "edit"
-              ? "Reconfigurez Windows Hello pour mettre à jour la biométrie du membre."
-              : "Le membre doit enregistrer Windows Hello avant la création du dossier."}
+            Le membre doit enregistrer Windows Hello avant la création du dossier.
           </Alert>
           <BiometricEnrollmentField
             value={values.webauthnEnrollment}
@@ -566,7 +602,25 @@ export function MemberForm({
             }}
             displayName={biometricDisplayName}
             userName={biometricUserName}
-            alreadyEnrolled={mode === "edit" && values.existingBiometricEnrolled}
+            error={biometryError ?? errors.webauthn_enrollment}
+          />
+        </div>
+      )}
+
+      {step === 5 && mode === "edit" && (
+        <div className="space-y-4">
+          <Alert tone="info" title="Biométrie du membre">
+            Reconfigurez Windows Hello pour mettre à jour la biométrie du membre.
+          </Alert>
+          <BiometricEnrollmentField
+            value={values.webauthnEnrollment}
+            onChange={(webauthnEnrollment) => {
+              patch({ webauthnEnrollment });
+              setBiometryError(null);
+            }}
+            displayName={biometricDisplayName}
+            userName={biometricUserName}
+            alreadyEnrolled={values.existingBiometricEnrolled}
             error={biometryError ?? errors.webauthn_enrollment}
           />
         </div>

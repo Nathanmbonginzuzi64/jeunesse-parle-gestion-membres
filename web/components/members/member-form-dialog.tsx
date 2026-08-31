@@ -5,7 +5,7 @@ import { Modal } from "@/components/ui/modal";
 import { Alert } from "@/components/ui/feedback";
 import { MemberForm, toMemberPayload, valuesFromMember, type MemberFormValues } from "@/components/members/member-form";
 import { api, ApiError } from "@/lib/api";
-import { fieldErrors, toFormData } from "@/lib/form";
+import { fieldErrors, toFormData, validationErrorMessages } from "@/lib/form";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/components/ui/toast";
 import type { DuplicateMatch, Member } from "@/lib/types";
@@ -47,8 +47,10 @@ export function MemberFormDialog({
         setDuplicates((caught.payload.duplicates as DuplicateMatch[]) ?? []);
         setError(caught.message);
       } else if (caught instanceof ApiError) {
-        setErrors(fieldErrors(caught));
-        setError(caught.message);
+        const nextErrors = fieldErrors(caught);
+        setErrors(nextErrors);
+        const details = validationErrorMessages(caught);
+        setError(details[0] ?? caught.message);
       } else {
         setError("Une erreur est survenue. Veuillez réessayer.");
       }

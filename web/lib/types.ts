@@ -39,6 +39,7 @@ export interface AuthUser {
   photo_url: string | null;
   is_active: boolean;
   must_change_password: boolean;
+  must_confirm_biometric?: boolean;
   role: Role | null;
   scope: {
     province_id: number | null;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
@@ -10,9 +11,15 @@ import { api, ApiError } from "@/lib/api";
 import { fieldErrors } from "@/lib/form";
 import { PasswordStrength } from "@/components/ui/password-strength";
 import { useToast } from "@/components/ui/toast";
+import { useAuth } from "@/lib/auth";
+import { getPostLoginPath } from "@/lib/auth-redirect";
 
 export default function ChangePasswordPage() {
   const toast = useToast();
+  const router = useRouter();
+  const { user, refresh } = useAuth();
+  const onboarding = Boolean(user?.must_change_password);
+
   const [current, setCurrent] = useState("");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -26,12 +33,17 @@ export default function ChangePasswordPage() {
     setError(null);
     setErrors({});
     try {
-      const response = await api.post<{ message: string }>("/auth/change-password", {
+      const response = await api.post<{ message: string; user?: typeof user }>("/auth/change-password", {
         current_password: current,
         password,
         password_confirmation: confirmation,
       });
       toast.success(response.message);
+      await refresh();
+      const nextUser = response.user ?? user;
+      if (nextUser) {
+        router.replace(getPostLoginPath(nextUser));
+      }
       setCurrent("");
       setPassword("");
       setConfirmation("");
@@ -49,13 +61,21 @@ export default function ChangePasswordPage() {
 
   return (
     <div className="mx-auto max-w-lg">
-      <PageHeader title="Changer mon mot de passe" />
+      <PageHeader
+        title={onboarding ? "Définir votre mot de passe" : "Changer mon mot de passe"}
+      />
+      {onboarding && (
+        <Alert tone="info" className="mb-4">
+          Utilisez le mot de passe provisoire qui vous a été communiqué, puis choisissez un mot de passe
+          personnel pour votre portail web et mobile.
+        </Alert>
+      )}
       {error && <Alert tone="error" className="mb-4">{error}</Alert>}
       <Card>
         <CardBody>
           <form onSubmit={onSubmit} className="space-y-4">
             <Input
-              label="Mot de passe actuel"
+              label={onboarding ? "Mot de passe provisoire" : "Mot de passe actuel"}
               type="password"
               required
               value={current}
@@ -79,7 +99,9 @@ export default function ChangePasswordPage() {
               value={confirmation}
               onChange={(e) => setConfirmation(e.target.value)}
             />
-            <Button type="submit" loading={submitting}>Mettre à jour</Button>
+            <Button type="submit" loading={submitting}>
+              {onboarding ? "Continuer" : "Mettre à jour"}
+            </Button>
           </form>
         </CardBody>
       </Card>

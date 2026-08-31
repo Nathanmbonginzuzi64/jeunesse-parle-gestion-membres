@@ -50,6 +50,26 @@ class BiometricController extends Controller
         ));
     }
 
+    /** Finalise l'enregistrement biométrique d'un futur membre (juste après Windows Hello). */
+    public function memberEnrollmentComplete(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'enrollment_key' => ['required', 'string', 'max:80'],
+            'clientDataJSON' => ['required', 'string'],
+            'attestationObject' => ['required', 'string'],
+            'transports' => ['nullable', 'array'],
+            'device_name' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $this->biometrics->finalizeMemberEnrollment((object) $validated);
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Biométrie enregistrée.',
+            'enrollment_key' => $validated['enrollment_key'],
+        ]);
+    }
+
     /** Options WebAuthn pour enregistrer Windows Hello / passkey. */
     public function registrationOptions(Request $request): JsonResponse
     {
@@ -74,9 +94,11 @@ class BiometricController extends Controller
             $request,
         );
 
+        $request->user()->forceFill(['must_confirm_biometric' => false])->save();
+
         return response()->json([
             'ok' => true,
-            'message' => 'Biometrie configuree.',
+            'message' => 'Biométrie configurée.',
             'context' => BiometricContext::BiometricRegistration->value,
             'credential' => [
                 'id' => $credential->id,

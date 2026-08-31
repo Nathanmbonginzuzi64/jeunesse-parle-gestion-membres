@@ -3,9 +3,12 @@
 namespace App\Services;
 
 use App\Enums\MemberStatus;
+use App\Enums\RoleSlug;
 use App\Models\Member;
 use App\Models\MemberStatusHistory;
+use App\Models\Role;
 use App\Models\User;
+use App\Models\WebAuthnCredential;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -39,7 +42,14 @@ class MemberService
         return DB::transaction(function () use ($data, $author, $photo) {
             $fingerprints = $data['fingerprints'] ?? null;
             $webauthnEnrollment = $data['webauthn_enrollment'] ?? null;
-            unset($data['fingerprints'], $data['fingerprint_enrollment'], $data['webauthn_enrollment']);
+            $portalPassword = $data['password'] ?? null;
+            unset(
+                $data['fingerprints'],
+                $data['fingerprint_enrollment'],
+                $data['webauthn_enrollment'],
+                $data['password'],
+                $data['password_confirmation'],
+            );
 
             $data['member_code'] = $this->identifiers->memberCode();
             $data['status'] = $data['status'] ?? MemberStatus::Pending->value;
@@ -72,13 +82,11 @@ class MemberService
             }
 
             if (is_array($webauthnEnrollment) && $webauthnEnrollment !== []) {
-                $linkedUser = $member->user_id ? User::find($member->user_id) : null;
-                $this->contextualBiometrics->completeMemberEnrollment(
-                    $linkedUser,
-                    $member,
-                    (object) $webauthnEnrollment,
-                    request(),
-                );
+                $this->attachWebAuthnEnrollment($member, $webauthnEnrollment);
+            }
+
+            if (is_string($portalPassword) && $portalPassword !== '') {
+                $this->createMemberPortalUser($member, $portalPassword);
             }
 
             $this->audit->log('member.created', $member, "Inscription du membre {$member->member_code}");
@@ -113,13 +121,7 @@ class MemberService
             }
 
             if (is_array($webauthnEnrollment) && $webauthnEnrollment !== []) {
-                $linkedUser = $member->user_id ? User::find($member->user_id) : null;
-                $this->contextualBiometrics->completeMemberEnrollment(
-                    $linkedUser,
-                    $member,
-                    (object) $webauthnEnrollment,
-                    request(),
-                );
+                $this->attachWebAuthnEnrollment($member, $webauthnEnrollment);
             }
 
             $this->audit->logChanges('member.updated', $member, $before, "Modification du membre {$member->member_code}");
@@ -232,5 +234,66 @@ class MemberService
         $data['zone_id'] = $data['zone_id'] ?? $structure->zone_id;
 
         return $data;
+    }
+
+    /** @param  array<string, mixed>  $webauthnEnrollment */
+    private function attachWebAuthnEnrollment(Member $member, array $webauthnEnrollment): void
+    {
+        $linkedUser = $member->user_id ? User::find($member->user_id) : null;
+        $enrollmentKey = (string) ($webauthnEnrollment['enrollment_key'] ?? '');
+
+        if (! empty($webauthnEnrollment['clientDataJSON'])) {
+            $this->contextualBiometrics->completeMemberEnrollment(
+                $linkedUser,
+                $member,
+                (object) $webauthnEnrollment,
+                request(),
+            );
+
+            return;
+        }
+
+        if ($enrollmentKey !== '') {
+            $this->contextualBiometrics->attachPendingMemberEnrollment(
+                $enrollmentKey,
+                $linkedUser,
+                $member,
+            );
+        }
+    }
+
+    private function createMemberPortalUser(Member $member, string $password): User
+    {
+        if ($member->user_id) {
+            throw ValidationException::withMessages([
+                'phone' => 'Ce membre possède déjà un compte portail.',
+            ]);
+        }
+
+        $memberRole = Role::query()->where('slug', RoleSlug::Membre->value)->firstOrFail();
+
+        $user = User::create([
+            'name' => trim($member->first_name.' '.$member->last_name),
+            'email' => $member->email,
+            'phone' => $member->phone,
+            'password' => $password,
+            'role_id' => $memberRole->id,
+            'province_id' => $member->province_id,
+            'city_id' => $member->city_id,
+            'commune_id' => $member->commune_id,
+            'structure_id' => $member->structure_id,
+            'member_id' => $member->id,
+            'is_active' => true,
+            'must_change_password' => true,
+            'must_confirm_biometric' => true,
+        ]);
+
+        $member->forceFill(['user_id' => $user->id])->save();
+
+        WebAuthnCredential::query()
+            ->where('member_id', $member->id)
+            ->update(['user_id' => $user->id]);
+
+        return $user;
     }
 }

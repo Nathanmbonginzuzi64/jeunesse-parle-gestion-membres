@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Fingerprint, Trash2 } from "lucide-react";
 import { BiometricModal } from "@/components/biometrics/biometric-modal";
 import { PageHeader } from "@/components/layout/topbar";
@@ -10,7 +11,10 @@ import { Alert, PageLoader } from "@/components/ui/feedback";
 import { api, ApiError } from "@/lib/api";
 import { isWebAuthnAvailable } from "@/lib/biometrics/webauthn-client";
 import { useToast } from "@/components/ui/toast";
+import { useAuth } from "@/lib/auth";
+import { getPostLoginPath } from "@/lib/auth-redirect";
 import { formatDateTime } from "@/lib/utils";
+import type { AuthUser } from "@/lib/types";
 
 type CredentialRow = {
   id: number;
@@ -21,6 +25,9 @@ type CredentialRow = {
 
 export default function BiometriePage() {
   const toast = useToast();
+  const router = useRouter();
+  const { user, refresh } = useAuth();
+  const onboarding = Boolean(user?.must_confirm_biometric);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [credentials, setCredentials] = useState<CredentialRow[]>([]);
@@ -67,7 +74,14 @@ export default function BiometriePage() {
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
-      <PageHeader title="Biométrie" />
+      <PageHeader title={onboarding ? "Confirmer votre empreinte" : "Biométrie"} />
+
+      {onboarding && (
+        <Alert tone="info">
+          Enregistrez votre empreinte sur <strong>cet appareil</strong> (navigateur web ou application mobile)
+          pour finaliser votre première connexion au portail membre.
+        </Alert>
+      )}
 
       {!available && (
         <Alert tone="warning">
@@ -146,9 +160,15 @@ export default function BiometriePage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         context="BIOMETRIC_REGISTRATION"
-        onSuccess={() => {
-          toast.success("Biométrie configurée.");
-          void reload();
+        onSuccess={async () => {
+          toast.success(onboarding ? "Empreinte confirmée." : "Biométrie configurée.");
+          await reload();
+          if (onboarding) {
+            const me = await api.get<{ user: AuthUser }>("/auth/me");
+            router.replace(getPostLoginPath(me.user));
+            return;
+          }
+          await refresh();
         }}
       />
     </div>

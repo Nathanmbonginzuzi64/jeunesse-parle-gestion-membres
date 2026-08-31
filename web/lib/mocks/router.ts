@@ -311,6 +311,14 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     } as T;
   }
 
+  if (method === "POST" && path === "/biometrics/member-enroll/complete") {
+    return {
+      ok: true,
+      message: "Biométrie enregistrée.",
+      enrollment_key: String(jsonBody(body).enrollment_key ?? "mock"),
+    } as T;
+  }
+
   if (method === "POST" && path === "/members") {
     return { message: "Membre enregistré avec succès.", data: db.members[0] } as T;
   }

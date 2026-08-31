@@ -1,12 +1,37 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { Alert, PageLoader } from "@/components/ui/feedback";
 import { useAuth } from "@/lib/auth";
-import Link from "next/link";
+
+function OnboardingGuard({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (!user) return;
+
+    if (user.must_change_password && !pathname.startsWith("/compte/mot-de-passe")) {
+      router.replace("/compte/mot-de-passe?onboarding=1");
+      return;
+    }
+
+    if (
+      !user.must_change_password &&
+      user.must_confirm_biometric &&
+      !pathname.startsWith("/compte/biometrie")
+    ) {
+      router.replace("/compte/biometrie?onboarding=1");
+    }
+  }, [user, pathname, router]);
+
+  return <>{children}</>;
+}
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -35,14 +60,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
         <main className="animate-fade-in mx-auto w-full max-w-[110rem] px-4 py-6 sm:px-6 lg:px-8 print:max-w-none print:p-0">
           {user.must_change_password && (
-            <Alert tone="warning" className="mb-4 no-print" title="Changement de mot de passe requis">
-              <Link href="/compte/mot-de-passe" className="font-medium underline">
-                Définir un nouveau mot de passe
+            <Alert tone="warning" className="mb-4 no-print" title="Première connexion — mot de passe">
+              <Link href="/compte/mot-de-passe?onboarding=1" className="font-medium underline">
+                Définissez votre mot de passe personnel
               </Link>{" "}
-              avant de continuer.
+              pour sécuriser votre compte portail.
             </Alert>
           )}
-          {children}
+          {!user.must_change_password && user.must_confirm_biometric && (
+            <Alert tone="warning" className="mb-4 no-print" title="Première connexion — biométrie">
+              <Link href="/compte/biometrie?onboarding=1" className="font-medium underline">
+                Confirmez votre empreinte
+              </Link>{" "}
+              sur cet appareil (web ou mobile) pour finaliser votre accès.
+            </Alert>
+          )}
+          <OnboardingGuard>{children}</OnboardingGuard>
         </main>
       </div>
     </div>

@@ -8,7 +8,7 @@ import { BiometricModal, type BiometricResult } from "@/components/biometrics/bi
 import { ApiError } from "@/lib/api";
 import { USE_MOCKS } from "@/lib/config";
 import { useAuth } from "@/lib/auth";
-import { ROLE_SLUGS } from "@/lib/permissions";
+import { getPostLoginPath } from "@/lib/auth-redirect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { Alert } from "@/components/ui/feedback";
@@ -37,11 +37,7 @@ export default function LoginPage() {
   }, [sessionLoading, user, router]);
 
   function redirectAfterLogin(authenticated: AuthUser) {
-    if (authenticated.must_change_password) {
-      router.replace("/compte/mot-de-passe");
-      return;
-    }
-    router.replace(authenticated.role?.slug === ROLE_SLUGS.membre ? "/mon-espace" : "/tableau-de-bord");
+    router.replace(getPostLoginPath(authenticated));
   }
 
   async function onSubmit(event: FormEvent) {

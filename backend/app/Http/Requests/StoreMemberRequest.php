@@ -4,13 +4,16 @@ namespace App\Http\Requests;
 
 use App\Enums\Gender;
 use App\Http\Requests\Concerns\ValidatesTerritorialScope;
+use App\Http\Requests\Concerns\ValidatesWebAuthnEnrollment;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 
 class StoreMemberRequest extends FormRequest
 {
     use ValidatesTerritorialScope;
+    use ValidatesWebAuthnEnrollment;
 
     public function authorize(): bool
     {
@@ -32,12 +35,7 @@ class StoreMemberRequest extends FormRequest
             }
         }
 
-        if (is_string($this->input('webauthn_enrollment'))) {
-            $decoded = json_decode($this->input('webauthn_enrollment'), true);
-            if (is_array($decoded)) {
-                $this->merge(['webauthn_enrollment' => $decoded]);
-            }
-        }
+        $this->decodeWebAuthnEnrollmentInput();
 
         $this->applyScopeDefaults();
     }
@@ -59,9 +57,11 @@ class StoreMemberRequest extends FormRequest
             ],
             'birth_place' => ['nullable', 'string', 'max:120'],
 
-            'phone' => ['required', 'string', 'max:30', 'regex:/^\+?[0-9]{9,15}$/'],
+            'phone' => ['required', 'string', 'max:30', 'regex:/^\+?[0-9]{9,15}$/', 'unique:users,phone'],
             'phone_alt' => ['nullable', 'string', 'max:30', 'regex:/^\+?[0-9]{9,15}$/'],
-            'email' => ['nullable', 'email:rfc', 'max:160'],
+            'email' => ['nullable', 'email:rfc', 'max:160', 'unique:users,email'],
+
+            'password' => ['required', 'confirmed', Password::min(8)->letters()->numbers()],
             'address' => ['nullable', 'string', 'max:255'],
 
             'province_id' => ['required', 'integer', 'exists:provinces,id'],
@@ -101,8 +101,8 @@ class StoreMemberRequest extends FormRequest
 
             'webauthn_enrollment' => ['required_without:fingerprints', 'nullable', 'array'],
             'webauthn_enrollment.enrollment_key' => ['required_with:webauthn_enrollment', 'string', 'max:80'],
-            'webauthn_enrollment.clientDataJSON' => ['required_with:webauthn_enrollment', 'string'],
-            'webauthn_enrollment.attestationObject' => ['required_with:webauthn_enrollment', 'string'],
+            'webauthn_enrollment.clientDataJSON' => ['nullable', 'string'],
+            'webauthn_enrollment.attestationObject' => ['nullable', 'string'],
             'webauthn_enrollment.transports' => ['nullable', 'array'],
             'webauthn_enrollment.device_name' => ['nullable', 'string', 'max:120'],
 
@@ -116,6 +116,7 @@ class StoreMemberRequest extends FormRequest
         $validator->after(fn (Validator $v) => $this->enforceTerritorialScope($v));
         $validator->after(function (Validator $v) {
             $this->assertTerritorialConsistency($v);
+            $this->assertPendingWebAuthnEnrollment($v);
         });
     }
 
@@ -150,6 +151,9 @@ class StoreMemberRequest extends FormRequest
     {
         return [
             'phone.regex' => 'Le numéro de téléphone doit contenir entre 9 et 15 chiffres.',
+            'phone.unique' => 'Ce numéro de téléphone est déjà utilisé pour un compte portail.',
+            'email.unique' => 'Cette adresse e-mail est déjà utilisée pour un compte portail.',
+            'password.confirmed' => 'La confirmation du mot de passe ne correspond pas.',
             'birth_date.before_or_equal' => 'L\'âge minimum d\'adhésion est de '.config('jeunesse.minimum_age').' ans.',
             'birth_date.after_or_equal' => 'L\'âge maximum d\'adhésion est de '.config('jeunesse.maximum_age').' ans.',
         ];

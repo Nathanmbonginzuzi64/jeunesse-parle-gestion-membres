@@ -3,9 +3,11 @@
 namespace App\Http\Requests;
 
 use App\Enums\Gender;
+use App\Http\Requests\Concerns\ValidatesWebAuthnEnrollment;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Contracts\Validation\Validator;
 
 /**
  * Inscription publique d'un membre : crée à la fois le compte et le dossier,
@@ -13,6 +15,7 @@ use Illuminate\Validation\Rules\Password;
  */
 class RegisterMemberRequest extends FormRequest
 {
+    use ValidatesWebAuthnEnrollment;
     public function authorize(): bool
     {
         return true;
@@ -25,12 +28,12 @@ class RegisterMemberRequest extends FormRequest
             'email' => $this->input('email') ? mb_strtolower(trim($this->input('email'))) : null,
         ]);
 
-        if (is_string($this->input('webauthn_enrollment'))) {
-            $decoded = json_decode($this->input('webauthn_enrollment'), true);
-            if (is_array($decoded)) {
-                $this->merge(['webauthn_enrollment' => $decoded]);
-            }
-        }
+        $this->decodeWebAuthnEnrollmentInput();
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(fn (Validator $v) => $this->assertPendingWebAuthnEnrollment($v));
     }
 
     public function rules(): array
@@ -82,8 +85,8 @@ class RegisterMemberRequest extends FormRequest
 
             'webauthn_enrollment' => ['required', 'array'],
             'webauthn_enrollment.enrollment_key' => ['required', 'string', 'max:80'],
-            'webauthn_enrollment.clientDataJSON' => ['required', 'string'],
-            'webauthn_enrollment.attestationObject' => ['required', 'string'],
+            'webauthn_enrollment.clientDataJSON' => ['nullable', 'string'],
+            'webauthn_enrollment.attestationObject' => ['nullable', 'string'],
             'webauthn_enrollment.transports' => ['nullable', 'array'],
             'webauthn_enrollment.device_name' => ['nullable', 'string', 'max:120'],
         ];

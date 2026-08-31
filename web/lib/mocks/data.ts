@@ -654,6 +654,7 @@ export function makeUser(partial: Partial<AuthUser> & Pick<AuthUser, "id" | "nam
     photo_url: null,
     is_active: true,
     must_change_password: false,
+    must_confirm_biometric: false,
     scope: {
       province_id: null,
       province: null,

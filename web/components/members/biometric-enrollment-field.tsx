@@ -50,6 +50,7 @@ export function BiometricEnrollmentField({
       if (USE_MOCKS) {
         onChange({
           enrollment_key: enrollmentKeyRef.current,
+          enrolled: true,
           clientDataJSON: "mock-client-data",
           attestationObject: "mock-attestation",
           device_name: "Windows Hello (mock)",
@@ -83,9 +84,21 @@ export function BiometricEnrollmentField({
         return serverOptions.options;
       });
 
+      const enrollmentKeyFinal =
+        pendingEnrollmentRef.current?.enrollment_key ?? enrollmentKey;
+
+      await api.public.post<{ ok: boolean; enrollment_key: string }>(
+        "/biometrics/member-enroll/complete",
+        {
+          enrollment_key: enrollmentKeyFinal,
+          ...attestation,
+          device_name: "Windows Hello",
+        },
+      );
+
       onChange({
-        enrollment_key: pendingEnrollmentRef.current?.enrollment_key ?? enrollmentKey,
-        ...attestation,
+        enrollment_key: enrollmentKeyFinal,
+        enrolled: true,
         device_name: "Windows Hello",
       });
       pendingEnrollmentRef.current = null;

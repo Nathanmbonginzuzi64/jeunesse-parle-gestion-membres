@@ -20,7 +20,7 @@ class User extends Authenticatable
     protected $fillable = [
         'name', 'email', 'phone', 'password', 'role_id',
         'province_id', 'city_id', 'commune_id', 'structure_id',
-        'member_id', 'is_active', 'must_change_password',
+        'member_id', 'is_active', 'must_change_password', 'must_confirm_biometric',
     ];
 
     protected $hidden = [
@@ -34,6 +34,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_active' => 'boolean',
             'must_change_password' => 'boolean',
+            'must_confirm_biometric' => 'boolean',
             'last_login_at' => 'datetime',
             'locked_until' => 'datetime',
             'two_factor_confirmed_at' => 'datetime',

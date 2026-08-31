@@ -38,6 +38,7 @@ Route::prefix('auth')->group(function () {
 // Biométrie contextuelle (WebAuthn) — options / assertion publiques pour LOGIN & VERIFICATION
 Route::prefix('biometrics')->middleware('throttle:30,1')->group(function () {
     Route::post('member-enroll/options', [BiometricController::class, 'memberEnrollmentOptions']);
+    Route::post('member-enroll/complete', [BiometricController::class, 'memberEnrollmentComplete']);
     Route::post('authenticate/options', [BiometricController::class, 'authenticationOptions']);
     Route::post('authenticate', [BiometricController::class, 'authenticate']);
 });
