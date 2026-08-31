@@ -70,6 +70,21 @@ class StatisticsService
         ];
     }
 
+    /** Agrégats nationaux affichés sur la page d'accueil publique (sans donnée personnelle). */
+    public function publicLandingStats(): array
+    {
+        return [
+            'members_total' => (int) Member::query()->count(),
+            'provinces_covered' => (int) Member::query()
+                ->whereNotNull('province_id')
+                ->distinct()
+                ->count('province_id'),
+            'structures_active' => (int) Structure::query()->where('is_active', true)->count(),
+            'cards_verified' => (int) MemberCard::query()->where('status', 'active')->count(),
+            'updated_at' => now()->toIso8601String(),
+        ];
+    }
+
     /** Série d'inscriptions mensuelles, utilisée par le graphique d'évolution. */
     public function registrationsTrend(User $user, int $months = 12, ?array $filters = null): array
     {

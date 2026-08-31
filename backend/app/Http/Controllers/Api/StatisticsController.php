@@ -11,6 +11,12 @@ class StatisticsController extends Controller
 {
     public function __construct(private readonly StatisticsService $statistics) {}
 
+    /** Chiffres publics pour la page d'accueil (agrégats nationaux uniquement). */
+    public function publicLanding(): JsonResponse
+    {
+        return response()->json($this->statistics->publicLandingStats());
+    }
+
     /** Tableau de bord : les chiffres sont ceux du périmètre de l'utilisateur. */
     public function overview(Request $request): JsonResponse
     {

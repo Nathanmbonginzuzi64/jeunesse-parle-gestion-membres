@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, ScanFace } from "lucide-react";
+import { BiometricModal, type BiometricResult } from "@/components/biometrics/biometric-modal";
+import {
+  FingerprintAttendancePanel,
+  type FingerprintAttendanceResult,
+} from "@/components/attendance/fingerprint-attendance-panel";
 import { PageHeader } from "@/components/layout/topbar";
 import { QrScannerPanel } from "@/components/members/qr-scanner-panel";
 import { RequirePermission } from "@/components/auth/require-permission";
@@ -47,8 +52,11 @@ function ScanTool() {
   const activities = useApi<Paginated<Activity>>("/activities", { tab: "upcoming", per_page: 50 });
   const [activityId, setActivityId] = useState("");
   const [loading, setLoading] = useState(false);
+  const [biometricOpen, setBiometricOpen] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const selectedActivity = (activities.data?.data ?? []).find((item) => String(item.id) === activityId);
 
   async function recordScan(value: string) {
     if (!activityId) {
@@ -59,12 +67,28 @@ function ScanTool() {
     setError(null);
     const token = value.trim();
     const payload = token.toUpperCase().startsWith("JP-RDC-")
-      ? { activity_id: Number(activityId), member_code: token }
-      : { activity_id: Number(activityId), qr_token: extractTokenFromQr(token) };
+      ? { member_code: token }
+      : { qr_token: extractTokenFromQr(token) };
 
     try {
-      const response = await api.post<ScanResult>("/scan/attendance", payload);
-      setResult(response);
+      const response = await api.post<{ message: string; data?: { member?: ScanResult["member"] } }>(
+        `/activities/${activityId}/attendance`,
+        payload,
+      );
+      const member = response.data?.member;
+      setResult({
+        message: response.message,
+        attendance_recorded: true,
+        member: {
+          member_code: member?.member_code ?? token,
+          full_name: member?.full_name ?? "Membre",
+          photo_url: member?.photo_url ?? null,
+          status: member?.status ?? "Présent",
+          structure: member?.structure ?? null,
+          province: member?.province ?? null,
+        },
+        activity: { id: Number(activityId), title: selectedActivity?.title ?? "Activité" },
+      });
       toast.success(response.message);
     } catch (caught) {
       setResult(null);
@@ -72,6 +96,44 @@ function ScanTool() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleBiometric(biometricResult: BiometricResult) {
+    if (!biometricResult.ok || !biometricResult.member || !activityId) return;
+    setResult({
+      message: biometricResult.message,
+      attendance_recorded: true,
+      member: {
+        member_code: biometricResult.member.member_code,
+        full_name: biometricResult.member.full_name,
+        photo_url: biometricResult.member.photo_url ?? null,
+        status: biometricResult.member.status_label ?? "Présent",
+        structure: biometricResult.member.structure ?? null,
+        province: biometricResult.member.province ?? null,
+      },
+      activity: { id: Number(activityId), title: selectedActivity?.title ?? "Activité" },
+    });
+    toast.success(biometricResult.message);
+    setError(null);
+  }
+
+  function handleFingerprintRecorded(fingerprintResult: FingerprintAttendanceResult) {
+    if (!fingerprintResult.valid || !activityId) return;
+    setResult({
+      message: fingerprintResult.message,
+      attendance_recorded: true,
+      member: {
+        member_code: fingerprintResult.member_code ?? "",
+        full_name: fingerprintResult.full_name ?? "",
+        photo_url: fingerprintResult.photo_url ?? null,
+        status: "Présent",
+        structure: null,
+        province: null,
+      },
+      activity: { id: Number(activityId), title: selectedActivity?.title ?? "Activité" },
+    });
+    toast.success(fingerprintResult.message);
+    setError(null);
   }
 
   const options = (activities.data?.data ?? []).map((activity) => ({
@@ -84,7 +146,7 @@ function ScanTool() {
       <Breadcrumb items={[{ href: "/presences", label: "Présences" }, { label: "Scanner" }]} />
       <PageHeader
         title="Scanner un membre"
-        description="Pointage de présence pour une activité en cours."
+        description="Pointage par Windows Hello (test), QR code ou empreinte digitale."
         actions={
           <Link href="/verification">
             <Button variant="outline" size="sm">
@@ -101,10 +163,61 @@ function ScanTool() {
             required
             placeholder="Choisir l'activité en cours"
             value={activityId}
-            onChange={(e) => setActivityId(e.target.value)}
+            onChange={(e) => {
+              setActivityId(e.target.value);
+              setResult(null);
+              setError(null);
+            }}
             options={options}
           />
-          <QrScannerPanel onScan={recordScan} loading={loading} />
+
+          {activityId ? (
+            <>
+              <Button
+                type="button"
+                className="w-full"
+                size="lg"
+                onClick={() => setBiometricOpen(true)}
+                disabled={loading}
+              >
+                <ScanFace className="h-5 w-5" />
+                Scanner avec Windows Hello
+              </Button>
+              <p className="text-center text-[11px] text-slate-500">
+                Méthode biométrique active pour les tests — migration empreinte digitale prévue.
+              </p>
+
+              <div className="relative py-1">
+                <div className="absolute inset-0 flex items-center" aria-hidden>
+                  <span className="w-full border-t border-slate-200" />
+                </div>
+                <div className="relative flex justify-center text-[10px] font-semibold uppercase tracking-wide">
+                  <span className="bg-white px-2 text-slate-400">ou scan QR</span>
+                </div>
+              </div>
+
+              <QrScannerPanel onScan={recordScan} loading={loading} />
+
+              <div className="relative py-1">
+                <div className="absolute inset-0 flex items-center" aria-hidden>
+                  <span className="w-full border-t border-slate-200" />
+                </div>
+                <div className="relative flex justify-center text-[10px] font-semibold uppercase tracking-wide">
+                  <span className="bg-white px-2 text-slate-400">empreinte digitale (à venir)</span>
+                </div>
+              </div>
+
+              <FingerprintAttendancePanel
+                activityId={Number(activityId)}
+                loading={loading}
+                onLoadingChange={setLoading}
+                onRecorded={handleFingerprintRecorded}
+                compact
+              />
+            </>
+          ) : (
+            <Alert tone="info">Sélectionnez une activité pour activer le scan de présence.</Alert>
+          )}
         </CardBody>
       </Card>
 
@@ -133,6 +246,16 @@ function ScanTool() {
           </CardBody>
         </Card>
       )}
+
+      {activityId ? (
+        <BiometricModal
+          open={biometricOpen}
+          onClose={() => setBiometricOpen(false)}
+          context="ATTENDANCE"
+          activityId={Number(activityId)}
+          onSuccess={handleBiometric}
+        />
+      ) : null}
     </div>
   );
 }

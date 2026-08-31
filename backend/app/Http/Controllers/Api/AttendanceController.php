@@ -3,14 +3,17 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\AttendanceStatus;
+use App\Enums\MemberStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RecordAttendanceRequest;
+use App\Http\Requests\RecordFingerprintAttendanceRequest;
 use App\Http\Resources\AttendanceResource;
 use App\Models\Activity;
 use App\Models\Attendance;
 use App\Models\Member;
 use App\Models\QrToken;
 use App\Services\AuditLogger;
+use App\Services\BiometricService;
 use App\Services\NotificationService;
 use App\Services\VerificationService;
 use Illuminate\Http\JsonResponse;
@@ -22,6 +25,7 @@ class AttendanceController extends Controller
 {
     public function __construct(
         private readonly VerificationService $verification,
+        private readonly BiometricService $biometrics,
         private readonly NotificationService $notifications,
         private readonly AuditLogger $audit,
     ) {}
@@ -94,6 +98,144 @@ class AttendanceController extends Controller
 
         return response()->json([
             'message' => "Présence enregistrée : {$member->full_name} — {$status->label()}.",
+            'data' => new AttendanceResource($attendance->load(['member', 'recorder'])),
+        ], 201);
+    }
+
+    /** Pointage par empreinte digitale (lecteur ou simulation labo). */
+    public function storeFingerprint(RecordFingerprintAttendanceRequest $request, Activity $activity): JsonResponse
+    {
+        $validated = $request->validated();
+        $format = $validated['format'] ?? 'hardware';
+        $member = null;
+        $matchedSlot = null;
+        $lab = false;
+
+        if (! empty($validated['member_code'])) {
+            $code = mb_strtoupper(trim($validated['member_code']));
+            $member = Member::query()->where('member_code', $code)->first();
+
+            if (! $member) {
+                return response()->json([
+                    'valid' => false,
+                    'message' => 'Aucun membre ne correspond à cet identifiant.',
+                    'attendance_recorded' => false,
+                ], 404);
+            }
+
+            if ($this->biometrics->countForMember($member) === 0) {
+                return response()->json([
+                    'valid' => false,
+                    'message' => 'Aucune empreinte enregistrée pour ce membre.',
+                    'attendance_recorded' => false,
+                    'member_code' => $member->member_code,
+                    'full_name' => $member->full_name,
+                ], 422);
+            }
+
+            try {
+                $match = $this->biometrics->matchMember($member, $validated['template_hash'] ?? null, $format);
+                $matchedSlot = $match['matched']?->position;
+                $lab = $match['lab'];
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                return response()->json([
+                    'valid' => false,
+                    'message' => collect($e->errors())->flatten()->first() ?? 'Empreinte non reconnue.',
+                    'attendance_recorded' => false,
+                    'member_code' => $member->member_code,
+                    'full_name' => $member->full_name,
+                ], 422);
+            }
+        } else {
+            $memberIds = $activity->members()->pluck('id')->all();
+
+            if ($memberIds === []) {
+                $memberIds = Member::query()
+                    ->visibleTo($request->user())
+                    ->pluck('id')
+                    ->all();
+            }
+
+            $identified = $this->biometrics->identifyMemberAmong(
+                $memberIds,
+                $validated['template_hash'] ?? null,
+                $format,
+            );
+
+            if (! $identified) {
+                return response()->json([
+                    'valid' => false,
+                    'message' => 'Empreinte non reconnue parmi les participants.',
+                    'attendance_recorded' => false,
+                ], 422);
+            }
+
+            $member = $identified['member'];
+            $matchedSlot = $identified['matched']->position;
+            $lab = $identified['lab'];
+        }
+
+        if ($member->status !== MemberStatus::Active) {
+            return response()->json([
+                'valid' => false,
+                'message' => 'Le membre n\'est pas actif — présence refusée.',
+                'attendance_recorded' => false,
+                'member_code' => $member->member_code,
+                'full_name' => $member->full_name,
+            ], 422);
+        }
+
+        if (! $member->isVisibleTo($request->user())) {
+            return response()->json([
+                'valid' => false,
+                'message' => 'Ce membre est en dehors de votre zone de responsabilité.',
+                'attendance_recorded' => false,
+            ], 403);
+        }
+
+        $attendance = Attendance::updateOrCreate(
+            ['activity_id' => $activity->id, 'member_id' => $member->id],
+            [
+                'status' => AttendanceStatus::Present,
+                'method' => 'fingerprint',
+                'recorded_at' => now(),
+                'recorded_by' => $request->user()->id,
+                'note' => $lab ? 'Pointage empreinte (mode labo)' : 'Pointage empreinte digitale',
+            ],
+        );
+
+        $activity->members()->syncWithoutDetaching([
+            $member->id => ['status' => 'confirmed', 'confirmed_at' => now()],
+        ]);
+
+        $this->audit->log(
+            'attendance.recorded',
+            $attendance,
+            "Présence empreinte — {$member->member_code} — {$activity->code}",
+            [],
+            [
+                'member_id' => $member->id,
+                'member_code' => $member->member_code,
+                'activity_id' => $activity->id,
+                'method' => 'fingerprint',
+                'matched_slot' => $matchedSlot,
+                'lab' => $lab,
+            ],
+        );
+
+        $this->notifications->attendanceRecorded($member, $activity, AttendanceStatus::Present->label());
+
+        return response()->json([
+            'valid' => true,
+            'message' => "Présence enregistrée : {$member->full_name} — empreinte reconnue.",
+            'attendance_recorded' => true,
+            'matched_slot' => $matchedSlot,
+            'member_code' => $member->member_code,
+            'member_id' => $member->id,
+            'full_name' => $member->full_name,
+            'photo_url' => $member->photo_path
+                ? route('media.member-photo', ['member' => $member->member_code])
+                : null,
             'data' => new AttendanceResource($attendance->load(['member', 'recorder'])),
         ], 201);
     }

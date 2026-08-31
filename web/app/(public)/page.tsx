@@ -11,18 +11,12 @@ import {
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { dashboardCardGrid } from "@/components/ui/kpi";
 import { AnimateIn } from "@/components/ui/animate-in";
 import { RevealOnScroll } from "@/components/ui/reveal-on-scroll";
 import { StaggerTags } from "@/components/public/stagger-tags";
-import { cn } from "@/lib/utils";
-
-const STATS = [
-  { label: "Membres recensés", value: "12 840", accent: "border-brand-500" },
-  { label: "Provinces couvertes", value: "26", accent: "border-brand-400" },
-  { label: "Structures actives", value: "146", accent: "border-brand-600" },
-  { label: "Cartes vérifiées", value: "9 860", accent: "border-brand-300" },
-];
+import { HomeStatsDisplay } from "@/components/public/home-stats";
+import { cn, formatNumber } from "@/lib/utils";
+import { getPublicLandingStats } from "@/lib/public-stats";
 
 const FEATURES = [
   {
@@ -83,7 +77,9 @@ const TESTIMONIALS = [
   },
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const stats = await getPublicLandingStats();
+
   return (
     <div className="overflow-x-hidden">
       {/* Hero */}
@@ -157,7 +153,7 @@ export default function HomePage() {
                 </li>
                 <li className="inline-flex items-center gap-1.5">
                   <Globe2 className="h-4 w-4 text-brand-200" />
-                  26 provinces
+                  {formatNumber(stats.provinces_covered)} provinces
                 </li>
                 <li className="inline-flex items-center gap-1.5">
                   <ShieldCheck className="h-4 w-4 text-brand-200" />
@@ -187,25 +183,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Stats */}
-      <section className="relative z-10 mx-auto max-w-6xl px-4">
-        <div className={cn(dashboardCardGrid, "-mt-10 sm:grid-cols-2 lg:grid-cols-4")}>
-          {STATS.map((stat, index) => (
-            <RevealOnScroll key={stat.label} delay={index * 140} animation="scale-in" className="h-full">
-              <article
-                className={cn(
-                  "flex h-full min-h-[6.5rem] flex-col justify-between rounded-2xl border border-brand-100 bg-white p-5 shadow-[var(--shadow-elevated)]",
-                  "border-t-[3px] transition duration-300 hover:-translate-y-1 hover:border-brand-200 hover:shadow-lg",
-                  stat.accent,
-                )}
-              >
-                <p className="text-3xl font-semibold tracking-tight text-brand-800 tabular-nums">{stat.value}</p>
-                <p className="mt-1 text-xs font-medium text-brand-600/80">{stat.label}</p>
-              </article>
-            </RevealOnScroll>
-          ))}
-        </div>
-      </section>
+      <HomeStatsDisplay stats={stats} />
 
       {/* Features bento */}
       <section className="mx-auto max-w-6xl px-4 py-20 lg:py-24">
@@ -317,7 +295,16 @@ export default function HomePage() {
                 progressivement, province par province.
               </p>
               <div className="mt-6">
-                <StaggerTags tags={PROVINCES} extraLabel="+ 20 provinces" baseDelay={120} step={80} />
+                <StaggerTags
+                  tags={PROVINCES}
+                  extraLabel={
+                    stats.provinces_covered > PROVINCES.length
+                      ? `+ ${formatNumber(stats.provinces_covered - PROVINCES.length)} provinces`
+                      : undefined
+                  }
+                  baseDelay={120}
+                  step={80}
+                />
               </div>
               <RevealOnScroll delay={680} animation="fade-in">
                 <Link href="/fonctionnement" className="mt-6 inline-block">

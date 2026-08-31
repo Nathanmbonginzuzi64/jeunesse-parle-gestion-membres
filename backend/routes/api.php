@@ -58,6 +58,8 @@ Route::middleware('throttle:30,1')->group(function () {
 
 Route::get('references', [ReferenceController::class, 'index']);
 
+Route::get('public/stats', [StatisticsController::class, 'publicLanding'])->middleware('throttle:60,1');
+
 Route::prefix('territories')->group(function () {
     Route::get('provinces', [TerritoryController::class, 'provinces']);
     Route::get('cities', [TerritoryController::class, 'cities']);
@@ -169,6 +171,7 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
         Route::get('attendance/sheet', [AttendanceController::class, 'sheet']);
         Route::get('attendance/sheet/export', [AttendanceController::class, 'exportSheet']);
         Route::post('attendance', [AttendanceController::class, 'store']);
+        Route::post('attendance/fingerprint', [AttendanceController::class, 'storeFingerprint']);
         Route::patch('attendance/{attendance}', [AttendanceController::class, 'update']);
     });
 

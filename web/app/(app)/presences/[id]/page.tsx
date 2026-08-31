@@ -6,8 +6,8 @@ import { useParams } from "next/navigation";
 import {
   CheckCircle2,
   Download,
-  Fingerprint,
   MapPin,
+  ScanFace,
   ScanLine,
   Search,
   UserCheck,
@@ -16,6 +16,10 @@ import { ActivityCoverImage } from "@/components/activities/activity-cover-image
 import { RequirePermission } from "@/components/auth/require-permission";
 import { Can } from "@/components/auth/require-permission";
 import { BiometricModal, type BiometricResult } from "@/components/biometrics/biometric-modal";
+import {
+  FingerprintAttendancePanel,
+  type FingerprintAttendanceResult,
+} from "@/components/attendance/fingerprint-attendance-panel";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
 import { QrScannerPanel } from "@/components/members/qr-scanner-panel";
 import { AttendanceStatusBadge, MemberStatusBadge } from "@/components/ui/badge";
@@ -142,6 +146,18 @@ function AttendanceSheetPage() {
     }
   }
 
+  function handleFingerprintRecorded(result: FingerprintAttendanceResult) {
+    if (!result.valid || !result.member_code || !result.full_name) return;
+    setIdentified({
+      member_code: result.member_code,
+      full_name: result.full_name,
+      photo_url: result.photo_url,
+      card_valid: true,
+    });
+    toast.success(result.message);
+    sheet.reload();
+  }
+
   function handleBiometric(result: BiometricResult) {
     if (!result.ok || !result.member) return;
     setIdentified({
@@ -227,12 +243,34 @@ function AttendanceSheetPage() {
       <Can permission={PERMISSIONS.attendanceRecord}>
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
-            <CardHeader title="Identification en temps réel" description="QR, carte membre, empreinte ou recherche manuelle" />
+            <CardHeader
+              title="Identification en temps réel"
+              description="Windows Hello (test), QR, carte membre ou empreinte digitale"
+            />
             <CardBody className="space-y-4">
-              <Button type="button" className="w-full" size="lg" onClick={() => setBiometricOpen(true)} disabled={busy}>
-                <Fingerprint className="h-4 w-4" />
-                Scanner empreinte biométrique
+              <Button
+                type="button"
+                className="w-full"
+                size="lg"
+                onClick={() => setBiometricOpen(true)}
+                disabled={busy}
+              >
+                <ScanFace className="h-5 w-5" />
+                Scanner avec Windows Hello
               </Button>
+              <p className="text-center text-[11px] text-slate-500">
+                Méthode biométrique active pour les tests — migration empreinte digitale prévue.
+              </p>
+
+              <div className="relative py-1">
+                <div className="absolute inset-0 flex items-center" aria-hidden>
+                  <span className="w-full border-t border-slate-200" />
+                </div>
+                <div className="relative flex justify-center text-[10px] font-semibold uppercase tracking-wide">
+                  <span className="bg-white px-2 text-slate-400">autres méthodes</span>
+                </div>
+              </div>
+
               <QrScannerPanel onScan={handleScan} loading={busy} />
               <form
                 className="flex gap-2"
@@ -249,6 +287,23 @@ function AttendanceSheetPage() {
                   <Search className="h-4 w-4" />
                 </Button>
               </form>
+
+              <div className="relative py-1">
+                <div className="absolute inset-0 flex items-center" aria-hidden>
+                  <span className="w-full border-t border-slate-200" />
+                </div>
+                <div className="relative flex justify-center text-[10px] font-semibold uppercase tracking-wide">
+                  <span className="bg-white px-2 text-slate-400">empreinte digitale (à venir)</span>
+                </div>
+              </div>
+
+              <FingerprintAttendancePanel
+                activityId={Number(params.id)}
+                loading={busy}
+                onLoadingChange={setBusy}
+                onRecorded={handleFingerprintRecorded}
+                compact
+              />
             </CardBody>
           </Card>
 
@@ -364,7 +419,7 @@ function AttendanceSheetPage() {
             >
               <option value="">Toutes méthodes</option>
               <option value="qr">QR Code</option>
-              <option value="fingerprint">Biométrie</option>
+              <option value="fingerprint">Empreinte digitale</option>
               <option value="manual">Manuel</option>
             </Select>
             <Select

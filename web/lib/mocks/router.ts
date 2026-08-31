@@ -218,6 +218,16 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
   }
 
   if (method === "GET" && path === "/references") return db.references as T;
+  if (method === "GET" && path === "/public/stats") {
+    const kpis = db.statisticsOverview.kpis;
+    return {
+      members_total: kpis.members.total,
+      provinces_covered: kpis.coverage.provinces,
+      structures_active: kpis.coverage.structures,
+      cards_verified: kpis.cards.active,
+      updated_at: new Date().toISOString(),
+    } as T;
+  }
   if (method === "GET" && path === "/territories/provinces") return { data: db.provinces } as T;
   if (method === "GET" && path === "/territories/cities") {
     const provinceId = Number(query?.province_id);
@@ -676,6 +686,24 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     if (method === "GET" && segments.length === 2) return { data: activity } as T;
     if (method === "GET" && segments[2] === "attendance" && segments[3] === "sheet") {
       return db.attendanceSheet as T;
+    }
+    if (method === "POST" && segments[2] === "attendance" && segments[3] === "fingerprint") {
+      const input = jsonBody(body);
+      const memberCode = String(input.member_code ?? db.members[0]?.member_code ?? "").trim().toUpperCase();
+      const verify = verifyFingerprint(memberCode);
+      const member = db.members.find((item) => item.member_code === verify.member_code) ?? db.members[0];
+      return {
+        valid: verify.valid,
+        message: verify.valid
+          ? `Présence enregistrée : ${verify.full_name} — empreinte reconnue.`
+          : verify.message,
+        attendance_recorded: verify.valid,
+        matched_slot: verify.matched_slot,
+        member_code: verify.member_code,
+        member_id: verify.member_id,
+        full_name: verify.full_name,
+        photo_url: member?.photo_url ?? null,
+      } as T;
     }
     if (method === "POST" && segments[2] === "attendance") {
       return { message: "Présence enregistrée : Nathan Mbongi — Présent." } as T;

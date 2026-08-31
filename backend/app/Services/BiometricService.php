@@ -103,6 +103,52 @@ class BiometricService
     }
 
     /**
+     * Identifie un membre parmi une liste à partir d'un échantillon d'empreinte.
+     *
+     * @return array{member: Member, matched: BiometricTemplate, lab: bool}|null
+     */
+    public function identifyMemberAmong(array $memberIds, ?string $templateHash, string $format = 'hardware'): ?array
+    {
+        $this->assertEnabled();
+
+        if ($memberIds === []) {
+            return null;
+        }
+
+        $templates = BiometricTemplate::query()
+            ->whereIn('member_id', $memberIds)
+            ->where('modality', 'fingerprint')
+            ->where('status', 'enrolled')
+            ->with('member')
+            ->get();
+
+        if ($templates->isEmpty()) {
+            return null;
+        }
+
+        if (filled($templateHash)) {
+            $sealed = $this->seal($templateHash);
+            $matched = $templates->first(fn (BiometricTemplate $item) => hash_equals(
+                (string) $item->template_reference,
+                $sealed,
+            ));
+
+            if ($matched?->member) {
+                return ['member' => $matched->member, 'matched' => $matched, 'lab' => false];
+            }
+        }
+
+        if ($format === 'simulation' && $this->labMode()) {
+            $first = $templates->first();
+            if ($first?->member) {
+                return ['member' => $first->member, 'matched' => $first, 'lab' => true];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @return array{matched: BiometricTemplate|null, lab: bool}
      */
     public function matchUser(User $user, ?string $templateHash, string $format = 'hardware'): array
