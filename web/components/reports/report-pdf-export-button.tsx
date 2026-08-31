@@ -5,6 +5,7 @@ import { FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { buildReportFilename, exportReportToPdf } from "@/lib/reports/export-pdf";
+import { reportApiErrorMessage } from "@/lib/reports/fetch-all-pages";
 
 interface ReportPdfExportButtonProps {
   /** Identifiant court pour le nom de fichier (ex. membres, activites). */
@@ -38,7 +39,7 @@ export function ReportPdfExportButton({
       await exportReportToPdf(containerRef.current, buildReportFilename(reportId));
       toast.success("Rapport PDF téléchargé.");
     } catch (caught) {
-      toast.error(caught instanceof Error ? caught.message : "Export PDF impossible.");
+      toast.error(reportApiErrorMessage(caught));
     } finally {
       setPreview(null);
       setExporting(false);

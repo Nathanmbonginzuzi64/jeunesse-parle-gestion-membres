@@ -16,12 +16,12 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Alert, EmptyState, TableSkeleton } from "@/components/ui/feedback";
 import { Pagination } from "@/components/ui/table";
 import { useApi, useDebounced } from "@/lib/hooks";
-import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import {
   EMPTY_REPORT_FILTERS,
   type ActivitiesReportResponse,
 } from "@/lib/reports/api-types";
+import { fetchAllReportPages } from "@/lib/reports/fetch-all-pages";
 import { PERMISSIONS } from "@/lib/permissions";
 import { formatDateTime, formatNumber } from "@/lib/utils";
 
@@ -68,13 +68,15 @@ function ActivitiesReport() {
             reportId="activites"
             disabled={!data?.data.length}
             onPrepare={async () => {
-              const full = await api.get<ActivitiesReportResponse>("/reports/activities", {
-                ...filtersToQuery({ ...filters, q: debouncedQ }),
-                page: 1,
-                per_page: 5000,
-              });
+              const full = await fetchAllReportPages<
+                ActivitiesReportResponse["data"][number]
+              >("/reports/activities", filtersToQuery({ ...filters, q: debouncedQ }));
               return (
-                <ActivitiesPdfDocument data={full} generatedBy={user?.name} filters={filters} />
+                <ActivitiesPdfDocument
+                  data={full as ActivitiesReportResponse}
+                  generatedBy={user?.name}
+                  filters={filters}
+                />
               );
             }}
           />

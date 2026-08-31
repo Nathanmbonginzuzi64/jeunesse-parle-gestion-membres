@@ -16,12 +16,13 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardBody } from "@/components/ui/card";
 import { Alert, EmptyState, TableSkeleton } from "@/components/ui/feedback";
 import { Pagination } from "@/components/ui/table";
-import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import {
   EMPTY_REPORT_FILTERS,
+  type MemberReportRow,
   type MembersReportResponse,
 } from "@/lib/reports/api-types";
+import { fetchAllReportPages } from "@/lib/reports/fetch-all-pages";
 import { useApi, useDebounced } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
 import { formatNumber } from "@/lib/utils";
@@ -75,14 +76,13 @@ function MembersReport() {
             reportId="membres"
             disabled={!data?.data.length}
             onPreparePdf={async () => {
-              const full = await api.get<MembersReportResponse>("/reports/members", {
-                ...filtersToQuery({ ...filters, q: debouncedQ }),
-                page: 1,
-                per_page: 5000,
-              });
+              const full = await fetchAllReportPages<
+                MemberReportRow,
+                { generated_at: string }
+              >("/reports/members", filtersToQuery({ ...filters, q: debouncedQ }));
               return (
                 <MembersListPdfDocument
-                  data={full}
+                  data={full as MembersReportResponse}
                   generatedBy={user?.name}
                   filters={filters}
                 />

@@ -14,9 +14,9 @@ import { Alert, EmptyState, TableSkeleton } from "@/components/ui/feedback";
 import { KpiCard, dashboardCardGrid } from "@/components/ui/kpi";
 import { Pagination } from "@/components/ui/table";
 import { useApi } from "@/lib/hooks";
-import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { CardsReportResponse } from "@/lib/reports/api-types";
+import { fetchAllReportPages } from "@/lib/reports/fetch-all-pages";
 import { PERMISSIONS } from "@/lib/permissions";
 import { formatNumber } from "@/lib/utils";
 
@@ -60,8 +60,11 @@ function CardsReport() {
             reportId="cartes"
             disabled={!data?.data.length}
             onPrepare={async () => {
-              const full = await api.get<CardsReportResponse>("/reports/cards", { page: 1, per_page: 5000 });
-              return <CardsPdfDocument data={full} generatedBy={user?.name} />;
+              const full = await fetchAllReportPages<
+                CardsReportResponse["data"][number],
+                { summary: CardsReportResponse["summary"]; generated_at: string }
+              >("/reports/cards", {});
+              return <CardsPdfDocument data={full as CardsReportResponse} generatedBy={user?.name} />;
             }}
           />
         </div>
