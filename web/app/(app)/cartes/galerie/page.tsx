@@ -48,7 +48,7 @@ function CardsGallery() {
       page,
       q: debouncedQ || undefined,
       status: statusFilter || undefined,
-      per_page: 12,
+      per_page: 2,
     }),
     [page, debouncedQ, statusFilter],
   );
