@@ -476,7 +476,7 @@ class ReportService
         ];
     }
 
-    public function users(User $user): array
+    public function users(User $user, array $filters = []): array
     {
         abort_unless($user->hasPermission(\App\Enums\Permission::UsersView), 403);
 
@@ -499,11 +499,13 @@ class ReportService
             ])
             ->all();
 
-        $recent = User::query()
+        $perPage = min((int) ($filters['per_page'] ?? 10), 100);
+        $recentPaginated = User::query()
             ->with('role:id,name')
             ->orderByDesc('last_login_at')
-            ->limit(50)
-            ->get(['id', 'name', 'email', 'role_id', 'is_active', 'last_login_at'])
+            ->paginate($perPage, ['id', 'name', 'email', 'role_id', 'is_active', 'last_login_at'], 'page', max(1, (int) ($filters['page'] ?? 1)));
+
+        $recent = $recentPaginated->getCollection()
             ->map(fn (User $u) => [
                 'id' => $u->id,
                 'name' => $u->name,
@@ -522,6 +524,12 @@ class ReportService
             ],
             'by_role' => $byRole,
             'recent' => $recent,
+            'recent_meta' => [
+                'current_page' => $recentPaginated->currentPage(),
+                'last_page' => $recentPaginated->lastPage(),
+                'per_page' => $recentPaginated->perPage(),
+                'total' => $recentPaginated->total(),
+            ],
             'generated_at' => now()->toIso8601String(),
         ];
     }

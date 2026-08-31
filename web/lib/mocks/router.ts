@@ -964,6 +964,16 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     } as T;
   }
   if (method === "GET" && path === "/reports/users") {
+    const page = Number(query?.page ?? 1);
+    const perPage = Math.min(Number(query?.per_page ?? 10), 100);
+    const sorted = [...db.users].sort((a, b) => {
+      const aTime = a.last_login_at ? new Date(a.last_login_at).getTime() : 0;
+      const bTime = b.last_login_at ? new Date(b.last_login_at).getTime() : 0;
+      return bTime - aTime;
+    });
+    const total = sorted.length;
+    const lastPage = Math.max(1, Math.ceil(total / perPage));
+    const start = (page - 1) * perPage;
     return {
       summary: {
         total: db.users.length,
@@ -971,7 +981,7 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
         suspended: db.users.filter((u) => !u.is_active).length,
       },
       by_role: db.roles.map((r) => ({ role: r.name, slug: r.slug, total: r.users_count ?? 1 })),
-      recent: db.users.slice(0, 10).map((u) => ({
+      recent: sorted.slice(start, start + perPage).map((u) => ({
         id: u.id,
         name: u.name,
         email: u.email,
@@ -979,6 +989,12 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
         is_active: u.is_active,
         last_login_at: u.last_login_at,
       })),
+      recent_meta: {
+        current_page: page,
+        last_page: lastPage,
+        per_page: perPage,
+        total,
+      },
       generated_at: new Date().toISOString(),
     } as T;
   }

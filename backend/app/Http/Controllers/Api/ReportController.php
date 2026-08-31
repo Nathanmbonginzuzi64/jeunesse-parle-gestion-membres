@@ -158,7 +158,9 @@ class ReportController extends Controller
 
     public function users(Request $request): JsonResponse
     {
-        return response()->json($this->reports->users($request->user()));
+        $filters = $this->reports->validateFilters($request->all());
+
+        return response()->json($this->reports->users($request->user(), $filters));
     }
 
     public function roles(Request $request): JsonResponse

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Users } from "lucide-react";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
@@ -8,13 +9,17 @@ import { ReportPdfExportButton } from "@/components/reports/report-pdf-export-bu
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody } from "@/components/ui/card";
-import { Alert, Skeleton } from "@/components/ui/feedback";
+import { Alert, EmptyState, Skeleton } from "@/components/ui/feedback";
 import { KpiCard, dashboardCardGrid } from "@/components/ui/kpi";
-import { useApi } from "@/lib/hooks";
+import { Pagination } from "@/components/ui/table";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useApi } from "@/lib/hooks";
 import type { UsersReportResponse } from "@/lib/reports/api-types";
 import { PERMISSIONS } from "@/lib/permissions";
 import { formatDateTime, formatNumber } from "@/lib/utils";
+
+const PER_PAGE = 10;
 
 export default function UsersReportPage() {
   return (
@@ -26,7 +31,11 @@ export default function UsersReportPage() {
 
 function UsersReport() {
   const { user } = useAuth();
-  const { data, loading, error } = useApi<UsersReportResponse>("/reports/users");
+  const [page, setPage] = useState(1);
+  const { data, loading, error } = useApi<UsersReportResponse>("/reports/users", {
+    page,
+    per_page: PER_PAGE,
+  });
 
   return (
     <>
@@ -53,7 +62,24 @@ function UsersReport() {
             disabled={!data}
             onPrepare={async () => {
               if (!data) throw new Error("Données indisponibles.");
-              return <UsersPdfDocument data={data} generatedBy={user?.name} />;
+              const first = await api.get<UsersReportResponse>("/reports/users", {
+                page: 1,
+                per_page: 100,
+              });
+              const allRecent = [...first.recent];
+              for (let p = 2; p <= first.recent_meta.last_page; p++) {
+                const next = await api.get<UsersReportResponse>("/reports/users", {
+                  page: p,
+                  per_page: 100,
+                });
+                allRecent.push(...next.recent);
+              }
+              return (
+                <UsersPdfDocument
+                  data={{ ...first, recent: allRecent }}
+                  generatedBy={user?.name}
+                />
+              );
             }}
           />
         </div>
@@ -95,29 +121,46 @@ function UsersReport() {
                 <h2 className="border-b border-slate-100 px-4 py-3 font-semibold text-slate-900">
                   Dernières connexions
                 </h2>
-                <div className="divide-y divide-slate-100">
-                  {data.recent.map((user) => (
-                    <div
-                      key={user.id}
-                      className="flex items-center justify-between px-4 py-3 text-sm"
-                    >
-                      <div>
-                        <p className="font-medium text-slate-900">{user.name}</p>
-                        <p className="text-xs text-slate-500">
-                          {user.role} · {user.email}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <Badge tone={user.is_active ? "success" : "danger"}>
-                          {user.is_active ? "Actif" : "Suspendu"}
-                        </Badge>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {user.last_login_at ? formatDateTime(user.last_login_at) : "Jamais"}
-                        </p>
-                      </div>
+                {data.recent.length === 0 ? (
+                  <EmptyState
+                    title="Aucune connexion"
+                    description="Aucun utilisateur enregistré."
+                  />
+                ) : (
+                  <>
+                    <div className="divide-y divide-slate-100">
+                      {data.recent.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between px-4 py-3 text-sm"
+                        >
+                          <div>
+                            <p className="font-medium text-slate-900">{item.name}</p>
+                            <p className="text-xs text-slate-500">
+                              {item.role} · {item.email}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <Badge tone={item.is_active ? "success" : "danger"}>
+                              {item.is_active ? "Actif" : "Suspendu"}
+                            </Badge>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {item.last_login_at ? formatDateTime(item.last_login_at) : "Jamais"}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                    <Pagination
+                      page={data.recent_meta.current_page}
+                      lastPage={data.recent_meta.last_page}
+                      total={data.recent_meta.total}
+                      perPage={data.recent_meta.per_page}
+                      onChange={setPage}
+                      label="utilisateurs"
+                    />
+                  </>
+                )}
               </CardBody>
             </Card>
           </div>

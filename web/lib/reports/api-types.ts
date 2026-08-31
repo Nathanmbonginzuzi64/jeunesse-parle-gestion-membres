@@ -163,6 +163,12 @@ export interface UsersReportResponse {
     is_active: boolean;
     last_login_at?: string;
   }>;
+  recent_meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
   generated_at: string;
 }
 
