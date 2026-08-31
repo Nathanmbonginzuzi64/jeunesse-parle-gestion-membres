@@ -31,7 +31,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!sessionLoading && user) {
-      router.replace(user.role?.slug === ROLE_SLUGS.membre ? "/mon-espace" : "/tableau-de-bord");
+      router.replace(getPostLoginPath(user));
     }
   }, [sessionLoading, user, router]);
 
