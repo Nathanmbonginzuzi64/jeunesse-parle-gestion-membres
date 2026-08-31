@@ -49,6 +49,21 @@ class ContextualBiometricService
     public function relyingPartyId(): string
     {
         $configured = config('jeunesse.biometrics.rp_id');
+        if (is_string($configured) && $configured !== '' && ! in_array($configured, ['localhost', '127.0.0.1'], true)) {
+            return $configured;
+        }
+
+        $request = request();
+        if ($request instanceof Request) {
+            $origin = $request->headers->get('Origin') ?: $request->headers->get('Referer');
+            if (is_string($origin) && $origin !== '') {
+                $host = parse_url($origin, PHP_URL_HOST);
+                if (is_string($host) && $host !== '') {
+                    return $host;
+                }
+            }
+        }
+
         if (is_string($configured) && $configured !== '') {
             return $configured;
         }
@@ -401,7 +416,8 @@ class ContextualBiometricService
                 ->all();
         }
 
-        // Découvrable : allowCredentials vide → Windows Hello propose les passkeys résidents.
+        // Découvrable : pas de allowCredentials → Windows Hello propose les passkeys résidents.
+        $userVerification = $context->isDiscoverable() ? 'preferred' : 'required';
         $args = $webAuthn->getGetArgs(
             $ids,
             60,
@@ -410,8 +426,12 @@ class ContextualBiometricService
             true,
             true,
             true,
-            'required',
+            $userVerification,
         );
+
+        if ($context->isDiscoverable()) {
+            $args = $this->normalizeDiscoverableGetArgs($args);
+        }
 
         $challenge = $webAuthn->getChallenge();
         $key = 'auth:'.Str::uuid()->toString();
@@ -760,6 +780,31 @@ class ContextualBiometricService
     private function pendingEnrollmentCacheKey(string $enrollmentKey): string
     {
         return 'webauthn:pending-enrollment:'.$enrollmentKey;
+    }
+
+    /**
+     * Windows Hello refuse parfois une liste allowCredentials vide.
+     * Pour l'identification découvrable, on retire ce champ et on assouplit la vérification.
+     */
+    private function normalizeDiscoverableGetArgs(mixed $args): mixed
+    {
+        if (is_object($args)) {
+            $args = json_decode(json_encode($args), true) ?? [];
+        }
+
+        if (! is_array($args)) {
+            return $args;
+        }
+
+        if (array_key_exists('allowCredentials', $args) && $args['allowCredentials'] === []) {
+            unset($args['allowCredentials']);
+        }
+
+        if (($args['userVerification'] ?? null) === 'required') {
+            $args['userVerification'] = 'preferred';
+        }
+
+        return $args;
     }
 
     private function binaryFromClient(mixed $value): string

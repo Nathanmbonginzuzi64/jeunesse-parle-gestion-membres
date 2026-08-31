@@ -22,7 +22,8 @@ import {
 } from "@/components/attendance/fingerprint-attendance-panel";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
 import { QrScannerPanel } from "@/components/members/qr-scanner-panel";
-import { AttendanceStatusBadge, MemberStatusBadge } from "@/components/ui/badge";
+import { AttendanceSheetTable } from "@/components/attendance/attendance-sheet-table";
+import { MemberStatusBadge } from "@/components/ui/badge";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -169,6 +170,19 @@ function AttendanceSheetPage() {
     });
     toast.success(result.message);
     sheet.reload();
+  }
+
+  function selectRow(row: AttendanceSheet["rows"][number]) {
+    setIdentified({
+      member_code: row.member_code,
+      full_name: row.full_name,
+      photo_url: row.photo_url,
+      province: row.province ?? undefined,
+      commune: row.commune ?? undefined,
+      structure: row.structure ?? undefined,
+      status_label: row.member_status_label,
+      card_valid: row.card_valid,
+    });
   }
 
   async function exportCsv() {
@@ -442,31 +456,18 @@ function AttendanceSheetPage() {
             <EmptyState title="Aucun participant" description="Aucun résultat pour ces filtres." />
           ) : (
             <>
-              <ul className="divide-y divide-slate-100 rounded-xl border border-slate-100">
-                {data.rows.map((row) => (
-                  <li key={row.member_id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <Avatar src={row.photo_url} name={row.full_name} size="sm" />
-                      <div>
-                        <p className="text-sm font-medium">{row.full_name}</p>
-                        <p className="font-mono text-[11px] text-slate-400">{row.member_code}</p>
-                        <p className="text-[11px] text-slate-500">
-                          {[row.method, row.recorded_at ? formatDateTime(row.recorded_at) : null]
-                            .filter(Boolean)
-                            .join(" · ") || "—"}
-                        </p>
-                      </div>
-                    </div>
-                    {row.status ? (
-                      <AttendanceStatusBadge status={row.status} label={row.status_label} />
-                    ) : (
-                      <span className="text-xs text-slate-400">Non pointé</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
+              <div className="overflow-hidden rounded-xl border border-slate-100">
+                <AttendanceSheetTable rows={data.rows} onSelect={selectRow} />
+              </div>
               {data.meta ? (
-                <Pagination page={data.meta.current_page} lastPage={data.meta.last_page} onPageChange={setPage} />
+                <Pagination
+                  page={data.meta.current_page}
+                  lastPage={data.meta.last_page}
+                  total={data.meta.total}
+                  perPage={data.meta.per_page}
+                  onChange={setPage}
+                  label="membres"
+                />
               ) : null}
             </>
           )}

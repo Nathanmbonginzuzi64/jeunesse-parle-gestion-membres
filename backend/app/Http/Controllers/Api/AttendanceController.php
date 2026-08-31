@@ -284,6 +284,8 @@ class AttendanceController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
 
+        $recordedOnly = $request->boolean('recorded_only');
+
         $perPage = min((int) ($filters['per_page'] ?? 25), 100);
 
         $attendances = $activity->attendances()->with('recorder:id,name')->get()->keyBy('member_id');
@@ -324,6 +326,10 @@ class AttendanceController extends Controller
                 'recorded_by' => $attendance?->recorder?->name,
             ];
         });
+
+        if ($recordedOnly) {
+            $rows = $rows->filter(fn ($row) => $row['status'] !== null);
+        }
 
         if ($filters['status'] ?? null) {
             if ($filters['status'] === 'not_recorded') {

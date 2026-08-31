@@ -146,7 +146,10 @@ export function BiometricModal({
       if (!awaitingCeremony || !challengePayload) {
         challengePayload = await postJson<ChallengeResponse>(
           "/biometrics/authenticate/options",
-          { context },
+          {
+            context,
+            ...(context === "ATTENDANCE" && activityId ? { activity_id: activityId } : {}),
+          },
           needsAuth,
         );
         challengeRef.current = challengePayload;

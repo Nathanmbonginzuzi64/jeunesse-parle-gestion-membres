@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\ContextualBiometricService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -32,6 +33,15 @@ class BiometricController extends Controller
         $tokenable = $access?->tokenable;
 
         return $tokenable instanceof User ? $tokenable : null;
+    }
+
+    private function authorizeRecordAttendance(User $actor, Activity $activity): void
+    {
+        if (! Gate::forUser($actor)->allows('recordAttendance', $activity)) {
+            throw ValidationException::withMessages([
+                'context' => 'Vous n\'avez pas l\'autorisation de pointer les présences pour cette activité.',
+            ]);
+        }
     }
 
     /** Options WebAuthn pour enregistrer la biométrie d'un futur membre (formulaire). */
@@ -113,6 +123,7 @@ class BiometricController extends Controller
     {
         $validated = $request->validate([
             'context' => ['required', 'string', Rule::in(array_column(BiometricContext::cases(), 'value'))],
+            'activity_id' => ['nullable', 'integer', 'exists:activities,id'],
         ]);
 
         $context = BiometricContext::from($validated['context']);
@@ -122,6 +133,17 @@ class BiometricController extends Controller
             throw ValidationException::withMessages([
                 'context' => 'Authentification requise pour le pointage biométrique.',
             ]);
+        }
+
+        if ($context === BiometricContext::Attendance) {
+            $request->setUserResolver(fn () => $actor);
+            $activityId = $validated['activity_id'] ?? null;
+            if (! $activityId) {
+                throw ValidationException::withMessages([
+                    'activity_id' => 'Activité requise pour le pointage biométrique.',
+                ]);
+            }
+            $this->authorizeRecordAttendance($actor, Activity::findOrFail($activityId));
         }
 
         if ($context === BiometricContext::SecurityConfirmation && ! $actor) {
@@ -154,7 +176,7 @@ class BiometricController extends Controller
             'authenticatorData' => ['required', 'string'],
             'signature' => ['required', 'string'],
             'userHandle' => ['nullable', 'string'],
-            'activity_id' => ['nullable', 'integer', 'exists:activities,id'],
+            'activity_id' => ['nullable', 'integer', 'exists:activities,id', 'required_if:context,ATTENDANCE'],
             'device_name' => ['nullable', 'string', 'max:60'],
         ]);
 
@@ -168,9 +190,16 @@ class BiometricController extends Controller
                     'context' => 'Un responsable connecté est requis.',
                 ]);
             }
+            if (empty($validated['activity_id'])) {
+                throw ValidationException::withMessages([
+                    'activity_id' => 'Activité requise pour le pointage biométrique.',
+                ]);
+            }
             $request->setUserResolver(fn () => $actor);
-            $activity = Activity::findOrFail($validated['activity_id'] ?? 0);
-            $this->authorize('recordAttendance', $activity);
+            $activity = Activity::findOrFail($validated['activity_id']);
+            $this->authorizeRecordAttendance($actor, $activity);
+        } else {
+            $activity = null;
         }
 
         // Pour ATTENDANCE, l'acteur connecté doit être celui qui pointe (pas le membre scanné).

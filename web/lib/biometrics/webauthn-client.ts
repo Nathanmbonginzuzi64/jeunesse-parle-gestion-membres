@@ -54,7 +54,7 @@ function reviveGetOptions(publicKey: Record<string, unknown>): PublicKeyCredenti
   }
 
   const allow = pk.allowCredentials as Array<Record<string, unknown>> | undefined;
-  if (Array.isArray(allow)) {
+  if (Array.isArray(allow) && allow.length > 0) {
     pk.allowCredentials = allow.map((item) => {
       const id = item.id;
       if (typeof id === "string") return { ...item, id: b64urlToBuffer(id) };
@@ -63,6 +63,12 @@ function reviveGetOptions(publicKey: Record<string, unknown>): PublicKeyCredenti
       }
       return item;
     });
+  } else {
+    delete pk.allowCredentials;
+  }
+
+  if (pk.userVerification === "required") {
+    pk.userVerification = "preferred";
   }
 
   return pk as unknown as PublicKeyCredentialRequestOptions;
@@ -116,7 +122,7 @@ export function formatWebAuthnError(error: unknown): string {
     return "La fenêtre du navigateur doit être active. Cliquez sur « Lancer Windows Hello » sans changer d'onglet.";
   }
   if (error instanceof DOMException && error.name === "NotAllowedError") {
-    return "Authentification biométrique annulée ou refusée.";
+    return "Windows Hello a refusé l'opération. Vérifiez que le membre a bien enregistré sa biométrie sur cet appareil, puis réessayez sans changer d'onglet.";
   }
   if (error instanceof Error) return error.message;
   return "Opération biométrique impossible.";
