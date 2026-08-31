@@ -95,6 +95,7 @@ export interface Member {
   commune?: NamedRef | null;
   zone?: NamedRef | null;
   quartier?: NamedRef | null;
+  avenue?: NamedRef | null;
   structure?: NamedRef | null;
 
   position: string | null;
@@ -107,6 +108,7 @@ export interface Member {
   phone_alt?: string | null;
   email?: string | null;
   address?: string | null;
+  house_number?: string | null;
   birth_date?: string | null;
   birth_place?: string | null;
   education_level?: string | null;
@@ -211,13 +213,27 @@ export interface Activity {
   starts_at: string | null;
   ends_at: string | null;
   location: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   capacity: number | null;
   is_public: boolean;
   /** Image de couverture (affiche / illustration). */
   image_url: string | null;
   province?: NamedRef | null;
+  city?: NamedRef | null;
+  commune?: NamedRef | null;
+  zone?: NamedRef | null;
+  quartier?: NamedRef | null;
+  avenue?: NamedRef | null;
   structure?: NamedRef | null;
   organizer?: { id: number; name: string } | null;
+  live_location?: {
+    active: boolean;
+    latitude: number | null;
+    longitude: number | null;
+    updated_at: string | null;
+    shared_by?: string | null;
+  };
   participants_count?: number;
   attendances_count?: number;
   created_at: string | null;
@@ -228,15 +244,29 @@ export interface AttendanceRow {
   member_code: string;
   full_name: string;
   structure: string | null;
+  province?: string | null;
+  commune?: string | null;
+  member_status?: string;
+  member_status_label?: string;
+  card_valid?: boolean;
   photo_url: string | null;
   status: AttendanceStatusValue | null;
   status_label: string | null;
   method: string | null;
   recorded_at: string | null;
+  recorded_by?: string | null;
 }
 
 export interface AttendanceSheet {
-  activity: { id: number; code: string; title: string; starts_at: string | null };
+  activity: {
+    id: number;
+    code: string;
+    title: string;
+    starts_at: string | null;
+    location?: string | null;
+    image_url?: string | null;
+    organizer?: string | null;
+  };
   summary: {
     expected: number;
     present: number;
@@ -246,6 +276,12 @@ export interface AttendanceSheet {
     not_recorded: number;
   };
   rows: AttendanceRow[];
+  meta?: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
 }
 
 export interface Structure {
@@ -323,7 +359,14 @@ export interface StatisticsOverview {
       new_this_month: number;
       new_last_30_days: number;
     };
-    coverage: { provinces: number; cities: number; districts: number; quartiers: number; structures: number };
+    coverage: {
+      provinces: number;
+      cities: number;
+      districts: number;
+      quartiers: number;
+      avenues: number;
+      structures: number;
+    };
     cards: { active: number; issued_this_month: number };
     activities: { total: number; upcoming: number };
     verifications: { last_30_days: number };
@@ -413,6 +456,18 @@ export interface Quartier {
 
 /** @deprecated Préférer Quartier — conservé pour compatibilité API. */
 export type Zone = Quartier;
+
+export interface Avenue {
+  id: number;
+  zone_id: number;
+  commune_id: number;
+  city_id: number;
+  province_id: number;
+  name: string;
+  number?: string | null;
+  direction?: string | null;
+  reference_stop?: string | null;
+}
 
 export interface Option {
   value: string;

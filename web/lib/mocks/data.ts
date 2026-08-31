@@ -16,6 +16,7 @@ import type {
   NamedRef,
   Province,
   Quartier,
+  Avenue,
   References,
   RoleDetail,
   StatisticsCharts,
@@ -144,6 +145,20 @@ export const quartiers: Quartier[] = [
   { id: 2, commune_id: 2, district_id: 2, city_id: 1, province_id: 1, name: "Batetela", type: "quartier" },
   { id: 3, commune_id: 3, district_id: 1, city_id: 1, province_id: 1, name: "Binza Pigeon", type: "quartier" },
   { id: 4, commune_id: 4, district_id: 5, city_id: 2, province_id: 2, name: "Himbi", type: "quartier" },
+];
+
+export const avenues: Avenue[] = [
+  {
+    id: 1,
+    zone_id: 2,
+    commune_id: 2,
+    city_id: 1,
+    province_id: 1,
+    name: "Avenue Tombalbaye",
+    number: "12",
+    direction: "est",
+    reference_stop: "Arrêt Socimat",
+  },
 ];
 
 /** Alias rétrocompatible */
@@ -753,7 +768,7 @@ export const statisticsOverview: StatisticsOverview = {
   scope: { level: 0, role: "Super administrateur", province: null, city: null, structure: null },
   kpis: {
     members: { total: 12840, active: 10210, pending: 940, inactive: 1100, suspended: 420, archived: 170, new_this_month: 318, new_last_30_days: 412 },
-    coverage: { provinces: 26, cities: 84, districts: 48, quartiers: 312, structures: 146 },
+    coverage: { provinces: 26, cities: 84, districts: 48, quartiers: 312, avenues: 156, structures: 146 },
     cards: { active: 9860, issued_this_month: 290 },
     activities: { total: 64, upcoming: 9 },
     verifications: { last_30_days: 1870 },

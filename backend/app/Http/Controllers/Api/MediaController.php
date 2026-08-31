@@ -3,15 +3,20 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Activity;
 use App\Models\Member;
 use App\Models\QrToken;
+use App\Services\ActivityImageStorageService;
 use App\Services\PhotoStorageService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 class MediaController extends Controller
 {
-    public function __construct(private readonly PhotoStorageService $photos) {}
+    public function __construct(
+        private readonly PhotoStorageService $photos,
+        private readonly ActivityImageStorageService $activityImages,
+    ) {}
 
     /**
      * Sert la photo d'un membre depuis le disque privé.
@@ -50,6 +55,18 @@ class MediaController extends Controller
         return $this->stream($member->photo_path, $member->member_code);
     }
 
+    /** Image de couverture d'une activité (accès authentifié). */
+    public function activityImage(Request $request, string $activity): Response
+    {
+        $record = Activity::where('code', $activity)->firstOrFail();
+
+        $this->authorize('view', $record);
+
+        abort_unless($record->image_path, 404, 'Ressource introuvable.');
+
+        return $this->streamActivity($record->image_path, $record->code);
+    }
+
     private function stream(string $path, string $reference): Response
     {
         $contents = $this->photos->get($path);
@@ -58,6 +75,19 @@ class MediaController extends Controller
 
         return response($contents, 200, [
             'Content-Type' => $this->photos->mimeFor($path),
+            'Cache-Control' => 'private, max-age=600',
+            'Content-Disposition' => 'inline; filename="'.$reference.'.'.pathinfo($path, PATHINFO_EXTENSION).'"',
+        ]);
+    }
+
+    private function streamActivity(string $path, string $reference): Response
+    {
+        $contents = $this->activityImages->get($path);
+
+        abort_unless($contents !== null, 404, 'Ressource introuvable.');
+
+        return response($contents, 200, [
+            'Content-Type' => $this->activityImages->mimeFor($path),
             'Cache-Control' => 'private, max-age=600',
             'Content-Disposition' => 'inline; filename="'.$reference.'.'.pathinfo($path, PATHINFO_EXTENSION).'"',
         ]);

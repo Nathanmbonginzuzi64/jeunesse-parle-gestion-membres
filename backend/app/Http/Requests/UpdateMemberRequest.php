@@ -52,11 +52,13 @@ class UpdateMemberRequest extends FormRequest
             'phone_alt' => ['nullable', 'string', 'max:30', 'regex:/^\+?[0-9]{9,15}$/'],
             'email' => ['nullable', 'email:rfc', 'max:160'],
             'address' => ['nullable', 'string', 'max:255'],
+            'house_number' => ['nullable', 'string', 'max:40'],
 
             'province_id' => ['sometimes', 'integer', 'exists:provinces,id'],
             'city_id' => ['nullable', 'integer', 'exists:cities,id'],
             'commune_id' => ['nullable', 'integer', 'exists:communes,id'],
             'zone_id' => ['nullable', 'integer', 'exists:zones,id'],
+            'avenue_id' => ['nullable', 'integer', 'exists:avenues,id'],
             'structure_id' => ['nullable', 'integer', 'exists:structures,id'],
 
             'education_level' => ['nullable', 'string', 'max:60'],

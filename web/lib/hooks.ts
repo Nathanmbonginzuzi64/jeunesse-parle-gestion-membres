@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, fetchProtectedImage } from "./api";
-import type { City, Commune, District, Province, Quartier, References } from "./types";
+import type { City, Commune, District, Province, Quartier, Avenue, References } from "./types";
 
 interface FetchState<T> {
   data: T | null;
@@ -97,12 +97,14 @@ export function useTerritories(
   cityId?: number | null,
   districtId?: number | null,
   communeId?: number | null,
+  zoneId?: number | null,
 ) {
   const [provinces, setProvinces] = useState<Province[]>([]);
   const [cities, setCities] = useState<City[]>([]);
   const [districts, setDistricts] = useState<District[]>([]);
   const [communes, setCommunes] = useState<Commune[]>([]);
   const [quartiers, setQuartiers] = useState<Quartier[]>([]);
+  const [avenues, setAvenues] = useState<Avenue[]>([]);
 
   useEffect(() => {
     api.public
@@ -158,7 +160,18 @@ export function useTerritories(
       .catch(() => setQuartiers([]));
   }, [communeId]);
 
-  return { provinces, cities, districts, communes, quartiers, zones: quartiers };
+  useEffect(() => {
+    if (!zoneId) {
+      setAvenues([]);
+      return;
+    }
+    api.public
+      .get<{ data: Avenue[] }>("/territories/avenues", { zone_id: zoneId })
+      .then((response) => setAvenues(response.data))
+      .catch(() => setAvenues([]));
+  }, [zoneId]);
+
+  return { provinces, cities, districts, communes, quartiers, avenues, zones: quartiers };
 }
 
 export function usePublicStructures(provinceId?: number | null, cityId?: number | null) {

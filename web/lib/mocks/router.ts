@@ -242,6 +242,17 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     const communeId = Number(query?.commune_id);
     return { data: db.quartiers.filter((quartier) => !communeId || quartier.commune_id === communeId) } as T;
   }
+  if (method === "GET" && path === "/territories/avenues") {
+    const zoneId = Number(query?.zone_id);
+    const communeId = Number(query?.commune_id);
+    return {
+      data: db.avenues.filter(
+        (avenue) =>
+          (!zoneId || avenue.zone_id === zoneId) &&
+          (!communeId || avenue.commune_id === communeId),
+      ),
+    } as T;
+  }
   if (method === "GET" && path === "/territories/structures") {
     const provinceId = Number(query?.province_id);
     return {
@@ -513,9 +524,32 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     db.zones.push(item);
     return { message: "Quartier ajouté.", data: item } as T;
   }
+  if (method === "POST" && path === "/territories/avenues") {
+    const input = jsonBody(body);
+    const quartier = db.quartiers.find((q) => q.id === Number(input.zone_id));
+    const item = {
+      id: db.avenues.length + 1,
+      zone_id: Number(input.zone_id),
+      commune_id: quartier?.commune_id ?? Number(input.commune_id),
+      city_id: quartier?.city_id ?? Number(input.city_id),
+      province_id: quartier?.province_id ?? Number(input.province_id),
+      name: String(input.name ?? "Avenue"),
+      number: (input.number as string) ?? null,
+      direction: (input.direction as string) ?? null,
+      reference_stop: (input.reference_stop as string) ?? null,
+    };
+    db.avenues.push(item);
+    return { message: "Avenue ajoutée.", data: item } as T;
+  }
   if (method === "GET" && path === "/territories/tree") {
+    const structuresForAvenue = (avenueId: number) =>
+      db.structures.filter((s) => (s as { avenue?: { id: number } }).avenue?.id === avenueId);
     const structuresForQuartier = (quartierId: number) =>
-      db.structures.filter((s) => (s.quartier?.id ?? s.zone?.id) === quartierId);
+      db.structures.filter(
+        (s) =>
+          (s.quartier?.id ?? s.zone?.id) === quartierId &&
+          !(s as { avenue?: { id: number } }).avenue?.id,
+      );
     const structuresForCommune = (communeId: number) =>
       db.structures.filter(
         (s) => s.commune?.id === communeId && !s.quartier?.id && !s.zone?.id,
@@ -552,6 +586,12 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
                       .filter((quartier) => quartier.commune_id === commune.id)
                       .map((quartier) => ({
                         ...quartier,
+                        avenues: db.avenues
+                          .filter((avenue) => avenue.zone_id === quartier.id)
+                          .map((avenue) => ({
+                            ...avenue,
+                            structures: structuresForAvenue(avenue.id),
+                          })),
                         structures: structuresForQuartier(quartier.id),
                       })),
                     structures: structuresForCommune(commune.id),
@@ -778,6 +818,189 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     }
   }
   if (method === "GET" && path === "/roles") return { data: db.roles } as T;
+
+  if (method === "GET" && path === "/reports") {
+    return {
+      scope: { level: 0, role: "Super Admin", province: null, city: null, structure: null },
+      reports: [],
+      generated_at: new Date().toISOString(),
+    } as T;
+  }
+  if (method === "GET" && path === "/reports/members") {
+    const rows = db.members.map((m) => ({
+      id: m.id,
+      member_code: m.member_code,
+      photo_url: m.photo_url ?? null,
+      last_name: m.last_name,
+      middle_name: m.middle_name,
+      first_name: m.first_name,
+      full_name: m.full_name,
+      gender_label: m.gender_label,
+      birth_date: m.birth_date ?? null,
+      province: m.province?.name,
+      city: m.city?.name,
+      district: "Gombe",
+      commune: m.commune?.name,
+      quartier: m.zone?.name,
+      avenue: "Av. Liberation",
+      structure: m.structure?.name,
+      joined_at: m.joined_at,
+      created_at: m.created_at,
+      status: m.status,
+      status_label: m.status_label,
+      card_status_label: m.card?.status_label ?? "Active",
+      biometric_enrolled: Boolean(m.fingerprint_enrolled),
+    }));
+    return {
+      ...paginate(rows, query),
+      generated_at: new Date().toISOString(),
+    } as T;
+  }
+  if (method === "GET" && segments[0] === "reports" && segments[1] === "members" && segments[2]) {
+    const member = memberByParam(segments[2]);
+    if (!member) throw new ApiError(404, "Membre introuvable.");
+    return {
+      member: {
+        id: member.id,
+        member_code: member.member_code,
+        full_name: member.full_name,
+        last_name: member.last_name,
+        middle_name: member.middle_name,
+        first_name: member.first_name,
+        status: member.status,
+        status_label: member.status_label,
+        province: member.province?.name,
+        city: member.city?.name,
+        commune: member.commune?.name,
+        quartier: member.zone?.name,
+        structure: member.structure?.name,
+        joined_at: member.joined_at,
+        card_status_label: member.card?.status_label,
+        card_number: member.card?.card_number,
+        biometric_enrolled: Boolean(member.fingerprint_enrolled),
+      },
+      profile: {
+        profession: member.profession,
+        education_level: member.education_level,
+        skills: member.skills ?? [],
+        interests: member.interests ?? [],
+      },
+      activities: db.activities.slice(0, 3).map((a) => ({
+        id: a.id,
+        code: a.code,
+        title: a.title,
+        type: a.type,
+        type_label: a.type_label,
+        starts_at: a.starts_at,
+        location: a.location,
+      })),
+      attendances: [],
+      summary: { activities_count: 3, attendances_present: 25, attendances_total: 30, participation_rate: 83 },
+      generated_at: new Date().toISOString(),
+    } as T;
+  }
+  if (method === "GET" && path === "/reports/activities") {
+    const rows = db.activities.map((a) => ({
+      id: a.id,
+      code: a.code,
+      title: a.title,
+      type: a.type,
+      type_label: a.type_label,
+      organizer: "Admin Nathan",
+      starts_at: a.starts_at,
+      ends_at: a.ends_at,
+      location: a.location,
+      province: a.province?.name,
+      city: a.city?.name,
+      commune: a.commune?.name,
+      structure: a.structure?.name,
+      status: a.status,
+      participants_count: a.members_count ?? 12,
+      attendances_count: a.attendances_count ?? 10,
+    }));
+    return paginate(rows, query) as T;
+  }
+  if (method === "GET" && path === "/reports/cards") {
+    const cards = db.members
+      .filter((m) => m.card)
+      .map((m, i) => ({
+        id: i + 1,
+        card_number: m.card!.card_number,
+        status: m.card!.status,
+        status_label: m.card!.status_label,
+        issued_at: m.card!.issued_at,
+        expires_at: m.card!.expires_at,
+        member: { member_code: m.member_code, full_name: m.full_name },
+      }));
+    return {
+      summary: {
+        total: cards.length,
+        active: cards.filter((c) => c.status === "active").length,
+        expired: 0,
+        suspended: 0,
+        lost: 0,
+        replaced: 0,
+        inactive: 0,
+      },
+      ...paginate(cards, query),
+      generated_at: new Date().toISOString(),
+    } as T;
+  }
+  if (method === "GET" && path === "/reports/attendance") {
+    return {
+      global: {
+        active_members: db.members.filter((m) => m.status === "active").length,
+        total_records: 450,
+        present: 370,
+        absent: 80,
+        participation_rate: 82,
+      },
+      by_activity_type: [
+        { type: "formation", type_label: "Formation", activities_count: 12, attendances_count: 480, present_count: 460, rate: 96 },
+        { type: "conference", type_label: "Conférence", activities_count: 8, attendances_count: 320, present_count: 280, rate: 88 },
+        { type: "reunion", type_label: "Réunion", activities_count: 20, attendances_count: 600, present_count: 510, rate: 85 },
+      ],
+      generated_at: new Date().toISOString(),
+    } as T;
+  }
+  if (method === "GET" && path === "/reports/users") {
+    return {
+      summary: {
+        total: db.users.length,
+        active: db.users.filter((u) => u.is_active).length,
+        suspended: db.users.filter((u) => !u.is_active).length,
+      },
+      by_role: db.roles.map((r) => ({ role: r.name, slug: r.slug, total: r.users_count ?? 1 })),
+      recent: db.users.slice(0, 10).map((u) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role?.name,
+        is_active: u.is_active,
+        last_login_at: u.last_login_at,
+      })),
+      generated_at: new Date().toISOString(),
+    } as T;
+  }
+  if (method === "GET" && path === "/reports/roles") {
+    return {
+      data: db.roles.map((r) => ({
+        id: r.id,
+        slug: r.slug,
+        name: r.name,
+        description: r.description,
+        scope_level: r.scope_level,
+        users_count: r.users_count ?? 1,
+        permissions: (r.permissions ?? []).map((slug: string) => ({
+          slug,
+          name: slug.replace(/\./g, " "),
+          module: slug.split(".")[0],
+        })),
+      })),
+      generated_at: new Date().toISOString(),
+    } as T;
+  }
+
   if (method === "GET" && path === "/audit") {
     const action = String(query?.action ?? "").toLowerCase();
     const q = String(query?.q ?? "").toLowerCase();
@@ -936,7 +1159,243 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     return { message: "Paramètres enregistrés." } as T;
   }
 
+  const newsMocks = getNewsMocks();
+  if (method === "GET" && path === "/news") {
+    return { data: newsMocks.posts } as T;
+  }
+  if (method === "GET" && path === "/news/stats") {
+    const posts = newsMocks.posts;
+    return {
+      total_posts: posts.length,
+      total_views: posts.reduce((sum, p) => sum + p.views_count, 0),
+      total_likes: posts.reduce((sum, p) => sum + p.likes_count, 0),
+      total_comments: posts.reduce((sum, p) => sum + p.comments_count, 0),
+      total_shares: posts.reduce((sum, p) => sum + p.shares_count, 0),
+      top_posts: [...posts]
+        .sort((a, b) => b.likes_count - a.likes_count)
+        .slice(0, 5)
+        .map((p) => ({
+          id: p.id,
+          title: p.title,
+          likes_count: p.likes_count,
+          views_count: p.views_count,
+          comments_count: p.comments_count,
+        })),
+    } as T;
+  }
+  if (method === "POST" && path === "/news") {
+    requireUser();
+    const input = jsonBody(body);
+    const post = {
+      id: newsMocks.nextId++,
+      title: String(input.title ?? "Sans titre"),
+      body: String(input.body ?? ""),
+      author: currentUser()?.name ?? "Admin",
+      activity: null,
+      likes_count: 0,
+      comments_count: 0,
+      shares_count: 0,
+      views_count: 0,
+      created_at: new Date().toISOString(),
+      comments: [],
+    };
+    newsMocks.posts.unshift(post);
+    return { message: "Actualité publiée.", data: post } as T;
+  }
+  if (method === "GET" && segments[0] === "news" && segments[1] && segments.length === 2) {
+    const post = newsMocks.posts.find((p) => String(p.id) === segments[1]);
+    if (!post) throw new ApiError(404, "Actualité introuvable.");
+    post.views_count += 1;
+    return { data: post } as T;
+  }
+  if (method === "POST" && segments[0] === "news" && segments[2] === "react") {
+    requireUser();
+    const post = newsMocks.posts.find((p) => String(p.id) === segments[1]);
+    if (!post) throw new ApiError(404, "Actualité introuvable.");
+    post.likes_count += 1;
+    return { message: "Réaction enregistrée." } as T;
+  }
+  if (method === "POST" && segments[0] === "news" && segments[2] === "comments") {
+    requireUser();
+    const post = newsMocks.posts.find((p) => String(p.id) === segments[1]);
+    if (!post) throw new ApiError(404, "Actualité introuvable.");
+    const input = jsonBody(body);
+    const comment = {
+      id: newsMocks.nextCommentId++,
+      body: String(input.body ?? ""),
+      author: currentUser()?.name ?? "Membre",
+      created_at: new Date().toISOString(),
+    };
+    post.comments = post.comments ?? [];
+    post.comments.push(comment);
+    post.comments_count += 1;
+    return { message: "Commentaire publié.", data: comment } as T;
+  }
+  if (method === "POST" && segments[0] === "news" && segments[2] === "share") {
+    const post = newsMocks.posts.find((p) => String(p.id) === segments[1]);
+    if (!post) throw new ApiError(404, "Actualité introuvable.");
+    post.shares_count += 1;
+    return { message: "Partage enregistré." } as T;
+  }
+
+  const jpMocks = getJpMessageMocks();
+  if (method === "GET" && path === "/jp-messages") {
+    return paginate(jpMocks.messages, query) as T;
+  }
+  if (method === "POST" && path === "/jp-messages") {
+    requireUser();
+    const input = jsonBody(body);
+    const msg = {
+      id: jpMocks.nextId++,
+      reference: `JP-MSG-${String(jpMocks.nextId).padStart(4, "0")}`,
+      subject: String(input.subject ?? ""),
+      category: String(input.category ?? "general"),
+      body: String(input.body ?? ""),
+      status: "open",
+      created_at: new Date().toISOString(),
+      member: {
+        member_code: "JP-RDC-000001",
+        full_name: currentUser()?.name ?? "Membre",
+      },
+      replies: [],
+    };
+    jpMocks.messages.unshift(msg);
+    return { message: "Message envoyé.", data: msg } as T;
+  }
+  if (method === "GET" && segments[0] === "jp-messages" && segments[1] && segments.length === 2) {
+    const msg = jpMocks.messages.find((m) => String(m.id) === segments[1]);
+    if (!msg) throw new ApiError(404, "Message introuvable.");
+    return { data: msg } as T;
+  }
+  if (method === "POST" && segments[0] === "jp-messages" && segments[2] === "replies") {
+    requireUser();
+    const msg = jpMocks.messages.find((m) => String(m.id) === segments[1]);
+    if (!msg) throw new ApiError(404, "Message introuvable.");
+    const input = jsonBody(body);
+    const user = currentUser()!;
+    const isAdmin = (user.permissions ?? []).includes("users.view");
+    msg.replies = msg.replies ?? [];
+    msg.replies.push({
+      id: jpMocks.nextReplyId++,
+      body: String(input.body ?? ""),
+      author: user.name,
+      is_admin: isAdmin,
+      created_at: new Date().toISOString(),
+    });
+    return { message: "Réponse envoyée." } as T;
+  }
+
   throw new ApiError(404, "Ressource introuvable (mode design).");
+}
+
+let newsMockState: {
+  nextId: number;
+  nextCommentId: number;
+  posts: Array<{
+    id: number;
+    title: string;
+    body: string;
+    author: string;
+    activity: null;
+    likes_count: number;
+    comments_count: number;
+    shares_count: number;
+    views_count: number;
+    created_at: string;
+    comments: Array<{ id: number; body: string; author: string; created_at: string }>;
+  }>;
+} | null = null;
+
+function getNewsMocks() {
+  if (!newsMockState) {
+    newsMockState = {
+      nextId: 3,
+      nextCommentId: 2,
+      posts: [
+        {
+          id: 1,
+          title: "Mobilisation nationale — Kinshasa",
+          body: "Grande marche prévue samedi à la Gombe. Tous les responsables de cellules sont invités.",
+          author: "Coordination JP",
+          activity: null,
+          likes_count: 42,
+          comments_count: 1,
+          shares_count: 8,
+          views_count: 320,
+          created_at: new Date(Date.now() - 86400000).toISOString(),
+          comments: [
+            {
+              id: 1,
+              body: "Notre cellule sera présente.",
+              author: "Jean M.",
+              created_at: new Date(Date.now() - 3600000).toISOString(),
+            },
+          ],
+        },
+        {
+          id: 2,
+          title: "Formation leaders — Lubumbashi",
+          body: "Session de formation ce vendredi pour les nouveaux responsables.",
+          author: "Admin Provincial",
+          activity: null,
+          likes_count: 18,
+          comments_count: 0,
+          shares_count: 3,
+          views_count: 95,
+          created_at: new Date(Date.now() - 172800000).toISOString(),
+          comments: [],
+        },
+      ],
+    };
+  }
+  return newsMockState;
+}
+
+let jpMessageMockState: {
+  nextId: number;
+  nextReplyId: number;
+  messages: Array<{
+    id: number;
+    reference: string;
+    subject: string;
+    category: string;
+    body: string;
+    status: string;
+    created_at: string;
+    member?: { member_code: string; full_name: string; photo_url?: string | null };
+    replies?: Array<{ id: number; body: string; author: string; is_admin: boolean; created_at: string }>;
+  }>;
+} | null = null;
+
+function getJpMessageMocks() {
+  if (!jpMessageMockState) {
+    jpMessageMockState = {
+      nextId: 2,
+      nextReplyId: 2,
+      messages: [
+        {
+          id: 1,
+          reference: "JP-MSG-0001",
+          subject: "Question sur ma carte membre",
+          category: "carte",
+          body: "Ma carte n'apparaît pas dans l'application mobile.",
+          status: "open",
+          created_at: new Date(Date.now() - 7200000).toISOString(),
+          member: { member_code: "JP-RDC-000042", full_name: "Marie Kabongo" },
+          replies: [
+            {
+              id: 1,
+              body: "Bonjour Marie, nous vérifions votre dossier.",
+              author: "Support JP",
+              is_admin: true,
+              created_at: new Date(Date.now() - 3600000).toISOString(),
+            },
+          ],
+        },
+      ],
+    };
+  }
+  return jpMessageMockState;
 }
 
 function extractMemberCode(value: string) {

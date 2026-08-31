@@ -7,30 +7,25 @@ import {
   Building2,
   CalendarDays,
   ClipboardList,
-  Fingerprint,
   Globe,
   MapPin,
   Pencil,
-  ScanLine,
   User,
   Users,
 } from "lucide-react";
 import { ActivityDetailHero } from "@/components/activities/activity-detail-hero";
 import { ActivityForm } from "@/components/activities/activity-form";
+import { ActivityLiveLocationPanel } from "@/components/activities/activity-live-location-panel";
 import { Can } from "@/components/auth/require-permission";
-import { BiometricModal, type BiometricResult } from "@/components/biometrics/biometric-modal";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
-import { QrScannerPanel } from "@/components/members/qr-scanner-panel";
-import { ActivityStatusBadge, AttendanceStatusBadge } from "@/components/ui/badge";
+import { ActivityStatusBadge } from "@/components/ui/badge";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Alert, EmptyState, PageLoader } from "@/components/ui/feedback";
+import { Alert, PageLoader } from "@/components/ui/feedback";
 import { KpiCard, dashboardCardGrid } from "@/components/ui/kpi";
 import { Modal } from "@/components/ui/modal";
-import { Avatar } from "@/components/ui/avatar";
-import { api, ApiError } from "@/lib/api";
-import { extractTokenFromQr } from "@/lib/form";
+import { useAuth } from "@/lib/auth";
 import { useApi } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useToast } from "@/components/ui/toast";
@@ -41,45 +36,10 @@ export default function ActivityShowPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const toast = useToast();
+  const { can } = useAuth();
   const activity = useApi<{ data: Activity }>(`/activities/${params.id}`);
   const sheet = useApi<AttendanceSheet>(`/activities/${params.id}/attendance/sheet`);
-  const [busy, setBusy] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [biometricOpen, setBiometricOpen] = useState(false);
-
-  async function record(payload: Record<string, unknown>) {
-    setBusy(true);
-    try {
-      const response = await api.post<{ message: string }>(`/activities/${params.id}/attendance`, payload);
-      toast.success(response.message);
-      sheet.reload();
-      activity.reload();
-    } catch (caught) {
-      toast.error(caught instanceof ApiError ? caught.message : "Pointage impossible.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function handleScan(value: string) {
-    const trimmed = value.trim();
-    if (trimmed.toUpperCase().startsWith("JP-RDC-")) {
-      void record({ member_code: trimmed });
-    } else {
-      void record({ qr_token: extractTokenFromQr(trimmed) });
-    }
-  }
-
-  function handleBiometricAttendance(result: BiometricResult) {
-    if (!result.ok) return;
-    toast.success(
-      result.member
-        ? `${result.message} — ${result.member.full_name}`
-        : result.message,
-    );
-    sheet.reload();
-    activity.reload();
-  }
 
   if (activity.loading) return <PageLoader />;
   if (activity.error || !activity.data?.data) {
@@ -88,9 +48,10 @@ export default function ActivityShowPage() {
 
   const item = activity.data.data;
   const summary = sheet.data?.summary;
-  const expected = item.participants_count ?? summary?.expected ?? 0;
-  const present = item.attendances_count ?? summary?.present ?? 0;
-  const rate = expected ? Math.round((present / expected) * 100) : 0;
+  const registered = item.participants_count ?? summary?.expected ?? 0;
+  const confirmed = summary?.present ?? item.attendances_count ?? 0;
+  const absences = summary?.absent ?? 0;
+  const rate = registered ? Math.round((confirmed / registered) * 100) : 0;
 
   return (
     <div className="space-y-6">
@@ -107,28 +68,24 @@ export default function ActivityShowPage() {
       </DashboardAnimate>
 
       <DashboardAnimate delay={60}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div className={cn(dashboardCardGrid, "flex-1 sm:grid-cols-2 lg:grid-cols-4")}>
-            <KpiCard label="Participants" value={expected} icon={Users} tone="info" />
-            <KpiCard label="Présents" value={present} icon={ClipboardList} tone="success" />
-            <KpiCard label="Taux" value={`${rate} %`} icon={ScanLine} tone="warning" />
-            <KpiCard
-              label="Capacité"
-              value={item.capacity ?? "—"}
-              icon={Building2}
-              tone="neutral"
-              hint={item.capacity ? "places max." : undefined}
-            />
+            <KpiCard label="Participants inscrits" value={formatNumber(registered)} icon={Users} tone="info" />
+            <KpiCard label="Présences confirmées" value={formatNumber(confirmed)} icon={ClipboardList} tone="success" />
+            <KpiCard label="Absences" value={formatNumber(absences)} icon={Users} tone="danger" />
+            <KpiCard label="Taux participation" value={`${rate} %`} icon={ClipboardList} tone="warning" />
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link href="/presences">
-              <Button variant="outline" size="sm">
-                <ClipboardList className="h-4 w-4" />
-                Hub présences
-              </Button>
-            </Link>
+            <Can permission={PERMISSIONS.attendanceView}>
+              <Link href={`/presences/${item.id}`}>
+                <Button size="sm">
+                  <ClipboardList className="h-4 w-4" />
+                  Gérer les présences
+                </Button>
+              </Link>
+            </Can>
             <Can permission={PERMISSIONS.activitiesManage}>
-              <Button size="sm" onClick={() => setEditOpen(true)}>
+              <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
                 <Pencil className="h-4 w-4" />
                 Modifier
               </Button>
@@ -140,7 +97,7 @@ export default function ActivityShowPage() {
       <DashboardAnimate delay={100}>
         <div className="grid gap-6 lg:grid-cols-3">
           <Card className="lg:col-span-2">
-            <CardHeader title="Informations" description="Détail de l'activité" />
+            <CardHeader title="Informations" description="Détail complet de l'activité" />
             <CardBody className="space-y-4">
               {item.description ? (
                 <p className="text-sm leading-relaxed text-slate-600">{item.description}</p>
@@ -152,10 +109,17 @@ export default function ActivityShowPage() {
                 <DetailItem icon={CalendarDays} label="Fin" value={formatDateTime(item.ends_at)} />
                 <DetailItem icon={MapPin} label="Lieu" value={item.location ?? "—"} />
                 <DetailItem icon={Building2} label="Structure" value={item.structure?.name ?? "—"} />
-                <DetailItem icon={MapPin} label="Province" value={item.province?.name ?? "—"} />
-                <DetailItem icon={User} label="Responsable" value={item.organizer?.name ?? "—"} />
+                <DetailItem
+                  icon={MapPin}
+                  label="Territoire"
+                  value={[item.province?.name, item.city?.name, item.commune?.name, item.quartier?.name, item.avenue?.name]
+                    .filter(Boolean)
+                    .join(" › ") || "—"}
+                />
+                <DetailItem icon={User} label="Organisateur" value={item.organizer?.name ?? "—"} />
                 <DetailItem icon={Globe} label="Visibilité" value={item.is_public ? "Visible des membres" : "Interne"} />
-                <div className="rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2.5">
+                <DetailItem icon={Users} label="Capacité" value={item.capacity ? String(item.capacity) : "—"} />
+                <div className="rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2.5 sm:col-span-2">
                   <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Statut</dt>
                   <dd className="mt-1">
                     <ActivityStatusBadge status={item.status} label={item.status_label} />
@@ -165,86 +129,15 @@ export default function ActivityShowPage() {
             </CardBody>
           </Card>
 
-          {item.image_url && (
-            <Card>
-              <CardHeader title="Image" description="Couverture de l'activité" />
-              <CardBody className="p-0">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={item.image_url} alt="" className="max-h-80 w-full object-cover" />
-              </CardBody>
-            </Card>
-          )}
+          <ActivityLiveLocationPanel
+            activity={item}
+            canManage={can(PERMISSIONS.activitiesManage)}
+            onUpdated={() => activity.reload()}
+          />
         </div>
       </DashboardAnimate>
 
-      <Can permission={PERMISSIONS.attendanceRecord}>
-        <DashboardAnimate delay={140}>
-          <Card>
-            <CardHeader
-              title="Pointer une présence"
-              description="Scan QR, identifiant membre, ou empreinte digitale."
-            />
-            <CardBody className="space-y-4">
-              <Button
-                type="button"
-                size="lg"
-                className="w-full"
-                onClick={() => setBiometricOpen(true)}
-                disabled={busy}
-              >
-                <Fingerprint className="h-4 w-4" />
-                Identifier un membre
-              </Button>
-              <QrScannerPanel onScan={handleScan} loading={busy} />
-            </CardBody>
-          </Card>
-        </DashboardAnimate>
-      </Can>
-
-      <BiometricModal
-        open={biometricOpen}
-        onClose={() => setBiometricOpen(false)}
-        context="ATTENDANCE"
-        activityId={Number(params.id)}
-        onSuccess={handleBiometricAttendance}
-      />
-
-      <DashboardAnimate delay={180}>
-        <Card>
-          <CardHeader
-            title="Feuille de présence"
-            description={
-              summary
-                ? `${formatNumber(summary.present)} présents · ${formatNumber(summary.absent)} absents · ${formatNumber(summary.not_recorded)} non pointés`
-                : "Liste des participants"
-            }
-          />
-          <CardBody className="p-0">
-            {!sheet.data?.rows.length && <EmptyState title="Aucun participant inscrit" />}
-            <ul className="divide-y divide-slate-100">
-              {sheet.data?.rows.map((row) => (
-                <li key={row.member_id} className="flex items-center justify-between gap-3 px-5 py-3">
-                  <div className="flex items-center gap-3">
-                    <Avatar src={row.photo_url} name={row.full_name} size="sm" />
-                    <div>
-                      <p className="text-sm font-medium">{row.full_name}</p>
-                      <p className="font-mono text-[11px] text-slate-400">{row.member_code}</p>
-                      {row.structure && <p className="text-[11px] text-slate-500">{row.structure}</p>}
-                    </div>
-                  </div>
-                  {row.status ? (
-                    <AttendanceStatusBadge status={row.status} label={row.status_label} />
-                  ) : (
-                    <span className="text-xs text-slate-400">Non pointé</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </CardBody>
-        </Card>
-      </DashboardAnimate>
-
-      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Modifier l'activité" size="lg">
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Modifier l'activité" size="xl">
         <ActivityForm
           key={item.id}
           initial={item}
@@ -253,6 +146,7 @@ export default function ActivityShowPage() {
             toast.success(message);
             setEditOpen(false);
             activity.reload();
+            sheet.reload();
             if (updated.id !== item.id) router.replace(`/activites/${updated.id}`);
           }}
         />

@@ -12,6 +12,8 @@ import {
   LayoutDashboard,
   LayoutGrid,
   Map,
+  MessageSquare,
+  Newspaper,
   ScanLine,
   Settings,
   ShieldCheck,
@@ -49,7 +51,8 @@ export const NAV_SECTIONS: NavSection[] = [
         permissions: [PERMISSIONS.statisticsView],
         children: [
           { href: "/statistiques", label: "Analyses", icon: BarChart3, exact: true },
-          { href: "/statistiques/rapports", label: "Rapports", icon: CheckSquare, permissions: [PERMISSIONS.statisticsView] },
+          { href: "/rapports", label: "Rapports & Analyses", icon: CheckSquare, permissions: [PERMISSIONS.statisticsView] },
+          { href: "/statistiques/rapports", label: "Exports PDF", icon: CheckSquare, permissions: [PERMISSIONS.statisticsView] },
         ],
       },
       { href: "/cartographie", label: "Cartographie", icon: Map, permissions: [PERMISSIONS.mapView] },
@@ -113,6 +116,9 @@ export const NAV_SECTIONS: NavSection[] = [
         permissions: [PERMISSIONS.attendanceView],
       },
       { href: "/notifications", label: "Notifications", icon: Bell },
+      { href: "/actualites", label: "JP Actualités", icon: Newspaper },
+      { href: "/jp-message", label: "JP Message", icon: MessageSquare, requiresMember: true },
+      { href: "/jp-message/gestion", label: "JP Message (admin)", icon: MessageSquare, permissions: [PERMISSIONS.usersView] },
     ],
   },
   {

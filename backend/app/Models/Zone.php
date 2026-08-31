@@ -39,4 +39,9 @@ class Zone extends Model
     {
         return $this->hasMany(Structure::class);
     }
+
+    public function avenues(): HasMany
+    {
+        return $this->hasMany(Avenue::class);
+    }
 }

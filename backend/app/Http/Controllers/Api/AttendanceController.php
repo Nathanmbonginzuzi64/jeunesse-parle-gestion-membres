@@ -16,6 +16,7 @@ use App\Services\VerificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AttendanceController extends Controller
 {
@@ -78,7 +79,15 @@ class AttendanceController extends Controller
         $this->audit->log(
             'attendance.recorded',
             $attendance,
-            "{$member->member_code} — {$status->label()} ({$method}) sur {$activity->code}",
+            "Validation présence — {$member->member_code} — {$status->label()} ({$method}) — {$activity->code}",
+            [],
+            [
+                'member_id' => $member->id,
+                'member_code' => $member->member_code,
+                'activity_id' => $activity->id,
+                'method' => $method,
+                'recorded_by' => $request->user()->name,
+            ],
         );
 
         $this->notifications->attendanceRecorded($member, $activity, $status->label());
@@ -123,27 +132,78 @@ class AttendanceController extends Controller
     {
         $this->authorize('viewAttendance', $activity);
 
-        $attendances = $activity->attendances()->get()->keyBy('member_id');
+        $activity->loadMissing('organizer');
 
-        $rows = $activity->members()
-            ->with(['structure:id,name'])
-            ->orderBy('last_name')
-            ->get()
-            ->map(function (Member $member) use ($attendances) {
-                $attendance = $attendances->get($member->id);
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:120'],
+            'status' => ['nullable', 'string', 'in:present,absent,late,excused,not_recorded'],
+            'method' => ['nullable', 'string', 'max:30'],
+            'per_page' => ['nullable', 'integer', 'min:10', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
 
-                return [
-                    'member_id' => $member->id,
-                    'member_code' => $member->member_code,
-                    'full_name' => $member->full_name,
-                    'structure' => $member->structure?->name,
-                    'photo_url' => $member->photo_path ? route('media.member-photo', ['member' => $member->member_code]) : null,
-                    'status' => $attendance?->status->value,
-                    'status_label' => $attendance?->status->label(),
-                    'method' => $attendance?->method,
-                    'recorded_at' => $attendance?->recorded_at?->toIso8601String(),
-                ];
+        $perPage = min((int) ($filters['per_page'] ?? 25), 100);
+
+        $attendances = $activity->attendances()->with('recorder:id,name')->get()->keyBy('member_id');
+
+        $query = $activity->members()
+            ->with(['structure:id,name', 'province:id,name', 'commune:id,name', 'activeCard'])
+            ->orderBy('last_name');
+
+        if ($filters['q'] ?? null) {
+            $q = $filters['q'];
+            $query->where(function ($builder) use ($q) {
+                $builder->where('member_code', 'like', "%{$q}%")
+                    ->orWhere('last_name', 'like', "%{$q}%")
+                    ->orWhere('first_name', 'like', "%{$q}%");
             });
+        }
+
+        $members = $query->get();
+
+        $rows = $members->map(function (Member $member) use ($attendances) {
+            $attendance = $attendances->get($member->id);
+
+            return [
+                'member_id' => $member->id,
+                'member_code' => $member->member_code,
+                'full_name' => $member->full_name,
+                'structure' => $member->structure?->name,
+                'province' => $member->province?->name,
+                'commune' => $member->commune?->name,
+                'member_status' => $member->status->value,
+                'member_status_label' => $member->status->label(),
+                'card_valid' => $member->activeCard?->status->value === 'active',
+                'photo_url' => $member->photo_path ? route('media.member-photo', ['member' => $member->member_code]) : null,
+                'status' => $attendance?->status->value,
+                'status_label' => $attendance?->status->label(),
+                'method' => $attendance?->method,
+                'recorded_at' => $attendance?->recorded_at?->toIso8601String(),
+                'recorded_by' => $attendance?->recorder?->name,
+            ];
+        });
+
+        if ($filters['status'] ?? null) {
+            if ($filters['status'] === 'not_recorded') {
+                $rows = $rows->filter(fn ($row) => $row['status'] === null);
+            } else {
+                $rows = $rows->filter(fn ($row) => $row['status'] === $filters['status']);
+            }
+        }
+
+        if ($filters['method'] ?? null) {
+            $rows = $rows->filter(fn ($row) => $row['method'] === $filters['method']);
+        }
+
+        $total = $rows->count();
+        $page = max(1, (int) ($filters['page'] ?? 1));
+        $paginated = $rows->slice(($page - 1) * $perPage, $perPage)->values();
+
+        $allRows = $members->map(function (Member $member) use ($attendances) {
+            $attendance = $attendances->get($member->id);
+
+            return ['status' => $attendance?->status->value];
+        });
 
         return response()->json([
             'activity' => [
@@ -151,17 +211,63 @@ class AttendanceController extends Controller
                 'code' => $activity->code,
                 'title' => $activity->title,
                 'starts_at' => $activity->starts_at?->toIso8601String(),
+                'location' => $activity->location,
+                'image_url' => $activity->image_path
+                    ? route('media.activity-image', ['activity' => $activity->code])
+                    : null,
+                'organizer' => $activity->organizer?->name,
             ],
             'summary' => [
-                'expected' => $rows->count(),
-                'present' => $rows->where('status', 'present')->count(),
-                'late' => $rows->where('status', 'late')->count(),
-                'excused' => $rows->where('status', 'excused')->count(),
-                'absent' => $rows->where('status', 'absent')->count(),
-                'not_recorded' => $rows->whereNull('status')->count(),
+                'expected' => $allRows->count(),
+                'present' => $allRows->where('status', 'present')->count(),
+                'late' => $allRows->where('status', 'late')->count(),
+                'excused' => $allRows->where('status', 'excused')->count(),
+                'absent' => $allRows->where('status', 'absent')->count(),
+                'not_recorded' => $allRows->whereNull('status')->count(),
             ],
-            'rows' => $rows->values(),
+            'rows' => $paginated,
+            'meta' => [
+                'current_page' => $page,
+                'last_page' => max(1, (int) ceil($total / $perPage)),
+                'per_page' => $perPage,
+                'total' => $total,
+            ],
         ]);
+    }
+
+    /** Export CSV de la feuille de présence. */
+    public function exportSheet(Request $request, Activity $activity): StreamedResponse
+    {
+        $this->authorize('viewAttendance', $activity);
+
+        $this->audit->log('attendance.exported', $activity, "Export feuille — {$activity->code}");
+
+        $filename = 'presence-'.$activity->code.'-'.now()->format('Ymd-His').'.csv';
+
+        return response()->streamDownload(function () use ($activity) {
+            $handle = fopen('php://output', 'wb');
+            fwrite($handle, "\xEF\xBB\xBF");
+            fputcsv($handle, ['ID membre', 'Nom', 'Structure', 'Statut', 'Méthode', 'Enregistré le', 'Par'], ';');
+
+            $attendances = $activity->attendances()->with('recorder:id,name')->get()->keyBy('member_id');
+
+            $activity->members()->with('structure:id,name')->orderBy('last_name')->chunk(500, function ($members) use ($handle, $attendances) {
+                foreach ($members as $member) {
+                    $attendance = $attendances->get($member->id);
+                    fputcsv($handle, [
+                        $member->member_code,
+                        $member->full_name,
+                        $member->structure?->name,
+                        $attendance?->status?->label() ?? 'Non pointé',
+                        $attendance?->method,
+                        $attendance?->recorded_at?->format('d/m/Y H:i'),
+                        $attendance?->recorder?->name,
+                    ], ';');
+                }
+            });
+
+            fclose($handle);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 
     private function resolveMember(array $validated, Request $request, Activity $activity): Member|JsonResponse

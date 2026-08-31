@@ -17,8 +17,10 @@ class Activity extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'code', 'title', 'description', 'type', 'starts_at', 'ends_at', 'location',
-        'province_id', 'city_id', 'commune_id', 'structure_id',
+        'code', 'title', 'description', 'type', 'starts_at', 'ends_at', 'location', 'image_path',
+        'province_id', 'city_id', 'commune_id', 'zone_id', 'avenue_id', 'structure_id',
+        'latitude', 'longitude',
+        'live_location_active', 'live_latitude', 'live_longitude', 'live_updated_at', 'live_shared_by',
         'organizer_id', 'status', 'capacity', 'is_public',
     ];
 
@@ -31,6 +33,12 @@ class Activity extends Model
             'ends_at' => 'datetime',
             'is_public' => 'boolean',
             'capacity' => 'integer',
+            'latitude' => 'float',
+            'longitude' => 'float',
+            'live_location_active' => 'boolean',
+            'live_latitude' => 'float',
+            'live_longitude' => 'float',
+            'live_updated_at' => 'datetime',
         ];
     }
 
@@ -47,6 +55,21 @@ class Activity extends Model
     public function commune(): BelongsTo
     {
         return $this->belongsTo(Commune::class);
+    }
+
+    public function zone(): BelongsTo
+    {
+        return $this->belongsTo(Zone::class);
+    }
+
+    public function avenue(): BelongsTo
+    {
+        return $this->belongsTo(Avenue::class);
+    }
+
+    public function liveSharer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'live_shared_by');
     }
 
     public function structure(): BelongsTo

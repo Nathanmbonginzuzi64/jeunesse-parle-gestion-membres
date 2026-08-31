@@ -10,11 +10,14 @@ use App\Http\Controllers\Api\MapController;
 use App\Http\Controllers\Api\MediaController;
 use App\Http\Controllers\Api\MemberCardController;
 use App\Http\Controllers\Api\MemberController;
-use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\JpMessageController;
+use App\Http\Controllers\Api\NewsController;
 use App\Http\Controllers\Api\ReferenceController;
+use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\StatisticsController;
 use App\Http\Controllers\Api\StructureController;
 use App\Http\Controllers\Api\TerritoryController;
+use App\Http\Controllers\Api\TerritoryManagementController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\VerificationController;
 use Illuminate\Support\Facades\Route;
@@ -58,8 +61,11 @@ Route::get('references', [ReferenceController::class, 'index']);
 Route::prefix('territories')->group(function () {
     Route::get('provinces', [TerritoryController::class, 'provinces']);
     Route::get('cities', [TerritoryController::class, 'cities']);
+    Route::get('districts', [TerritoryController::class, 'districts']);
     Route::get('communes', [TerritoryController::class, 'communes']);
     Route::get('zones', [TerritoryController::class, 'zones']);
+    Route::get('quartiers', [TerritoryController::class, 'quartiers']);
+    Route::get('avenues', [TerritoryController::class, 'avenues']);
     Route::get('structures', [TerritoryController::class, 'structures']);
 });
 
@@ -133,21 +139,54 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
     // ------------------------------------------------------------ Structures
     Route::get('territories/tree', [TerritoryController::class, 'tree'])
         ->middleware('permission:structures.view');
+    Route::middleware('permission:territories.manage')->prefix('territories')->group(function () {
+        Route::post('provinces', [TerritoryManagementController::class, 'storeProvince']);
+        Route::post('cities', [TerritoryManagementController::class, 'storeCity']);
+        Route::post('districts', [TerritoryManagementController::class, 'storeDistrict']);
+        Route::post('communes', [TerritoryManagementController::class, 'storeCommune']);
+        Route::post('quartiers', [TerritoryManagementController::class, 'storeQuartier']);
+        Route::post('zones', [TerritoryManagementController::class, 'storeQuartier']);
+        Route::post('avenues', [TerritoryManagementController::class, 'storeAvenue']);
+    });
     Route::post('structures/{structure}/disable', [StructureController::class, 'disable']);
     Route::apiResource('structures', StructureController::class);
 
     // ------------------------------------------------------------ Activités & présences
     Route::apiResource('activities', ActivityController::class);
+    Route::post('activities/{activity}', [ActivityController::class, 'update']); // multipart + _method
 
     Route::prefix('activities/{activity}')->group(function () {
         Route::get('participants', [ActivityController::class, 'participants']);
         Route::post('participants', [ActivityController::class, 'addParticipants']);
         Route::delete('participants/{member}', [ActivityController::class, 'removeParticipant']);
 
+        Route::get('live-location', [ActivityController::class, 'liveLocation']);
+        Route::post('live-location/start', [ActivityController::class, 'startLiveLocation']);
+        Route::post('live-location/update', [ActivityController::class, 'updateLiveLocation']);
+        Route::post('live-location/stop', [ActivityController::class, 'stopLiveLocation']);
+
         Route::get('attendance', [AttendanceController::class, 'index']);
         Route::get('attendance/sheet', [AttendanceController::class, 'sheet']);
+        Route::get('attendance/sheet/export', [AttendanceController::class, 'exportSheet']);
         Route::post('attendance', [AttendanceController::class, 'store']);
         Route::patch('attendance/{attendance}', [AttendanceController::class, 'update']);
+    });
+
+    Route::prefix('news')->group(function () {
+        Route::get('/', [NewsController::class, 'index']);
+        Route::get('stats', [NewsController::class, 'stats']);
+        Route::get('{newsPost}', [NewsController::class, 'show']);
+        Route::post('/', [NewsController::class, 'store']);
+        Route::post('{newsPost}/react', [NewsController::class, 'react']);
+        Route::post('{newsPost}/comments', [NewsController::class, 'comment']);
+        Route::post('{newsPost}/share', [NewsController::class, 'share']);
+    });
+
+    Route::prefix('jp-messages')->group(function () {
+        Route::get('/', [JpMessageController::class, 'index']);
+        Route::post('/', [JpMessageController::class, 'store']);
+        Route::get('{jpMessage}', [JpMessageController::class, 'show']);
+        Route::post('{jpMessage}/replies', [JpMessageController::class, 'reply']);
     });
 
     // ------------------------------------------------------------ Pilotage
@@ -157,6 +196,20 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
         Route::get('by-province', [StatisticsController::class, 'byProvince']);
         Route::get('by-city', [StatisticsController::class, 'byCity']);
         Route::get('by-commune', [StatisticsController::class, 'byCommune']);
+    });
+
+    Route::prefix('reports')->middleware('permission:statistics.view')->group(function () {
+        Route::get('/', [ReportController::class, 'hub']);
+        Route::get('members', [ReportController::class, 'members']);
+        Route::get('members/export', [ReportController::class, 'exportMembers']);
+        Route::get('members/{member}', [ReportController::class, 'memberProfile']);
+        Route::get('members/{member}/attendance', [ReportController::class, 'attendanceByMember']);
+        Route::get('activities', [ReportController::class, 'activities']);
+        Route::get('activities/{activity}', [ReportController::class, 'activityDetail']);
+        Route::get('cards', [ReportController::class, 'cards']);
+        Route::get('attendance', [ReportController::class, 'attendance']);
+        Route::get('users', [ReportController::class, 'users']);
+        Route::get('roles', [ReportController::class, 'roles']);
     });
 
     Route::prefix('map')->middleware('permission:map.view')->group(function () {
@@ -185,4 +238,6 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
     // ------------------------------------------------------------ Médias protégés
     Route::get('media/members/{member}/photo', [MediaController::class, 'memberPhoto'])
         ->name('media.member-photo');
+    Route::get('media/activities/{activity}/image', [MediaController::class, 'activityImage'])
+        ->name('media.activity-image');
 });

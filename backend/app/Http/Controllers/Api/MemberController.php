@@ -85,7 +85,7 @@ class MemberController extends Controller
         $this->authorize('view', $member);
 
         $member->load([
-            'province', 'city', 'commune', 'zone', 'structure',
+            'province', 'city', 'commune', 'zone', 'avenue', 'structure',
             'supervisor:id,member_code,last_name,first_name',
             'validator:id,name', 'registrar:id,name',
             'cards', 'activeCard',

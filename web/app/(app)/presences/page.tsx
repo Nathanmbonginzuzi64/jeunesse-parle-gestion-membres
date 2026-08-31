@@ -187,7 +187,7 @@ function AttendanceHub() {
                         </Td>
                         <Td>
                           <Link
-                            href={`/activites/${activity.id}`}
+                            href={`/presences/${activity.id}`}
                             className="text-sm font-medium text-brand-700 hover:underline"
                           >
                             Feuille
@@ -238,9 +238,9 @@ function AttendanceHub() {
                         </p>
                       </div>
                       <div className="mt-4 border-t border-slate-100 pt-3">
-                        <Link href={`/activites/${activity.id}`}>
+                        <Link href={`/presences/${activity.id}`}>
                           <Button variant="outline" size="sm" className="w-full">
-                            Ouvrir la feuille
+                            Gérer les présences
                           </Button>
                         </Link>
                       </div>

@@ -16,6 +16,7 @@ class AuditLogController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:120'],
             'action' => ['nullable', 'string', 'max:60'],
             'user_id' => ['nullable', 'integer'],
             'subject_type' => ['nullable', 'string', 'max:120'],
@@ -26,6 +27,14 @@ class AuditLogController extends Controller
 
         $logs = AuditLog::query()
             ->with('user:id,name')
+            ->when($filters['q'] ?? null, function (Builder $q, string $v) {
+                $q->where(function (Builder $inner) use ($v) {
+                    $inner->where('action', 'like', '%'.$v.'%')
+                        ->orWhere('description', 'like', '%'.$v.'%')
+                        ->orWhere('ip_address', 'like', '%'.$v.'%')
+                        ->orWhereHas('user', fn (Builder $u) => $u->where('name', 'like', '%'.$v.'%'));
+                });
+            })
             ->when($filters['action'] ?? null, fn (Builder $q, $v) => $q->where('action', 'like', $v.'%'))
             ->when($filters['user_id'] ?? null, fn (Builder $q, $v) => $q->where('user_id', $v))
             ->when($filters['subject_type'] ?? null, fn (Builder $q, $v) => $q->where('auditable_type', 'like', '%'.$v))

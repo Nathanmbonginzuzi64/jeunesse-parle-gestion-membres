@@ -8,7 +8,7 @@ import { BiometricEnrollmentField } from "@/components/members/biometric-enrollm
 import { Alert } from "@/components/ui/feedback";
 import { Button } from "@/components/ui/button";
 import { Checkbox, Input, Select, Textarea } from "@/components/ui/field";
-import { usePublicStructures, useReferences } from "@/lib/hooks";
+import { usePublicStructures, useReferences, useTerritories } from "@/lib/hooks";
 import { Stepper } from "@/components/ui/stepper";
 import { PasswordStrength } from "@/components/ui/password-strength";
 import { hasWebAuthnEnrollment, type WebAuthnEnrollmentPayload } from "@/lib/biometrics/types";
@@ -48,6 +48,8 @@ export interface MemberFormValues {
   phone_alt: string;
   email: string;
   address: string;
+  house_number: string;
+  avenue_id: number | null;
   password: string;
   password_confirmation: string;
   province_id: number | null;
@@ -89,6 +91,8 @@ export const EMPTY_MEMBER_FORM: MemberFormValues = {
   phone_alt: "",
   email: "",
   address: "",
+  house_number: "",
+  avenue_id: null as number | null,
   password: "",
   password_confirmation: "",
   province_id: null,
@@ -127,6 +131,8 @@ export function toMemberPayload(values: MemberFormValues, mode: MemberFormMode):
     phone: values.phone.trim(),
     email: values.email.trim() || null,
     address: values.address.trim() || null,
+    house_number: values.house_number.trim() || null,
+    avenue_id: values.avenue_id,
     province_id: values.province_id,
     city_id: values.city_id,
     district_id: values.district_id,
@@ -182,6 +188,8 @@ export function valuesFromMember(member: Member): MemberFormValues {
     phone_alt: member.phone_alt ?? "",
     email: member.email ?? "",
     address: member.address ?? "",
+    house_number: member.house_number ?? "",
+    avenue_id: member.avenue?.id ?? null,
     province_id: member.province?.id ?? null,
     city_id: member.city?.id ?? null,
     district_id: member.district?.id ?? null,
@@ -437,8 +445,21 @@ export function MemberForm({
               commune_id: values.commune_id,
               zone_id: values.zone_id,
             }}
-            onChange={(territory) => patch({ ...territory, structure_id: null })}
+            onChange={(territory) => patch({ ...territory, structure_id: null, avenue_id: null })}
             errors={errors}
+          />
+          <MemberAvenueField
+            zoneId={values.zone_id}
+            value={values.avenue_id}
+            onChange={(avenue_id) => patch({ avenue_id })}
+            error={errors.avenue_id}
+          />
+          <Input
+            label="Numéro d'habitation"
+            value={values.house_number}
+            onChange={(event) => patch({ house_number: event.target.value })}
+            error={errors.house_number}
+            placeholder="Ex. 12, parcelle B"
           />
           <Select
             label="Structure"
@@ -765,5 +786,31 @@ export function MemberForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+function MemberAvenueField({
+  zoneId,
+  value,
+  onChange,
+  error,
+}: {
+  zoneId: number | null;
+  value: number | null;
+  onChange: (id: number | null) => void;
+  error?: string;
+}) {
+  const { avenues } = useTerritories(null, null, null, null, zoneId);
+
+  return (
+    <Select
+      label="Avenue"
+      placeholder={zoneId ? "Sélectionner" : "Choisir d'abord le quartier"}
+      disabled={!zoneId}
+      value={value ?? ""}
+      onChange={(event) => onChange(event.target.value ? Number(event.target.value) : null)}
+      options={avenues.map((avenue) => ({ value: avenue.id, label: avenue.name }))}
+      error={error}
+    />
   );
 }

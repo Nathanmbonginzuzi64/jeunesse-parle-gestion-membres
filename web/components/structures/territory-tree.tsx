@@ -9,9 +9,19 @@ import { cn, formatNumber } from "@/lib/utils";
 import type { Structure } from "@/lib/types";
 import { useState } from "react";
 
+interface TreeAvenue {
+  id: number;
+  name: string;
+  number?: string | null;
+  direction?: string | null;
+  reference_stop?: string | null;
+  structures?: Structure[];
+}
+
 interface TreeQuartier {
   id: number;
   name: string;
+  avenues?: TreeAvenue[];
   structures?: Structure[];
 }
 
@@ -54,6 +64,9 @@ function countStructures(province: TreeProvince): number {
         count += commune.structures?.length ?? 0;
         for (const quartier of commune.quartiers ?? []) {
           count += quartier.structures?.length ?? 0;
+          for (const avenue of quartier.avenues ?? []) {
+            count += avenue.structures?.length ?? 0;
+          }
         }
       }
     }
@@ -72,11 +85,13 @@ export function TerritoryTree({
   const [openCities, setOpenCities] = useState<Record<number, boolean>>({});
   const [openDistricts, setOpenDistricts] = useState<Record<number, boolean>>({});
   const [openCommunes, setOpenCommunes] = useState<Record<number, boolean>>({});
+  const [openQuartiers, setOpenQuartiers] = useState<Record<number, boolean>>({});
+  const [openAvenues, setOpenAvenues] = useState<Record<number, boolean>>({});
 
   return (
     <ul className="space-y-3">
       {data.map((province) => {
-        const provinceOpen = openProvinces[province.id] ?? true;
+        const provinceOpen = openProvinces[province.id] ?? false;
         const cityCount = province.cities?.length ?? 0;
         const structureCount = countStructures(province);
 
@@ -132,7 +147,7 @@ export function TerritoryTree({
                                   onClick={() => setOpenDistricts((c) => ({ ...c, [district.id]: !districtOpen }))}
                                 >
                                   {districtOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                                  District {district.name}
+                                  {district.name}
                                 </button>
                                 {districtOpen && (
                                   <div className="ml-4 space-y-1 border-l border-slate-200 pl-2">
@@ -150,14 +165,57 @@ export function TerritoryTree({
                                           </button>
                                           {communeOpen && (
                                             <div className="ml-3 space-y-1 border-l border-slate-100 pl-2">
-                                              {(commune.quartiers ?? []).map((quartier) => (
-                                                <div key={quartier.id} className="py-0.5">
-                                                  <p className="text-[11px] font-medium text-slate-500">Quartier {quartier.name}</p>
-                                                  {(quartier.structures ?? []).map((structure) => (
-                                                    <TreeStructure key={structure.id} structure={structure} onSelect={onSelectStructure} />
-                                                  ))}
-                                                </div>
-                                              ))}
+                                              {(commune.quartiers ?? []).map((quartier) => {
+                                                const quartierOpen = openQuartiers[quartier.id] ?? false;
+                                                return (
+                                                  <div key={quartier.id}>
+                                                    <button
+                                                      type="button"
+                                                      className="flex w-full items-center gap-2 py-0.5 text-left text-xs text-slate-600 hover:text-brand-700"
+                                                      onClick={() => setOpenQuartiers((c) => ({ ...c, [quartier.id]: !quartierOpen }))}
+                                                    >
+                                                      {quartierOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                                      Quartier {quartier.name}
+                                                    </button>
+                                                    {quartierOpen && (
+                                                      <div className="ml-3 space-y-1 border-l border-slate-100 pl-2">
+                                                        {(quartier.avenues ?? []).map((avenue) => {
+                                                          const avenueOpen = openAvenues[avenue.id] ?? false;
+                                                          const avenueMeta = [
+                                                            avenue.number ? `N° ${avenue.number}` : null,
+                                                            avenue.direction ? formatDirection(avenue.direction) : null,
+                                                            avenue.reference_stop ? `Réf. ${avenue.reference_stop}` : null,
+                                                          ].filter(Boolean).join(" · ");
+
+                                                          return (
+                                                            <div key={avenue.id}>
+                                                              <button
+                                                                type="button"
+                                                                className="flex w-full items-center gap-2 py-0.5 text-left text-[11px] font-medium text-slate-500 hover:text-brand-700"
+                                                                onClick={() => setOpenAvenues((c) => ({ ...c, [avenue.id]: !avenueOpen }))}
+                                                              >
+                                                                {avenueOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                                                <span>
+                                                                  {avenue.name}
+                                                                  {avenueMeta && (
+                                                                    <span className="ml-1 font-normal text-slate-400">({avenueMeta})</span>
+                                                                  )}
+                                                                </span>
+                                                              </button>
+                                                              {avenueOpen && (avenue.structures ?? []).map((structure) => (
+                                                                <TreeStructure key={structure.id} structure={structure} onSelect={onSelectStructure} />
+                                                              ))}
+                                                            </div>
+                                                          );
+                                                        })}
+                                                        {(quartier.structures ?? []).map((structure) => (
+                                                          <TreeStructure key={structure.id} structure={structure} onSelect={onSelectStructure} />
+                                                        ))}
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                );
+                                              })}
                                               {(commune.structures ?? []).map((structure) => (
                                                 <TreeStructure key={structure.id} structure={structure} onSelect={onSelectStructure} />
                                               ))}
@@ -192,6 +250,21 @@ export function TerritoryTree({
       })}
     </ul>
   );
+}
+
+function formatDirection(value: string): string {
+  const labels: Record<string, string> = {
+    nord: "Nord",
+    sud: "Sud",
+    est: "Est",
+    ouest: "Ouest",
+    "nord-est": "Nord-Est",
+    "nord-ouest": "Nord-Ouest",
+    "sud-est": "Sud-Est",
+    "sud-ouest": "Sud-Ouest",
+    centre: "Centre",
+  };
+  return labels[value] ?? value;
 }
 
 function TreeStructure({

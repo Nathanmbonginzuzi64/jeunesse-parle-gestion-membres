@@ -12,10 +12,12 @@ import {
   MapPin,
   Pencil,
   Plus,
+  Search,
   Table2,
   Trash2,
   Users,
 } from "lucide-react";
+import { ActivityCoverImage } from "@/components/activities/activity-cover-image";
 import { ActivitiesHero } from "@/components/activities/activities-hero";
 import { ActivityForm } from "@/components/activities/activity-form";
 import { Can, RequirePermission } from "@/components/auth/require-permission";
@@ -186,25 +188,28 @@ function ActivitiesList() {
                 : "Recherche et filtres"
             }
           />
-          <div className="flex flex-wrap gap-3 border-b border-slate-100 px-4 pb-4">
-            <Input
-              placeholder="Rechercher une activité…"
-              value={q}
-              onChange={(event) => {
-                setQ(event.target.value);
-                setPage(1);
-              }}
-              wrapperClassName="min-w-[12rem] flex-1"
-            />
+          <div className="flex flex-wrap gap-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-4 py-4">
+            <div className="relative min-w-[12rem] flex-1">
+              <Search className="pointer-events-none absolute top-2.5 left-3 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Rechercher une activité, un code…"
+                value={q}
+                onChange={(event) => {
+                  setQ(event.target.value);
+                  setPage(1);
+                }}
+                className="pl-9"
+              />
+            </div>
             <Select
-              placeholder="Type"
+              placeholder="Tous les types"
               value={type}
               onChange={(event) => {
                 setType(event.target.value);
                 setPage(1);
               }}
               options={references?.activity_types ?? []}
-              wrapperClassName="w-44"
+              wrapperClassName="w-48"
             />
           </div>
           <CardBody className="p-0">
@@ -239,18 +244,12 @@ function ActivitiesList() {
                       <Tr key={activity.id}>
                     <Td>
                       <div className="flex items-center gap-3">
-                        {activity.image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={activity.image_url}
-                            alt=""
-                            className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
-                          />
-                        ) : (
-                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-400 ring-1 ring-brand-100">
-                            <CalendarDays className="h-4 w-4" />
-                          </span>
-                        )}
+                        <ActivityCoverImage
+                          url={activity.image_url}
+                          className="h-12 w-12 shrink-0 rounded-xl ring-1 ring-slate-200"
+                          iconClassName="h-5 w-5"
+                          placeholderClassName="h-12 w-12 shrink-0 rounded-xl"
+                        />
                         <div>
                           <Link href={`/activites/${activity.id}`} className="font-medium hover:text-brand-700">
                             {activity.title}
@@ -341,12 +340,14 @@ function ActivitiesList() {
         open={open}
         onClose={() => setOpen(false)}
         title={editing ? "Modifier l'activité" : "Nouvelle activité"}
-        size="lg"
+        description={editing ? "Mettez à jour les informations et la photo de couverture." : "Créez un événement avec photo, lieu et périmètre territorial."}
+        size="xl"
       >
         <ActivityForm
           key={editing?.id ?? "new"}
           initial={editing}
           submitLabel={editing ? "Enregistrer" : "Créer l'activité"}
+          onCancel={() => setOpen(false)}
           onSaved={(_, message) => {
             toast.success(message);
             setOpen(false);
@@ -379,53 +380,69 @@ function ActivityCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const expected = activity.participants_count ?? 0;
+  const present = activity.attendances_count ?? 0;
+  const rate = expected > 0 ? Math.round((present / expected) * 100) : 0;
+
   return (
     <article className="group overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[var(--shadow-card)] transition hover:border-brand-300 hover:shadow-[var(--shadow-elevated)]">
       <Link href={`/activites/${activity.id}`} className="block">
-        <div className="relative h-36 overflow-hidden bg-slate-100">
-          {activity.image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={activity.image_url}
-              alt=""
-              className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center bg-gradient-to-br from-brand-100 to-brand-50">
-              <CalendarDays className="h-10 w-10 text-brand-300" />
-            </div>
-          )}
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-3 pb-2 pt-8">
+        <div className="relative h-44 overflow-hidden bg-slate-100">
+          <ActivityCoverImage
+            url={activity.image_url}
+            className="h-full w-full transition duration-500 group-hover:scale-105"
+            iconClassName="h-12 w-12"
+            placeholderClassName="h-full w-full"
+          />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
+          <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3">
+            <span className="rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-brand-700 shadow-sm">
+              {activity.type_label}
+            </span>
             <ActivityStatusBadge status={activity.status} label={activity.status_label} />
+          </div>
+          <div className="absolute inset-x-0 bottom-0 p-4">
+            <h3 className="line-clamp-2 text-base font-semibold text-white">{activity.title}</h3>
+            <p className="mt-0.5 font-mono text-[11px] text-white/80">{activity.code}</p>
           </div>
         </div>
       </Link>
       <div className="p-4">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{activity.type_label}</p>
-        <Link href={`/activites/${activity.id}`} className="mt-0.5 block truncate font-semibold text-slate-900 hover:text-brand-700">
-          {activity.title}
-        </Link>
-        <p className="font-mono text-[11px] text-brand-700">{activity.code}</p>
-        <div className="mt-3 space-y-1.5 text-xs text-slate-500">
+        <div className="space-y-2 text-xs text-slate-600">
           <p className="flex items-center gap-1.5">
-            <Clock3 className="h-3.5 w-3.5 text-brand-500" />
+            <Clock3 className="h-3.5 w-3.5 shrink-0 text-brand-500" />
             {formatDateTime(activity.starts_at)}
           </p>
           {activity.location && (
             <p className="flex items-center gap-1.5">
-              <MapPin className="h-3.5 w-3.5 text-brand-500" />
-              {activity.location}
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-brand-500" />
+              <span className="truncate">{activity.location}</span>
             </p>
           )}
-          <p className="flex items-center gap-1.5">
-            <Users className="h-3.5 w-3.5 text-brand-500" />
-            {activity.attendances_count ?? 0}/{activity.participants_count ?? 0} présents
-          </p>
+          <div>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <p className="flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 text-brand-500" />
+                Présences
+              </p>
+              <span className="font-medium tabular-nums text-slate-700">
+                {present}/{expected}
+                {expected > 0 && <span className="text-slate-400"> · {rate}%</span>}
+              </span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-brand-500 to-emerald-500 transition-all"
+                style={{ width: `${expected > 0 ? rate : 0}%` }}
+              />
+            </div>
+          </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
           <Link href={`/activites/${activity.id}`}>
             <Button variant="outline" size="sm">
-              Voir le détail
+              <Eye className="h-3.5 w-3.5" />
+              Détail
             </Button>
           </Link>
           <Can permission={PERMISSIONS.activitiesManage}>

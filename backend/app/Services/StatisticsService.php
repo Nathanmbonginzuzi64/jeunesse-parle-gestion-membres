@@ -4,12 +4,16 @@ namespace App\Services;
 
 use App\Enums\MemberStatus;
 use App\Models\Activity;
+use App\Models\Avenue;
+use App\Models\City;
+use App\Models\District;
 use App\Models\Member;
 use App\Models\MemberCard;
 use App\Models\Province;
 use App\Models\Structure;
 use App\Models\User;
 use App\Models\VerificationLog;
+use App\Models\Zone;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
@@ -21,9 +25,9 @@ use Illuminate\Support\Facades\DB;
  */
 class StatisticsService
 {
-    public function overview(User $user): array
+    public function overview(User $user, ?array $filters = null): array
     {
-        $base = fn (): Builder => Member::query()->visibleTo($user);
+        $base = fn (): Builder => $this->filteredMembers($user, $filters);
 
         $byStatus = $base()
             ->select('status', DB::raw('COUNT(*) as total'))
@@ -44,8 +48,11 @@ class StatisticsService
                 'new_last_30_days' => (int) $base()->where('created_at', '>=', now()->subDays(30))->count(),
             ],
             'coverage' => [
-                'provinces' => (int) $base()->distinct()->count('province_id'),
-                'cities' => (int) $base()->whereNotNull('city_id')->distinct()->count('city_id'),
+                'provinces' => $this->countTerritories(Province::query()->where('is_active', true), $user, 'province'),
+                'cities' => $this->countTerritories(City::query()->where('is_active', true), $user, 'city'),
+                'districts' => $this->countTerritories(District::query()->where('is_active', true), $user, 'district'),
+                'quartiers' => $this->countTerritories(Zone::query()->where('is_active', true), $user, 'quartier'),
+                'avenues' => $this->countTerritories(Avenue::query()->where('is_active', true), $user, 'avenue'),
                 'structures' => (int) $this->structureQuery($user)->where('is_active', true)->count(),
             ],
             'cards' => [
@@ -63,12 +70,11 @@ class StatisticsService
     }
 
     /** Série d'inscriptions mensuelles, utilisée par le graphique d'évolution. */
-    public function registrationsTrend(User $user, int $months = 12): array
+    public function registrationsTrend(User $user, int $months = 12, ?array $filters = null): array
     {
         $start = now()->startOfMonth()->subMonths($months - 1);
 
-        $rows = Member::query()
-            ->visibleTo($user)
+        $rows = $this->filteredMembers($user, $filters)
             ->where('created_at', '>=', $start)
             ->select(DB::raw($this->monthExpression('created_at').' as period'), DB::raw('COUNT(*) as total'))
             ->groupBy('period')
@@ -90,10 +96,9 @@ class StatisticsService
         return $series;
     }
 
-    public function byProvince(User $user): array
+    public function byProvince(User $user, ?array $filters = null): array
     {
-        return Member::query()
-            ->visibleTo($user)
+        return $this->filteredMembers($user, $filters)
             ->join('provinces', 'provinces.id', '=', 'members.province_id')
             ->select(
                 'provinces.id',
@@ -119,10 +124,9 @@ class StatisticsService
             ->all();
     }
 
-    public function byCity(User $user, ?int $provinceId = null): array
+    public function byCity(User $user, ?int $provinceId = null, ?array $filters = null): array
     {
-        return Member::query()
-            ->visibleTo($user)
+        return $this->filteredMembers($user, $filters)
             ->join('cities', 'cities.id', '=', 'members.city_id')
             ->when($provinceId, fn (Builder $q) => $q->where('members.province_id', $provinceId))
             ->select('cities.id', 'cities.name', 'cities.type', DB::raw('COUNT(members.id) as total'))
@@ -139,10 +143,9 @@ class StatisticsService
             ->all();
     }
 
-    public function byCommune(User $user, ?int $cityId = null): array
+    public function byCommune(User $user, ?int $cityId = null, ?array $filters = null): array
     {
-        return Member::query()
-            ->visibleTo($user)
+        return $this->filteredMembers($user, $filters)
             ->join('communes', 'communes.id', '=', 'members.commune_id')
             ->when($cityId, fn (Builder $q) => $q->where('members.city_id', $cityId))
             ->select('communes.id', 'communes.name', DB::raw('COUNT(members.id) as total'))
@@ -154,10 +157,9 @@ class StatisticsService
             ->all();
     }
 
-    public function byGender(User $user): array
+    public function byGender(User $user, ?array $filters = null): array
     {
-        return Member::query()
-            ->visibleTo($user)
+        return $this->filteredMembers($user, $filters)
             ->select('gender', DB::raw('COUNT(*) as total'))
             ->groupBy('gender')
             ->get()
@@ -169,10 +171,9 @@ class StatisticsService
             ->all();
     }
 
-    public function byStatus(User $user): array
+    public function byStatus(User $user, ?array $filters = null): array
     {
-        $rows = Member::query()
-            ->visibleTo($user)
+        $rows = $this->filteredMembers($user, $filters)
             ->select('status', DB::raw('COUNT(*) as total'))
             ->groupBy('status')
             ->pluck('total', 'status');
@@ -186,10 +187,9 @@ class StatisticsService
             ->all();
     }
 
-    public function byProfession(User $user, int $limit = 10): array
+    public function byProfession(User $user, int $limit = 10, ?array $filters = null): array
     {
-        return Member::query()
-            ->visibleTo($user)
+        return $this->filteredMembers($user, $filters)
             ->whereNotNull('profession')
             ->where('profession', '!=', '')
             ->select('profession', DB::raw('COUNT(*) as total'))
@@ -202,7 +202,7 @@ class StatisticsService
     }
 
     /** Tranches d'âge calculées en PHP pour rester portable entre SQLite et MySQL. */
-    public function byAgeRange(User $user): array
+    public function byAgeRange(User $user, ?array $filters = null): array
     {
         $buckets = [
             '15-17' => [15, 17],
@@ -217,8 +217,7 @@ class StatisticsService
         foreach ($buckets as $label => [$min, $max]) {
             $result[] = [
                 'label' => $label,
-                'total' => (int) Member::query()
-                    ->visibleTo($user)
+                'total' => (int) $this->filteredMembers($user, $filters)
                     ->whereNotNull('birth_date')
                     ->whereDate('birth_date', '<=', now()->subYears($min)->toDateString())
                     ->whereDate('birth_date', '>', now()->subYears($max + 1)->toDateString())
@@ -229,14 +228,13 @@ class StatisticsService
         return $result;
     }
 
-    public function topSkills(User $user, int $limit = 12): array
+    public function topSkills(User $user, int $limit = 12, ?array $filters = null): array
     {
         // Les compétences sont stockées en JSON : agrégation applicative sur un
         // sous-ensemble borné pour rester compatible SQLite/MySQL.
         $counts = [];
 
-        Member::query()
-            ->visibleTo($user)
+        $this->filteredMembers($user, $filters)
             ->whereNotNull('skills')
             ->select('skills')
             ->limit(20000)
@@ -308,7 +306,59 @@ class StatisticsService
         ];
     }
 
+    public function byActivity(User $user, ?array $filters = null): array
+    {
+        return Activity::query()
+            ->visibleTo($user)
+            ->when($filters['province_id'] ?? null, fn (Builder $q, $v) => $q->where('province_id', $v))
+            ->when($filters['city_id'] ?? null, fn (Builder $q, $v) => $q->where('city_id', $v))
+            ->when($filters['structure_id'] ?? null, fn (Builder $q, $v) => $q->where('structure_id', $v))
+            ->select('type', DB::raw('COUNT(*) as total'))
+            ->groupBy('type')
+            ->orderByDesc('total')
+            ->get()
+            ->map(fn ($row) => [
+                'key' => $row->type,
+                'label' => \App\Enums\ActivityType::from($row->type)->label(),
+                'total' => (int) $row->total,
+            ])
+            ->all();
+    }
+
     // ------------------------------------------------------------ Sous-requêtes cloisonnées
+
+    private function filteredMembers(User $user, ?array $filters = null): Builder
+    {
+        $query = Member::query()->visibleTo($user);
+
+        if (! $filters) {
+            return $query;
+        }
+
+        $query
+            ->when($filters['status'] ?? null, fn (Builder $q, $v) => $q->where('members.status', $v))
+            ->when($filters['province_id'] ?? null, fn (Builder $q, $v) => $q->where('members.province_id', $v))
+            ->when($filters['city_id'] ?? null, fn (Builder $q, $v) => $q->where('members.city_id', $v))
+            ->when($filters['commune_id'] ?? null, fn (Builder $q, $v) => $q->where('members.commune_id', $v))
+            ->when($filters['zone_id'] ?? null, fn (Builder $q, $v) => $q->where('members.zone_id', $v))
+            ->when($filters['structure_id'] ?? null, fn (Builder $q, $v) => $q->where('members.structure_id', $v));
+
+        if (! empty($filters['period'])) {
+            $from = match ($filters['period']) {
+                '7d' => now()->subDays(7),
+                '30d' => now()->subDays(30),
+                '90d' => now()->subDays(90),
+                '12m' => now()->subMonths(12),
+                default => null,
+            };
+
+            if ($from) {
+                $query->where('members.created_at', '>=', $from);
+            }
+        }
+
+        return $query;
+    }
 
     private function structureQuery(User $user): Builder
     {
@@ -317,6 +367,33 @@ class StatisticsService
             1 => Structure::query()->where('province_id', $user->province_id ?? 0),
             2 => Structure::query()->where('city_id', $user->city_id ?? 0),
             default => Structure::query()->where('id', $user->structure_id ?? 0),
+        };
+    }
+
+    /** Compte les entités du référentiel territorial selon le périmètre de l'utilisateur. */
+    private function countTerritories(Builder $query, User $user, string $level): int
+    {
+        if ($user->isNationalScope()) {
+            return (int) $query->count();
+        }
+
+        return (int) match ($user->scopeLevel()) {
+            1 => match ($level) {
+                'province' => $query->where('id', $user->province_id ?? 0)->count(),
+                default => $query->where('province_id', $user->province_id ?? 0)->count(),
+            },
+            2 => match ($level) {
+                'province' => $query->where('id', $user->province_id ?? 0)->count(),
+                'city' => $query->where('id', $user->city_id ?? 0)->count(),
+                default => $query->where('city_id', $user->city_id ?? 0)->count(),
+            },
+            default => match ($level) {
+                'province' => $query->where('id', $user->province_id ?? 0)->count(),
+                'city' => $query->where('id', $user->city_id ?? 0)->count(),
+                default => $query->where('province_id', $user->province_id ?? 0)
+                    ->when($user->city_id, fn (Builder $q) => $q->where('city_id', $user->city_id))
+                    ->count(),
+            },
         };
     }
 

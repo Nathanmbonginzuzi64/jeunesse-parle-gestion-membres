@@ -12,7 +12,7 @@ class Commune extends Model
     use HasFactory;
 
     protected $fillable = [
-        'city_id', 'province_id', 'name', 'type', 'is_active',
+        'city_id', 'province_id', 'district_id', 'name', 'type', 'is_active',
     ];
 
     protected function casts(): array
@@ -28,6 +28,11 @@ class Commune extends Model
     public function province(): BelongsTo
     {
         return $this->belongsTo(Province::class);
+    }
+
+    public function district(): BelongsTo
+    {
+        return $this->belongsTo(District::class);
     }
 
     public function zones(): HasMany

@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Avenue;
 use App\Models\City;
 use App\Models\Commune;
+use App\Models\District;
 use App\Models\Province;
 use App\Models\Zone;
 use App\Services\TerritoryTreeService;
@@ -54,7 +56,7 @@ class TerritoryController extends Controller
         ]);
     }
 
-    public function communes(Request $request): JsonResponse
+    public function districts(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'city_id' => ['nullable', 'integer', 'exists:cities,id'],
@@ -62,12 +64,31 @@ class TerritoryController extends Controller
         ]);
 
         return response()->json([
-            'data' => Commune::query()
+            'data' => District::query()
                 ->where('is_active', true)
                 ->when($validated['city_id'] ?? null, fn ($q, $v) => $q->where('city_id', $v))
                 ->when($validated['province_id'] ?? null, fn ($q, $v) => $q->where('province_id', $v))
                 ->orderBy('name')
                 ->get(['id', 'city_id', 'province_id', 'name', 'type']),
+        ]);
+    }
+
+    public function communes(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'city_id' => ['nullable', 'integer', 'exists:cities,id'],
+            'province_id' => ['nullable', 'integer', 'exists:provinces,id'],
+            'district_id' => ['nullable', 'integer', 'exists:districts,id'],
+        ]);
+
+        return response()->json([
+            'data' => Commune::query()
+                ->where('is_active', true)
+                ->when($validated['city_id'] ?? null, fn ($q, $v) => $q->where('city_id', $v))
+                ->when($validated['province_id'] ?? null, fn ($q, $v) => $q->where('province_id', $v))
+                ->when($validated['district_id'] ?? null, fn ($q, $v) => $q->where('district_id', $v))
+                ->orderBy('name')
+                ->get(['id', 'city_id', 'province_id', 'district_id', 'name', 'type']),
         ]);
     }
 
@@ -83,6 +104,29 @@ class TerritoryController extends Controller
                 ->when($validated['commune_id'] ?? null, fn ($q, $v) => $q->where('commune_id', $v))
                 ->orderBy('name')
                 ->get(['id', 'commune_id', 'city_id', 'province_id', 'name', 'type']),
+        ]);
+    }
+
+    /** Alias « quartier » pour l'interface (même ressource que zones). */
+    public function quartiers(Request $request): JsonResponse
+    {
+        return $this->zones($request);
+    }
+
+    public function avenues(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'zone_id' => ['nullable', 'integer', 'exists:zones,id'],
+            'commune_id' => ['nullable', 'integer', 'exists:communes,id'],
+        ]);
+
+        return response()->json([
+            'data' => Avenue::query()
+                ->where('is_active', true)
+                ->when($validated['zone_id'] ?? null, fn ($q, $v) => $q->where('zone_id', $v))
+                ->when($validated['commune_id'] ?? null, fn ($q, $v) => $q->where('commune_id', $v))
+                ->orderBy('name')
+                ->get(['id', 'zone_id', 'commune_id', 'city_id', 'province_id', 'name', 'number', 'direction', 'reference_stop']),
         ]);
     }
 

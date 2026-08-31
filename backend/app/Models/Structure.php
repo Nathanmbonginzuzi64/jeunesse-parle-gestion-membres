@@ -14,7 +14,7 @@ class Structure extends Model
 
     protected $fillable = [
         'code', 'name', 'type', 'description',
-        'province_id', 'city_id', 'commune_id', 'zone_id',
+        'province_id', 'city_id', 'commune_id', 'zone_id', 'avenue_id',
         'address', 'contact_phone', 'contact_email',
         'leader_member_id', 'created_on', 'is_active',
     ];
@@ -45,6 +45,11 @@ class Structure extends Model
     public function zone(): BelongsTo
     {
         return $this->belongsTo(Zone::class);
+    }
+
+    public function avenue(): BelongsTo
+    {
+        return $this->belongsTo(Avenue::class);
     }
 
     public function leader(): BelongsTo

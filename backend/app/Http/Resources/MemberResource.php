@@ -36,6 +36,8 @@ class MemberResource extends JsonResource
             'city' => $this->whenLoaded('city', fn () => $this->city ? ['id' => $this->city->id, 'name' => $this->city->name] : null),
             'commune' => $this->whenLoaded('commune', fn () => $this->commune ? ['id' => $this->commune->id, 'name' => $this->commune->name] : null),
             'zone' => $this->whenLoaded('zone', fn () => $this->zone ? ['id' => $this->zone->id, 'name' => $this->zone->name] : null),
+            'quartier' => $this->whenLoaded('zone', fn () => $this->zone ? ['id' => $this->zone->id, 'name' => $this->zone->name] : null),
+            'avenue' => $this->whenLoaded('avenue', fn () => $this->avenue ? ['id' => $this->avenue->id, 'name' => $this->avenue->name] : null),
             'structure' => $this->whenLoaded('structure', fn () => $this->structure ? ['id' => $this->structure->id, 'name' => $this->structure->name, 'code' => $this->structure->code] : null),
 
             'position' => $this->position,
@@ -62,6 +64,7 @@ class MemberResource extends JsonResource
                 'phone_alt' => $this->phone_alt,
                 'email' => $this->email,
                 'address' => $this->address,
+                'house_number' => $this->house_number,
                 'birth_date' => $this->birth_date?->toDateString(),
                 'birth_place' => $this->birth_place,
                 'education_level' => $this->education_level,

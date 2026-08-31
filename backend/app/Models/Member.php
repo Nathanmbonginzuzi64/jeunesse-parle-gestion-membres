@@ -22,8 +22,8 @@ class Member extends Model
     protected $fillable = [
         'member_code', 'user_id', 'photo_path',
         'last_name', 'middle_name', 'first_name', 'gender', 'birth_date', 'birth_place',
-        'phone', 'phone_alt', 'email', 'address',
-        'province_id', 'city_id', 'commune_id', 'zone_id', 'structure_id',
+        'phone', 'phone_alt', 'email', 'address', 'house_number',
+        'province_id', 'city_id', 'commune_id', 'zone_id', 'avenue_id', 'structure_id',
         'education_level', 'profession', 'employment_status', 'activity_domain',
         'skills', 'interests',
         'position', 'supervisor_member_id', 'joined_at',
@@ -74,6 +74,11 @@ class Member extends Model
     public function zone(): BelongsTo
     {
         return $this->belongsTo(Zone::class);
+    }
+
+    public function avenue(): BelongsTo
+    {
+        return $this->belongsTo(Avenue::class);
     }
 
     public function structure(): BelongsTo

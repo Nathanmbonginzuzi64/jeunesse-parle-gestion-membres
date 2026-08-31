@@ -6,10 +6,12 @@ use App\Enums\ActivityStatus;
 use App\Enums\ActivityType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreActivityRequest;
+use App\Http\Requests\UpdateActivityRequest;
 use App\Http\Resources\ActivityResource;
 use App\Http\Resources\MemberResource;
 use App\Models\Activity;
 use App\Models\Member;
+use App\Services\ActivityImageStorageService;
 use App\Services\AuditLogger;
 use App\Services\IdentifierGenerator;
 use App\Services\NotificationService;
@@ -26,6 +28,7 @@ class ActivityController extends Controller
         private readonly IdentifierGenerator $identifiers,
         private readonly NotificationService $notifications,
         private readonly AuditLogger $audit,
+        private readonly ActivityImageStorageService $images,
     ) {}
 
     public function index(Request $request): AnonymousResourceCollection
@@ -40,12 +43,13 @@ class ActivityController extends Controller
             'structure_id' => ['nullable', 'integer'],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date'],
+            'tab' => ['nullable', 'string', 'in:upcoming,completed,drafts'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
         $activities = Activity::query()
             ->visibleTo($request->user())
-            ->with(['province:id,name', 'structure:id,name', 'organizer:id,name'])
+            ->with(['province:id,name', 'city:id,name', 'commune:id,name', 'zone:id,name', 'avenue:id,name', 'structure:id,name', 'organizer:id,name'])
             ->withCount(['members', 'attendances'])
             ->when($filters['q'] ?? null, fn (Builder $q, $v) => $q->where(function (Builder $sub) use ($v) {
                 $sub->where('title', 'like', '%'.$v.'%')->orWhere('code', 'like', '%'.$v.'%');
@@ -56,6 +60,11 @@ class ActivityController extends Controller
             ->when($filters['structure_id'] ?? null, fn (Builder $q, $v) => $q->where('structure_id', $v))
             ->when($filters['from'] ?? null, fn (Builder $q, $v) => $q->where('starts_at', '>=', $v))
             ->when($filters['to'] ?? null, fn (Builder $q, $v) => $q->where('starts_at', '<=', $v))
+            ->when(($filters['tab'] ?? null) === 'upcoming', fn (Builder $q) => $q
+                ->where('starts_at', '>=', now())
+                ->whereIn('status', [ActivityStatus::Planned->value, ActivityStatus::Ongoing->value]))
+            ->when(($filters['tab'] ?? null) === 'completed', fn (Builder $q) => $q
+                ->where('status', ActivityStatus::Completed->value))
             ->orderByDesc('starts_at')
             ->paginate(min((int) ($filters['per_page'] ?? 20), 100))
             ->withQueryString();
@@ -67,7 +76,7 @@ class ActivityController extends Controller
     {
         $data = $request->validated();
         $memberIds = $data['member_ids'] ?? [];
-        unset($data['member_ids']);
+        unset($data['member_ids'], $data['image']);
 
         $activity = DB::transaction(function () use ($data, $memberIds, $request) {
             $activity = Activity::create(array_merge($data, [
@@ -75,6 +84,12 @@ class ActivityController extends Controller
                 'status' => $data['status'] ?? ActivityStatus::Planned->value,
                 'organizer_id' => $request->user()->id,
             ]));
+
+            if ($request->hasFile('image')) {
+                $activity->update([
+                    'image_path' => $this->images->store($request->file('image'), $activity->code),
+                ]);
+            }
 
             if ($memberIds) {
                 $this->attachMembers($activity, $memberIds, $request);
@@ -87,7 +102,7 @@ class ActivityController extends Controller
 
         return response()->json([
             'message' => 'Activité créée.',
-            'data' => new ActivityResource($activity->load(['province', 'structure', 'organizer'])->loadCount(['members', 'attendances'])),
+            'data' => new ActivityResource($activity->load(['province', 'city', 'commune', 'zone', 'avenue', 'structure', 'organizer', 'liveSharer'])->loadCount(['members', 'attendances'])),
         ], 201);
     }
 
@@ -95,7 +110,7 @@ class ActivityController extends Controller
     {
         $this->authorize('view', $activity);
 
-        $activity->load(['province', 'city', 'commune', 'structure', 'organizer'])
+        $activity->load(['province', 'city', 'commune', 'zone', 'avenue', 'structure', 'organizer', 'liveSharer'])
             ->loadCount(['members', 'attendances']);
 
         return response()->json([
@@ -103,30 +118,31 @@ class ActivityController extends Controller
         ]);
     }
 
-    public function update(Request $request, Activity $activity): JsonResponse
+    public function update(UpdateActivityRequest $request, Activity $activity): JsonResponse
     {
         $this->authorize('update', $activity);
 
-        $validated = $request->validate([
-            'title' => ['sometimes', 'string', 'max:180'],
-            'description' => ['nullable', 'string', 'max:5000'],
-            'type' => ['sometimes', Rule::in(ActivityType::values())],
-            'status' => ['sometimes', Rule::in(ActivityStatus::values())],
-            'starts_at' => ['sometimes', 'date'],
-            'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
-            'location' => ['nullable', 'string', 'max:255'],
-            'capacity' => ['nullable', 'integer', 'min:1'],
-            'is_public' => ['nullable', 'boolean'],
-        ]);
+        $validated = $request->validated();
+        unset($validated['image'], $validated['member_ids']);
 
         $before = $activity->getAttributes();
         $activity->update($validated);
+
+        if ($request->hasFile('image')) {
+            $activity->update([
+                'image_path' => $this->images->store(
+                    $request->file('image'),
+                    $activity->code,
+                    $activity->image_path,
+                ),
+            ]);
+        }
 
         $this->audit->logChanges('activity.updated', $activity, $before, "Modification de {$activity->code}");
 
         return response()->json([
             'message' => 'Activité mise à jour.',
-            'data' => new ActivityResource($activity->load(['province', 'structure', 'organizer'])->loadCount(['members', 'attendances'])),
+            'data' => new ActivityResource($activity->load(['province', 'city', 'commune', 'zone', 'avenue', 'structure', 'organizer', 'liveSharer'])->loadCount(['members', 'attendances'])),
         ]);
     }
 
@@ -177,6 +193,108 @@ class ActivityController extends Controller
         $activity->members()->detach($member->id);
 
         return response()->json(['message' => 'Participant retiré.']);
+    }
+
+    public function startLiveLocation(Request $request, Activity $activity): JsonResponse
+    {
+        $this->authorize('update', $activity);
+
+        $validated = $request->validate([
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+        ]);
+
+        $activity->update([
+            'live_location_active' => true,
+            'live_latitude' => $validated['latitude'],
+            'live_longitude' => $validated['longitude'],
+            'live_updated_at' => now(),
+            'live_shared_by' => $request->user()->id,
+        ]);
+
+        $this->notifyLiveLocation($activity, 'start');
+
+        $this->audit->log('activity.live_location.started', $activity, "Partage GPS activé — {$activity->code}");
+
+        return response()->json([
+            'message' => 'Localisation partagée en temps réel.',
+            'data' => new ActivityResource($activity->load(['liveSharer'])),
+        ]);
+    }
+
+    public function updateLiveLocation(Request $request, Activity $activity): JsonResponse
+    {
+        $this->authorize('update', $activity);
+
+        abort_unless($activity->live_location_active, 422, 'Le partage GPS n\'est pas actif.');
+
+        $validated = $request->validate([
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+        ]);
+
+        $activity->update([
+            'live_latitude' => $validated['latitude'],
+            'live_longitude' => $validated['longitude'],
+            'live_updated_at' => now(),
+            'live_shared_by' => $request->user()->id,
+        ]);
+
+        return response()->json([
+            'message' => 'Position mise à jour.',
+            'data' => new ActivityResource($activity->load(['liveSharer'])),
+        ]);
+    }
+
+    public function stopLiveLocation(Request $request, Activity $activity): JsonResponse
+    {
+        $this->authorize('update', $activity);
+
+        $activity->update([
+            'live_location_active' => false,
+            'live_updated_at' => now(),
+        ]);
+
+        $this->audit->log('activity.live_location.stopped', $activity, "Partage GPS arrêté — {$activity->code}");
+
+        return response()->json(['message' => 'Partage de localisation arrêté.']);
+    }
+
+    public function liveLocation(Request $request, Activity $activity): JsonResponse
+    {
+        $this->authorize('view', $activity);
+
+        return response()->json([
+            'activity_id' => $activity->id,
+            'venue' => [
+                'latitude' => $activity->latitude,
+                'longitude' => $activity->longitude,
+                'location' => $activity->location,
+            ],
+            'live' => [
+                'active' => (bool) $activity->live_location_active,
+                'latitude' => $activity->live_latitude,
+                'longitude' => $activity->live_longitude,
+                'updated_at' => $activity->live_updated_at?->toIso8601String(),
+                'shared_by' => $activity->liveSharer?->name,
+            ],
+        ]);
+    }
+
+    private function notifyLiveLocation(Activity $activity, string $event): void
+    {
+        $members = $activity->members()->whereNotNull('user_id')->get();
+
+        foreach ($members as $member) {
+            $this->notifications->push(
+                $member,
+                'activity_live_location',
+                '📍 Localisation disponible',
+                'Le responsable de l\'activité est en route. Suivez l\'emplacement du lieu en temps réel.',
+                ['activity_id' => $activity->id, 'code' => $activity->code, 'event' => $event],
+                'info',
+            );
+        }
     }
 
     /**

@@ -117,7 +117,7 @@ export function TerritorySelect({
             value.district_id
               ? "Sélectionner"
               : value.city_id
-                ? "Choisir d'abord le district (recommandé)"
+                ? "Choisir un district (optionnel)"
                 : "Choisir d'abord la ville"
           }
           error={errors.commune_id}

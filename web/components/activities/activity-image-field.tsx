@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ChangeEvent } from "react";
-import { ImagePlus, Trash2 } from "lucide-react";
+import { Camera, ImagePlus, Trash2 } from "lucide-react";
 import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -67,33 +67,39 @@ export function ActivityImageField({
 
   return (
     <Field
-      label="Image de couverture"
-      hint="JPEG, PNG ou WebP — 5 Mo max. Affichée sur la fiche et les cartes d'activité."
+      label="Photo de l'activité"
+      hint="Illustration affichée sur les cartes, la liste et la fiche détail. JPEG, PNG ou WebP — 5 Mo max."
       error={error ?? localError}
     >
       <div
         className={cn(
-          "relative overflow-hidden rounded-xl border border-dashed border-slate-300 bg-slate-50",
-          src ? "border-solid border-slate-200" : "",
+          "group relative overflow-hidden rounded-2xl border-2 border-dashed transition",
+          src ? "border-brand-200 bg-slate-900" : "border-slate-300 bg-slate-50 hover:border-brand-300",
         )}
       >
         {src ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={src} alt="Aperçu couverture" className="h-44 w-full object-cover sm:h-52" />
+          <img src={src} alt="Aperçu activité" className="aspect-[21/9] w-full object-cover sm:aspect-[2.4/1]" />
         ) : (
-          <div className="flex h-44 flex-col items-center justify-center gap-2 px-4 text-center sm:h-52">
-            <ImagePlus className="h-8 w-8 text-slate-400" />
-            <p className="text-sm text-slate-500">Ajoutez une image pour illustrer l&apos;activité</p>
+          <div className="flex aspect-[21/9] flex-col items-center justify-center gap-3 px-6 text-center sm:aspect-[2.4/1]">
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+              <ImagePlus className="h-7 w-7 text-brand-500" />
+            </span>
+            <div>
+              <p className="text-sm font-medium text-slate-700">Ajoutez une photo d&apos;illustration</p>
+              <p className="mt-0.5 text-xs text-slate-500">Formation, réunion, campagne sur le terrain…</p>
+            </div>
           </div>
         )}
-        <div className="absolute inset-x-0 bottom-0 flex flex-wrap gap-2 bg-gradient-to-t from-black/50 to-transparent p-3">
-          <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-white/95 px-3 py-1.5 text-sm font-medium text-slate-800 shadow-sm hover:bg-white">
-            <ImagePlus className="h-4 w-4" />
-            {src ? "Changer" : "Choisir une image"}
+
+        <div className="absolute inset-x-0 bottom-0 flex flex-wrap gap-2 bg-gradient-to-t from-black/70 via-black/30 to-transparent p-4 pt-12">
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-white px-3.5 py-2 text-sm font-medium text-slate-800 shadow-md transition hover:bg-brand-50">
+            <Camera className="h-4 w-4 text-brand-600" />
+            {src ? "Changer la photo" : "Choisir une photo"}
             <input type="file" accept={ACCEPTED.join(",")} className="sr-only" onChange={handleChange} />
           </label>
           {localPreview && (
-            <Button type="button" variant="outline" size="sm" className="bg-white/95" onClick={clear}>
+            <Button type="button" variant="outline" size="sm" className="border-white/30 bg-white/95" onClick={clear}>
               <Trash2 className="h-3.5 w-3.5" />
               Retirer
             </Button>

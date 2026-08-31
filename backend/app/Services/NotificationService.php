@@ -92,9 +92,22 @@ class NotificationService
         $this->push(
             $member,
             'attendance_recorded',
-            'Présence enregistrée',
-            "{$activity->title} — {$status}",
-            ['activity_id' => $activity->id, 'status' => $status],
+            'Votre présence vient d\'être confirmée',
+            "Activité : {$activity->title}\nDate : ".$activity->starts_at?->translatedFormat('d F Y')."\nHeure : ".now()->format('H:i'),
+            ['activity_id' => $activity->id, 'status' => $status, 'recorded_at' => now()->toIso8601String()],
+            'success',
+        );
+    }
+
+    public function liveLocationAvailable(Member $member, Activity $activity): void
+    {
+        $this->push(
+            $member,
+            'activity_live_location',
+            '📍 Localisation disponible',
+            'Le responsable de l\'activité est actuellement en route. Suivez l\'emplacement du lieu en temps réel.',
+            ['activity_id' => $activity->id, 'code' => $activity->code],
+            'info',
         );
     }
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { CalendarDays, MapPin, Users } from "lucide-react";
+import { ActivityCoverImage } from "@/components/activities/activity-cover-image";
 import { ActivityStatusBadge } from "@/components/ui/badge";
 import type { Activity } from "@/lib/types";
 import { formatDateTime, formatNumber } from "@/lib/utils";
@@ -13,18 +14,12 @@ export function ActivityDetailHero({ activity }: { activity: Activity }) {
   return (
     <div className="overflow-hidden rounded-card border border-brand-200/60 bg-white shadow-[var(--shadow-elevated)]">
       <div className="relative h-48 sm:h-56 md:h-64">
-        {activity.image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={activity.image_url}
-            alt=""
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-brand-700 via-brand-800 to-brand-950">
-            <CalendarDays className="h-16 w-16 text-white/30" aria-hidden />
-          </div>
-        )}
+        <ActivityCoverImage
+          url={activity.image_url}
+          className="h-full w-full"
+          iconClassName="h-16 w-16 text-white/30"
+          placeholderClassName="h-full w-full bg-gradient-to-br from-brand-700 via-brand-800 to-brand-950"
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-brand-950/90 via-brand-950/40 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
           <div className="flex flex-wrap items-end justify-between gap-3">
