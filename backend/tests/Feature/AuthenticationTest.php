@@ -44,6 +44,7 @@ class AuthenticationTest extends TestCase
         $member = Member::where('member_code', $response->json('member_code'))->firstOrFail();
 
         $this->assertSame(MemberStatus::Pending, $member->status);
+        $this->assertNotNull($member->user_id, 'Un compte portail membre doit être créé à l\'inscription.');
         $this->assertNull($member->activeCard()->first(), 'Aucune carte ne doit être émise avant validation.');
     }
 

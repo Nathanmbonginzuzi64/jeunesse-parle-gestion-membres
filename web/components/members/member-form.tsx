@@ -531,14 +531,14 @@ export function MemberForm({
                 </>
               ) : (
                 <>
-                  Aucun compte portail n&apos;est associé à ce membre. Définissez un mot de passe pour lui permettre de
-                  se connecter au portail web ou mobile.
+                  Aucun compte portail n&apos;est associé à ce membre. Définissez un mot de passe pour créer
+                  automatiquement son accès au portail web ou mobile.
                 </>
               )
             ) : mode === "create" ? (
-              "Définissez un mot de passe provisoire. Le membre devra le changer et confirmer son empreinte lors de sa première connexion sur le portail web ou mobile."
+              "Un compte portail (rôle membre) sera créé automatiquement. Le membre pourra se connecter avec son téléphone ou e-mail et ce mot de passe provisoire."
             ) : (
-              "Choisissez un mot de passe pour accéder à votre espace membre sur le portail web et mobile."
+              "Un compte portail membre sera créé automatiquement. Choisissez un mot de passe pour accéder à votre espace sur le portail web et mobile."
             )}
           </Alert>
           <div className="grid gap-4 sm:grid-cols-2">

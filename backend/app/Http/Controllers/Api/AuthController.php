@@ -2,12 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\RoleSlug;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterMemberRequest;
 use App\Http\Resources\UserResource;
-use App\Models\Role;
 use App\Models\User;
 use App\Services\AuditLogger;
 use App\Services\BiometricService;
@@ -15,7 +13,6 @@ use App\Services\DuplicateDetector;
 use App\Services\MemberService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password as PasswordBroker;
 use Illuminate\Validation\Rules\Password;
@@ -48,42 +45,23 @@ class AuthController extends Controller
             ], 409);
         }
 
-        $result = DB::transaction(function () use ($data, $request) {
-            $memberRole = Role::where('slug', RoleSlug::Membre->value)->firstOrFail();
+        $member = $this->members->create(
+            array_merge($data, ['consent_given' => true]),
+            null,
+            $request->file('photo'),
+        );
 
-            $user = User::create([
-                'name' => trim($data['first_name'].' '.$data['last_name']),
-                'email' => $data['email'] ?? null,
-                'phone' => $data['phone'],
-                'password' => $data['password'],
-                'role_id' => $memberRole->id,
-                'province_id' => $data['province_id'],
-                'city_id' => $data['city_id'] ?? null,
-                'commune_id' => $data['commune_id'] ?? null,
-                'structure_id' => $data['structure_id'] ?? null,
-                'is_active' => true,
-            ]);
+        $user = User::query()->findOrFail($member->user_id);
 
-            $member = $this->members->create(
-                array_merge($data, ['user_id' => $user->id, 'consent_given' => true]),
-                null,
-                $request->file('photo'),
-            );
+        $this->audit->log('auth.registered', $member, "Inscription publique {$member->member_code}");
 
-            $user->forceFill(['member_id' => $member->id])->save();
-
-            return ['user' => $user, 'member' => $member];
-        });
-
-        $this->audit->log('auth.registered', $result['member'], "Inscription publique {$result['member']->member_code}");
-
-        $token = $result['user']->createToken($request->input('device_name', 'web'))->plainTextToken;
+        $token = $user->createToken($request->input('device_name', 'web'))->plainTextToken;
 
         return response()->json([
             'message' => 'Votre demande d\'adhésion a été enregistrée. Elle sera examinée par un responsable.',
-            'member_code' => $result['member']->member_code,
+            'member_code' => $member->member_code,
             'token' => $token,
-            'user' => new UserResource($result['user']->load(['role', 'member'])),
+            'user' => new UserResource($user->load(['role', 'member'])),
         ], 201);
     }
 

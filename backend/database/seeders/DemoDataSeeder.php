@@ -16,6 +16,7 @@ use App\Models\Structure;
 use App\Models\User;
 use App\Services\CardService;
 use App\Services\IdentifierGenerator;
+use App\Services\MemberService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -168,7 +169,13 @@ class DemoDataSeeder extends Seeder
             ->get()
             ->each(fn (Member $member) => $cards->issue($member, $admin, 'Émission de démonstration'));
 
-        // Un membre de référence, doté d'un compte connecté à son dossier.
+        $memberService = app(MemberService::class);
+
+        Member::query()->whereNull('user_id')->orderBy('id')->each(
+            fn (Member $member) => $memberService->provisionPortalUser($member, $password),
+        );
+
+        // Membre de référence avec identifiants connus pour les tests manuels.
         $showcase = Member::where('status', MemberStatus::Active->value)
             ->whereHas('activeCard')
             ->first();
@@ -179,26 +186,21 @@ class DemoDataSeeder extends Seeder
                 'middle_name' => 'Kabeya',
                 'first_name' => 'Nathan',
                 'email' => 'nathan@jeunesseparle.test',
+                'phone' => '+243900000099',
                 'position' => 'Secrétaire de cellule',
             ]);
 
-            $user = User::updateOrCreate(
-                ['email' => 'nathan@jeunesseparle.test'],
-                [
-                    'name' => 'Nathan Mbongi',
-                    'phone' => $showcase->phone,
-                    'password' => $password,
-                    'role_id' => $roles[RoleSlug::Membre->value],
-                    'province_id' => $showcase->province_id,
-                    'city_id' => $showcase->city_id,
-                    'structure_id' => $showcase->structure_id,
-                    'member_id' => $showcase->id,
-                    'is_active' => true,
-                    'email_verified_at' => now(),
-                ],
-            );
+            if ($showcase->user_id) {
+                $memberService->provisionPortalUser($showcase->fresh(), $password);
+            }
 
-            $showcase->update(['user_id' => $user->id]);
+            User::query()->where('member_id', $showcase->id)->update([
+                'email' => 'nathan@jeunesseparle.test',
+                'phone' => '+243900000099',
+                'name' => 'Nathan Mbongi',
+                'must_change_password' => false,
+                'must_confirm_biometric' => false,
+            ]);
         }
 
         $this->command?->info(Member::count().' membres de démonstration créés.');

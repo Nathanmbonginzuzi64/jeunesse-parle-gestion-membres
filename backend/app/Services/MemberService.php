@@ -85,9 +85,7 @@ class MemberService
                 $this->attachWebAuthnEnrollment($member, $webauthnEnrollment);
             }
 
-            if (is_string($portalPassword) && $portalPassword !== '') {
-                $this->createMemberPortalUser($member, $portalPassword);
-            }
+            $this->ensureMemberPortalUser($member, $portalPassword, $author === null);
 
             $this->audit->log('member.created', $member, "Inscription du membre {$member->member_code}");
 
@@ -135,7 +133,9 @@ class MemberService
             }
 
             if (is_string($portalPassword) && $portalPassword !== '') {
-                $this->upsertMemberPortalUser($member, $portalPassword);
+                $this->ensureMemberPortalUser($member, $portalPassword, false);
+            } elseif ($member->user_id) {
+                $this->syncMemberPortalUser($member);
             }
 
             $this->audit->logChanges('member.updated', $member, $before, "Modification du membre {$member->member_code}");
@@ -276,14 +276,57 @@ class MemberService
         }
     }
 
-    private function createMemberPortalUser(Member $member, string $password): User
+    private function ensureMemberPortalUser(Member $member, ?string $password, bool $selfRegistration = false): void
     {
         if ($member->user_id) {
+            $this->syncMemberPortalUser($member, $password);
+
+            return;
+        }
+
+        if (! is_string($password) || $password === '') {
             throw ValidationException::withMessages([
-                'phone' => 'Ce membre possède déjà un compte portail.',
+                'password' => 'Le mot de passe portail est obligatoire pour activer l\'accès membre.',
             ]);
         }
 
+        $this->createMemberPortalUser($member, $password, $selfRegistration);
+    }
+
+    private function syncMemberPortalUser(Member $member, ?string $password = null): void
+    {
+        if (! $member->user_id) {
+            return;
+        }
+
+        $user = User::query()->find($member->user_id);
+
+        if (! $user) {
+            return;
+        }
+
+        $payload = [
+            'name' => trim($member->first_name.' '.$member->last_name),
+            'email' => $member->email,
+            'phone' => $member->phone,
+            'province_id' => $member->province_id,
+            'city_id' => $member->city_id,
+            'commune_id' => $member->commune_id,
+            'structure_id' => $member->structure_id,
+            'member_id' => $member->id,
+            'is_active' => true,
+        ];
+
+        if (is_string($password) && $password !== '') {
+            $payload['password'] = $password;
+            $payload['must_change_password'] = true;
+        }
+
+        $user->forceFill($payload)->save();
+    }
+
+    private function createMemberPortalUser(Member $member, string $password, bool $selfRegistration = false): User
+    {
         $memberRole = Role::query()->where('slug', RoleSlug::Membre->value)->firstOrFail();
 
         $user = User::create([
@@ -298,8 +341,8 @@ class MemberService
             'structure_id' => $member->structure_id,
             'member_id' => $member->id,
             'is_active' => true,
-            'must_change_password' => true,
-            'must_confirm_biometric' => true,
+            'must_change_password' => ! $selfRegistration,
+            'must_confirm_biometric' => ! $selfRegistration,
         ]);
 
         $member->forceFill(['user_id' => $user->id])->save();
@@ -311,21 +354,14 @@ class MemberService
         return $user;
     }
 
-    private function upsertMemberPortalUser(Member $member, string $password): void
+    public function provisionPortalUser(Member $member, string $password, bool $selfRegistration = false): User
     {
         if ($member->user_id) {
-            $user = User::query()->findOrFail($member->user_id);
-            $user->forceFill([
-                'password' => $password,
-                'must_change_password' => true,
-                'email' => $member->email,
-                'phone' => $member->phone,
-                'name' => trim($member->first_name.' '.$member->last_name),
-            ])->save();
+            $this->syncMemberPortalUser($member, $password);
 
-            return;
+            return User::query()->findOrFail($member->user_id);
         }
 
-        $this->createMemberPortalUser($member, $password);
+        return $this->createMemberPortalUser($member, $password, $selfRegistration);
     }
 }
