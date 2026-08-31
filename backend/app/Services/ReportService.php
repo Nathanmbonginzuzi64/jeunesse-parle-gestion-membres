@@ -407,16 +407,20 @@ class ReportService
             )
             ->groupBy('activities.type')
             ->get()
-            ->map(fn ($row) => [
-                'type' => $row->type,
-                'type_label' => ActivityType::from($row->type)->label(),
+            ->map(function ($row) {
+                $type = ActivityType::resolve($row->type);
+
+                return [
+                    'type' => $type->value,
+                    'type_label' => $type->label(),
                 'activities_count' => (int) $row->activities_count,
                 'attendances_count' => (int) $row->attendances_count,
                 'present_count' => (int) $row->present_count,
                 'rate' => (int) $row->attendances_count > 0
                     ? round(((int) $row->present_count / (int) $row->attendances_count) * 100)
                     : 0,
-            ])
+                ];
+            })
             ->values()
             ->all();
 

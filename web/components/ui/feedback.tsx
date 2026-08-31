@@ -8,23 +8,25 @@ export function Alert({
   children,
   className,
 }: {
-  tone?: "error" | "success" | "warning" | "info";
+  tone?: "error" | "success" | "warning" | "info" | "danger";
   title?: ReactNode;
   children?: ReactNode;
   className?: string;
 }) {
-  const config = {
+  const configs = {
     error: { icon: AlertCircle, style: "bg-red-50 text-red-800 border-red-200" },
     success: { icon: CheckCircle2, style: "bg-emerald-50 text-emerald-800 border-emerald-200" },
     warning: { icon: TriangleAlert, style: "bg-amber-50 text-amber-900 border-amber-200" },
     info: { icon: Info, style: "bg-blue-50 text-blue-800 border-blue-200" },
-  }[tone];
+  } as const;
 
+  const resolvedTone = tone === "danger" ? "error" : tone;
+  const config = configs[resolvedTone] ?? configs.error;
   const Icon = config.icon;
 
   return (
     <div
-      role={tone === "error" ? "alert" : "status"}
+      role={resolvedTone === "error" ? "alert" : "status"}
       className={cn("flex gap-2.5 rounded-lg border px-3.5 py-3 text-sm", config.style, className)}
     >
       <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ActivityType;
 use App\Enums\MemberStatus;
 use App\Models\Activity;
 use App\Models\Avenue;
@@ -318,8 +319,8 @@ class StatisticsService
             ->orderByDesc('total')
             ->get()
             ->map(fn ($row) => [
-                'key' => $row->type,
-                'label' => \App\Enums\ActivityType::from($row->type)->label(),
+                'key' => ActivityType::resolve($row->type)->value,
+                'label' => ActivityType::resolve($row->type)->label(),
                 'total' => (int) $row->total,
             ])
             ->all();

@@ -29,4 +29,10 @@ enum ActivityType: string
     {
         return array_column(self::cases(), 'value');
     }
+
+    /** Accepte une valeur brute ou une instance déjà castée par Eloquent. */
+    public static function resolve(string|self $value): self
+    {
+        return $value instanceof self ? $value : self::from($value);
+    }
 }
