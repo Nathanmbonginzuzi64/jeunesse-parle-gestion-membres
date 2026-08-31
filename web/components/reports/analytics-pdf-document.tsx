@@ -57,6 +57,35 @@ function baseMeta(
   };
 }
 
+function withSignature(body: React.ReactNode) {
+  return (
+    <>
+      {body}
+      <div className="mt-8">
+        <ReportPdfSignatureBlock />
+      </div>
+    </>
+  );
+}
+
+function renderPdfPages(meta: ReportPdfMeta, sections: Array<{ pageLabel?: string; body: React.ReactNode }>) {
+  const total = sections.length;
+  return (
+    <>
+      {sections.map((section, index) => (
+        <ReportPdfPage
+          key={index}
+          meta={{ ...meta, pageLabel: section.pageLabel }}
+          page={index + 1}
+          total={total}
+        >
+          {section.body}
+        </ReportPdfPage>
+      ))}
+    </>
+  );
+}
+
 export function MembersListPdfDocument({
   data,
   generatedBy,
@@ -83,11 +112,12 @@ export function MembersListPdfDocument({
     row.biometric_enrolled ? "Oui" : "Non",
   ]);
   const chunks = chunkRows(rows, 20);
-  const total = chunks.length + 1;
+  const tableHeaders = ["Nom", "Code", "Localisation", "Structure", "Inscription", "Statut", "Carte", "Bio."];
 
-  return (
-    <>
-      <ReportPdfPage meta={{ ...meta, pageLabel: "Synthèse" }} page={1} total={total}>
+  const sections: Array<{ pageLabel?: string; body: React.ReactNode }> = [
+    {
+      pageLabel: "Synthèse",
+      body: (
         <section className="space-y-5">
           <ReportPdfSummary>
             Ce rapport recense <strong>{formatNumber(data.meta.total)}</strong> membre(s) correspondant aux
@@ -96,41 +126,37 @@ export function MembersListPdfDocument({
           <ReportPdfKpiGrid
             items={[
               { label: "Total membres", value: data.meta.total },
-              { label: "Page courante", value: `${data.meta.current_page}/${data.meta.last_page}` },
-              { label: "Actifs (page)", value: data.data.filter((m) => m.status === "active").length },
-              { label: "Biométrie (page)", value: data.data.filter((m) => m.biometric_enrolled).length },
+              { label: "Actifs", value: data.data.filter((m) => m.status === "active").length },
+              { label: "Biométrie", value: data.data.filter((m) => m.biometric_enrolled).length },
+              { label: "Listés", value: data.data.length },
             ]}
           />
           {chunks[0]?.length ? (
-            <ReportPdfTable
-              title={`Membres (1/${chunks.length})`}
-              headers={["Nom", "Code", "Localisation", "Structure", "Inscription", "Statut", "Carte", "Bio."]}
-              rows={chunks[0]!}
-              compact
-            />
+            <ReportPdfTable title={`Membres (1/${chunks.length})`} headers={tableHeaders} rows={chunks[0]!} compact />
           ) : null}
         </section>
-      </ReportPdfPage>
-      {chunks.slice(1).map((chunk, index) => (
-        <ReportPdfPage
-          key={index}
-          meta={{ ...meta, pageLabel: `Liste membres (${index + 2}/${chunks.length})` }}
-          page={index + 2}
-          total={total}
-        >
-          <ReportPdfTable
-            title={`Membres (${index + 2}/${chunks.length})`}
-            headers={["Nom", "Code", "Localisation", "Structure", "Inscription", "Statut", "Carte", "Bio."]}
-            rows={chunk}
-            compact
-          />
-        </ReportPdfPage>
-      ))}
-      <ReportPdfPage meta={{ ...meta, pageLabel: "Validation" }} page={total} total={total}>
-        <ReportPdfSignatureBlock />
-      </ReportPdfPage>
-    </>
-  );
+      ),
+    },
+  ];
+
+  chunks.slice(1).forEach((chunk, index) => {
+    if (!chunk.length) return;
+    sections.push({
+      pageLabel: `Liste membres (${index + 2}/${chunks.length})`,
+      body: (
+        <ReportPdfTable
+          title={`Membres (${index + 2}/${chunks.length})`}
+          headers={tableHeaders}
+          rows={chunk}
+          compact
+        />
+      ),
+    });
+  });
+
+  sections[sections.length - 1]!.body = withSignature(sections[sections.length - 1]!.body);
+
+  return renderPdfPages(meta, sections);
 }
 
 export function MemberProfilePdfDocument({
@@ -242,11 +268,12 @@ export function ActivitiesPdfDocument({
     row.organizer ?? "—",
   ]);
   const chunks = chunkRows(rows, 18);
-  const total = chunks.length + 1;
+  const tableHeaders = ["Titre", "Code", "Type", "Date", "Lieu", "Territoire", "Part.", "Prés.", "Organisateur"];
 
-  return (
-    <>
-      <ReportPdfPage meta={{ ...meta, pageLabel: "Vue d'ensemble" }} page={1} total={total}>
+  const sections: Array<{ pageLabel?: string; body: React.ReactNode }> = [
+    {
+      pageLabel: "Vue d'ensemble",
+      body: (
         <section className="space-y-5">
           <ReportPdfSummary>
             <strong>{formatNumber(data.meta.total)}</strong> activité(s) recensée(s) selon les filtres appliqués.
@@ -254,36 +281,30 @@ export function ActivitiesPdfDocument({
           <ReportPdfKpiGrid
             items={[
               { label: "Total activités", value: data.meta.total },
-              { label: "Participants (page)", value: data.data.reduce((s, r) => s + r.participants_count, 0) },
-              { label: "Présences (page)", value: data.data.reduce((s, r) => s + r.attendances_count, 0) },
+              { label: "Participants", value: data.data.reduce((s, r) => s + r.participants_count, 0) },
+              { label: "Présences", value: data.data.reduce((s, r) => s + r.attendances_count, 0) },
               { label: "Types distincts", value: new Set(data.data.map((r) => r.type)).size },
             ]}
           />
           {chunks[0]?.length ? (
-            <ReportPdfTable
-              title="Activités"
-              headers={["Titre", "Code", "Type", "Date", "Lieu", "Territoire", "Part.", "Prés.", "Organisateur"]}
-              rows={chunks[0]!}
-              compact
-            />
+            <ReportPdfTable title="Activités" headers={tableHeaders} rows={chunks[0]!} compact />
           ) : null}
         </section>
-      </ReportPdfPage>
-      {chunks.slice(1).map((chunk, i) => (
-        <ReportPdfPage key={i} meta={{ ...meta, pageLabel: `Activités (suite ${i + 2})` }} page={i + 2} total={total}>
-          <ReportPdfTable
-            title="Activités (suite)"
-            headers={["Titre", "Code", "Type", "Date", "Lieu", "Territoire", "Part.", "Prés.", "Organisateur"]}
-            rows={chunk}
-            compact
-          />
-        </ReportPdfPage>
-      ))}
-      <ReportPdfPage meta={{ ...meta, pageLabel: "Validation" }} page={total} total={total}>
-        <ReportPdfSignatureBlock />
-      </ReportPdfPage>
-    </>
-  );
+      ),
+    },
+  ];
+
+  chunks.slice(1).forEach((chunk, index) => {
+    if (!chunk.length) return;
+    sections.push({
+      pageLabel: `Activités (suite ${index + 2})`,
+      body: <ReportPdfTable title="Activités (suite)" headers={tableHeaders} rows={chunk} compact />,
+    });
+  });
+
+  sections[sections.length - 1]!.body = withSignature(sections[sections.length - 1]!.body);
+
+  return renderPdfPages(meta, sections);
 }
 
 export function CardsPdfDocument({
@@ -304,11 +325,12 @@ export function CardsPdfDocument({
     row.status_label,
   ]);
   const chunks = chunkRows(rows, 22);
-  const total = chunks.length + 1;
+  const tableHeaders = ["Membre", "Code", "N° carte", "Émission", "Expiration", "Statut"];
 
-  return (
-    <>
-      <ReportPdfPage meta={{ ...meta, pageLabel: "Indicateurs globaux" }} page={1} total={total}>
+  const sections: Array<{ pageLabel?: string; body: React.ReactNode }> = [
+    {
+      pageLabel: "Indicateurs globaux",
+      body: (
         <section className="space-y-5">
           <ReportPdfKpiGrid
             items={[
@@ -323,30 +345,24 @@ export function CardsPdfDocument({
             ]}
           />
           {chunks[0]?.length ? (
-            <ReportPdfTable
-              title="Détail par membre"
-              headers={["Membre", "Code", "N° carte", "Émission", "Expiration", "Statut"]}
-              rows={chunks[0]!}
-              compact
-            />
+            <ReportPdfTable title="Détail par membre" headers={tableHeaders} rows={chunks[0]!} compact />
           ) : null}
         </section>
-      </ReportPdfPage>
-      {chunks.slice(1).map((chunk, i) => (
-        <ReportPdfPage key={i} meta={{ ...meta, pageLabel: `Cartes (suite ${i + 2})` }} page={i + 2} total={total}>
-          <ReportPdfTable
-            title="Détail par membre (suite)"
-            headers={["Membre", "Code", "N° carte", "Émission", "Expiration", "Statut"]}
-            rows={chunk}
-            compact
-          />
-        </ReportPdfPage>
-      ))}
-      <ReportPdfPage meta={{ ...meta, pageLabel: "Validation" }} page={total} total={total}>
-        <ReportPdfSignatureBlock />
-      </ReportPdfPage>
-    </>
-  );
+      ),
+    },
+  ];
+
+  chunks.slice(1).forEach((chunk, index) => {
+    if (!chunk.length) return;
+    sections.push({
+      pageLabel: `Cartes (suite ${index + 2})`,
+      body: <ReportPdfTable title="Détail par membre (suite)" headers={tableHeaders} rows={chunk} compact />,
+    });
+  });
+
+  sections[sections.length - 1]!.body = withSignature(sections[sections.length - 1]!.body);
+
+  return renderPdfPages(meta, sections);
 }
 
 export function AttendancePdfDocument({

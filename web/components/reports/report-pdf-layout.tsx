@@ -16,7 +16,7 @@ export interface ReportPdfMeta {
 }
 
 export function chunkRows<T>(rows: T[], size = 22): T[][] {
-  if (rows.length === 0) return [[]];
+  if (rows.length === 0) return [];
   const chunks: T[][] = [];
   for (let i = 0; i < rows.length; i += size) chunks.push(rows.slice(i, i + size));
   return chunks;
@@ -100,9 +100,9 @@ export function ReportPdfPage({
         )}
       </header>
 
-      <div className="flex-1 py-6">{children}</div>
+      <div className="min-h-0 flex-1 py-6">{children}</div>
 
-      <footer className="mt-auto flex justify-between border-t border-slate-200 pt-3 text-[9px] text-slate-500">
+      <footer className="mt-auto flex shrink-0 justify-between border-t border-slate-200 pt-3 text-[9px] text-slate-500">
         <div>
           <p className="font-semibold text-slate-700">La Jeunesse Parle — RDC</p>
           <p>Document confidentiel · Usage institutionnel</p>
