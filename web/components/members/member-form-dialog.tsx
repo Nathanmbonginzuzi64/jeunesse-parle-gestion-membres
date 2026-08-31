@@ -1,14 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import { Modal } from "@/components/ui/modal";
-import { Alert } from "@/components/ui/feedback";
 import { MemberForm, toMemberPayload, valuesFromMember, type MemberFormValues } from "@/components/members/member-form";
+import { Modal } from "@/components/ui/modal";
+import { Alert, PageLoader } from "@/components/ui/feedback";
 import { api, ApiError } from "@/lib/api";
 import { fieldErrors, toFormData, validationErrorMessages } from "@/lib/form";
 import { useAuth } from "@/lib/auth";
+import { useApi } from "@/lib/hooks";
 import { useToast } from "@/components/ui/toast";
 import type { DuplicateMatch, Member } from "@/lib/types";
+import { useState } from "react";
+
+interface MemberShow {
+  data: Member;
+}
 
 export function MemberFormDialog({
   open,
@@ -29,7 +34,11 @@ export function MemberFormDialog({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [duplicates, setDuplicates] = useState<DuplicateMatch[] | undefined>();
 
-  async function onSubmit(values: MemberFormValues) {
+  const detail = useApi<MemberShow>(open && member ? `/members/${member.id}` : null);
+  const resolvedMember = member ? (detail.data?.data ?? null) : null;
+  const loadingMember = Boolean(open && member && detail.loading && !resolvedMember);
+
+  async function handleSubmit(values: MemberFormValues) {
     setSubmitting(true);
     setError(null);
     setErrors({});
@@ -76,17 +85,41 @@ export function MemberFormDialog({
           {error}
         </Alert>
       )}
-      <MemberForm
-        key={member?.id ?? "new"}
-        mode={mode}
-        initial={member ? valuesFromMember(member) : undefined}
-        submitting={submitting}
-        errors={errors}
-        duplicates={duplicates}
-        lockedProvince={Boolean(user?.scope.province_id) && (user?.role?.scope_level ?? 0) > 0}
-        submitLabel={member ? "Enregistrer les modifications" : "Enregistrer le membre"}
-        onSubmit={onSubmit}
-      />
+
+      {loadingMember && <PageLoader label="Chargement du dossier…" />}
+
+      {member && detail.error && !loadingMember && (
+        <Alert tone="error" className="mb-4">
+          {detail.error}
+        </Alert>
+      )}
+
+      {!loadingMember && member && resolvedMember && (
+        <MemberForm
+          key={resolvedMember.id}
+          mode="edit"
+          initial={valuesFromMember(resolvedMember)}
+          submitting={submitting}
+          errors={errors}
+          duplicates={duplicates}
+          lockedProvince={Boolean(user?.scope.province_id) && (user?.role?.scope_level ?? 0) > 0}
+          submitLabel="Enregistrer les modifications"
+          onSubmit={handleSubmit}
+        />
+      )}
+
+      {!member && open && (
+        <MemberForm
+          key="new"
+          mode="create"
+          submitting={submitting}
+          errors={errors}
+          duplicates={duplicates}
+          lockedProvince={Boolean(user?.scope.province_id) && (user?.role?.scope_level ?? 0) > 0}
+          submitLabel="Enregistrer le membre"
+          onSubmit={handleSubmit}
+        />
+      )}
     </Modal>
   );
 }

@@ -8,6 +8,7 @@ use App\Http\Requests\Concerns\ValidatesWebAuthnEnrollment;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 
 class UpdateMemberRequest extends FormRequest
 {
@@ -71,6 +72,8 @@ class UpdateMemberRequest extends FormRequest
             'supervisor_member_id' => ['nullable', 'integer', 'exists:members,id'],
             'joined_at' => ['nullable', 'date', 'before_or_equal:today'],
             'notes' => ['nullable', 'string', 'max:2000'],
+
+            'password' => ['nullable', 'confirmed', Password::min(8)->letters()->numbers()],
 
             'photo' => [
                 'nullable', 'file',

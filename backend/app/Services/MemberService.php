@@ -105,7 +105,17 @@ class MemberService
             $before = $member->getAttributes();
             $fingerprints = $data['fingerprints'] ?? null;
             $webauthnEnrollment = $data['webauthn_enrollment'] ?? null;
-            unset($data['fingerprints'], $data['fingerprint_enrollment'], $data['webauthn_enrollment'], $data['status'], $data['member_code'], $data['user_id']);
+            $portalPassword = $data['password'] ?? null;
+            unset(
+                $data['fingerprints'],
+                $data['fingerprint_enrollment'],
+                $data['webauthn_enrollment'],
+                $data['password'],
+                $data['password_confirmation'],
+                $data['status'],
+                $data['member_code'],
+                $data['user_id'],
+            );
             $data = $this->fillTerritoryFromStructure($data, $member);
 
             $member->fill($data);
@@ -122,6 +132,10 @@ class MemberService
 
             if (is_array($webauthnEnrollment) && $webauthnEnrollment !== []) {
                 $this->attachWebAuthnEnrollment($member, $webauthnEnrollment);
+            }
+
+            if (is_string($portalPassword) && $portalPassword !== '') {
+                $this->upsertMemberPortalUser($member, $portalPassword);
             }
 
             $this->audit->logChanges('member.updated', $member, $before, "Modification du membre {$member->member_code}");
@@ -295,5 +309,23 @@ class MemberService
             ->update(['user_id' => $user->id]);
 
         return $user;
+    }
+
+    private function upsertMemberPortalUser(Member $member, string $password): void
+    {
+        if ($member->user_id) {
+            $user = User::query()->findOrFail($member->user_id);
+            $user->forceFill([
+                'password' => $password,
+                'must_change_password' => true,
+                'email' => $member->email,
+                'phone' => $member->phone,
+                'name' => trim($member->first_name.' '.$member->last_name),
+            ])->save();
+
+            return;
+        }
+
+        $this->createMemberPortalUser($member, $password);
     }
 }

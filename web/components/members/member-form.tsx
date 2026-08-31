@@ -67,6 +67,8 @@ export interface MemberFormValues {
   notes: string;
   consent_given: boolean;
   photo: File | null;
+  photo_url: string | null;
+  has_portal_account: boolean;
   webauthnEnrollment: WebAuthnEnrollmentPayload | null;
   existingBiometricEnrolled: boolean;
   confirm_duplicate: boolean;
@@ -104,6 +106,8 @@ export const EMPTY_MEMBER_FORM: MemberFormValues = {
   notes: "",
   consent_given: false,
   photo: null,
+  photo_url: null,
+  has_portal_account: false,
   webauthnEnrollment: null,
   existingBiometricEnrolled: false,
   confirm_duplicate: false,
@@ -141,6 +145,11 @@ export function toMemberPayload(values: MemberFormValues, mode: MemberFormMode):
   }
 
   if (mode === "register" || mode === "create") {
+    payload.password = values.password;
+    payload.password_confirmation = values.password_confirmation;
+  }
+
+  if (mode === "edit" && values.password) {
     payload.password = values.password;
     payload.password_confirmation = values.password_confirmation;
   }
@@ -186,6 +195,8 @@ export function valuesFromMember(member: Member): MemberFormValues {
     joined_at: member.joined_at ?? "",
     notes: member.notes ?? "",
     consent_given: member.consent_given ?? false,
+    photo_url: member.photo_url ?? null,
+    has_portal_account: member.has_portal_account ?? false,
     webauthnEnrollment: null,
     existingBiometricEnrolled: Boolean(member.fingerprint_enrolled),
   };
@@ -194,15 +205,15 @@ export function valuesFromMember(member: Member): MemberFormValues {
 const STEPS = {
   register: ["Identité", "Contact", "Localisation", "Profil", "Compétences", "Accès portail", "Biométrie", "Validation", "Confirmation"],
   create: ["Identité", "Contact", "Localisation", "Profil", "Appartenance", "Accès portail", "Biométrie"],
-  edit: ["Identité", "Contact", "Localisation", "Profil", "Appartenance", "Biométrie"],
+  edit: ["Identité", "Contact", "Localisation", "Profil", "Appartenance", "Accès portail", "Biométrie"],
 } as const;
 
 function isPortalAccessStep(mode: MemberFormMode, step: number) {
-  return (mode === "register" || mode === "create") && step === 5;
+  return (mode === "register" || mode === "create" || mode === "edit") && step === 5;
 }
 
 function isBiometryStep(mode: MemberFormMode, step: number) {
-  if (mode === "edit") return step === 5;
+  if (mode === "edit") return step === 6;
   if (mode === "register" || mode === "create") return step === 6;
   return false;
 }
@@ -247,13 +258,23 @@ export function MemberForm({
     event.preventDefault();
     if (step < steps.length - 1) {
       if (isPortalAccessStep(mode, step)) {
-        if (!values.password || values.password.length < 8) {
-          setPortalError("Le mot de passe doit contenir au moins 8 caractères.");
+        const requiresPassword = mode === "register" || mode === "create" || !values.has_portal_account;
+        const hasPasswordInput = Boolean(values.password || values.password_confirmation);
+
+        if (requiresPassword && !values.password) {
+          setPortalError("Le mot de passe est requis pour l'accès au portail.");
           return;
         }
-        if (values.password !== values.password_confirmation) {
-          setPortalError("La confirmation du mot de passe ne correspond pas.");
-          return;
+
+        if (hasPasswordInput || requiresPassword) {
+          if (!values.password || values.password.length < 8) {
+            setPortalError("Le mot de passe doit contenir au moins 8 caractères.");
+            return;
+          }
+          if (values.password !== values.password_confirmation) {
+            setPortalError("La confirmation du mot de passe ne correspond pas.");
+            return;
+          }
         }
       }
       if (isBiometryStep(mode, step) && mode !== "edit" && !hasWebAuthnEnrollment(values.webauthnEnrollment)) {
@@ -284,6 +305,7 @@ export function MemberForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <PhotoField
             name={fullName}
+            previewUrl={values.photo_url}
             onChange={(photo) => patch({ photo })}
             error={errors.photo}
           />
@@ -497,18 +519,33 @@ export function MemberForm({
         </div>
       )}
 
-      {step === 5 && (mode === "register" || mode === "create") && (
+      {step === 5 && (mode === "register" || mode === "create" || mode === "edit") && (
         <div className="space-y-4">
           <Alert tone="info" title="Accès au portail membre">
-            {mode === "create"
-              ? "Définissez un mot de passe provisoire. Le membre devra le changer et confirmer son empreinte lors de sa première connexion sur le portail web ou mobile."
-              : "Choisissez un mot de passe pour accéder à votre espace membre sur le portail web et mobile."}
+            {mode === "edit" ? (
+              values.has_portal_account ? (
+                <>
+                  Ce membre possède déjà un compte portail. Laissez les champs vides pour conserver le mot de passe
+                  actuel, ou définissez un nouveau mot de passe provisoire (le membre devra le changer à la prochaine
+                  connexion).
+                </>
+              ) : (
+                <>
+                  Aucun compte portail n&apos;est associé à ce membre. Définissez un mot de passe pour lui permettre de
+                  se connecter au portail web ou mobile.
+                </>
+              )
+            ) : mode === "create" ? (
+              "Définissez un mot de passe provisoire. Le membre devra le changer et confirmer son empreinte lors de sa première connexion sur le portail web ou mobile."
+            ) : (
+              "Choisissez un mot de passe pour accéder à votre espace membre sur le portail web et mobile."
+            )}
           </Alert>
           <div className="grid gap-4 sm:grid-cols-2">
             <Input
               label="Mot de passe"
               type="password"
-              required
+              required={mode !== "edit" || !values.has_portal_account}
               hint="8 caractères minimum, lettres et chiffres."
               value={values.password}
               onChange={(event) => {
@@ -520,7 +557,7 @@ export function MemberForm({
             <Input
               label="Confirmation"
               type="password"
-              required
+              required={mode !== "edit" || !values.has_portal_account}
               value={values.password_confirmation}
               onChange={(event) => {
                 patch({ password_confirmation: event.target.value });
@@ -607,7 +644,7 @@ export function MemberForm({
         </div>
       )}
 
-      {step === 5 && mode === "edit" && (
+      {step === 6 && mode === "edit" && (
         <div className="space-y-4">
           <Alert tone="info" title="Biométrie du membre">
             Reconfigurez Windows Hello pour mettre à jour la biométrie du membre.

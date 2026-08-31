@@ -47,6 +47,7 @@ class MemberResource extends JsonResource
                     ->where('modality', 'fingerprint')
                     ->where('status', 'enrolled')
                     ->exists(),
+            'has_portal_account' => (bool) $this->user_id,
             'fingerprints_count' => $this->webAuthnCredentials()->exists()
                 ? 1
                 : $this->biometricTemplates()

@@ -121,6 +121,7 @@ export interface Member {
   /** Empreintes digitales (auriculaire, index, majeur — mains G/D). */
   fingerprints?: MemberFingerprint[];
   fingerprint_enrolled?: boolean;
+  has_portal_account?: boolean;
 
   card?: MemberCard | null;
 }
