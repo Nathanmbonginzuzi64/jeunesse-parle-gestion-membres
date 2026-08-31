@@ -71,6 +71,8 @@ export interface MemberFormValues {
   has_portal_account: boolean;
   webauthnEnrollment: WebAuthnEnrollmentPayload | null;
   existingBiometricEnrolled: boolean;
+  /** Édition : null = non choisi, true = remplacer, false = conserver */
+  replaceBiometric: boolean | null;
   confirm_duplicate: boolean;
 }
 
@@ -110,6 +112,7 @@ export const EMPTY_MEMBER_FORM: MemberFormValues = {
   has_portal_account: false,
   webauthnEnrollment: null,
   existingBiometricEnrolled: false,
+  replaceBiometric: null,
   confirm_duplicate: false,
 };
 
@@ -199,6 +202,7 @@ export function valuesFromMember(member: Member): MemberFormValues {
     has_portal_account: member.has_portal_account ?? false,
     webauthnEnrollment: null,
     existingBiometricEnrolled: Boolean(member.fingerprint_enrolled),
+    replaceBiometric: null,
   };
 }
 
@@ -277,13 +281,38 @@ export function MemberForm({
           }
         }
       }
-      if (isBiometryStep(mode, step) && mode !== "edit" && !hasWebAuthnEnrollment(values.webauthnEnrollment)) {
-        setBiometryError("Enregistrez la biométrie Windows Hello du membre avant de continuer.");
-        return;
+      if (isBiometryStep(mode, step)) {
+        if (mode === "edit" && values.existingBiometricEnrolled) {
+          if (values.replaceBiometric === null) {
+            setBiometryError("Indiquez si vous souhaitez changer l'empreinte du membre.");
+            return;
+          }
+          if (values.replaceBiometric === true && !hasWebAuthnEnrollment(values.webauthnEnrollment)) {
+            setBiometryError("Enregistrez la nouvelle empreinte avant de continuer.");
+            return;
+          }
+        } else if (mode !== "edit" && !hasWebAuthnEnrollment(values.webauthnEnrollment)) {
+          setBiometryError("Enregistrez la biométrie Windows Hello du membre avant de continuer.");
+          return;
+        }
       }
       setPortalError(null);
       setBiometryError(null);
       setStep((current) => current + 1);
+      return;
+    }
+    if (
+      mode === "edit" &&
+      values.existingBiometricEnrolled &&
+      values.replaceBiometric === null
+    ) {
+      setBiometryError("Indiquez si vous souhaitez changer l'empreinte du membre.");
+      setStep(steps.findIndex((_, i) => isBiometryStep(mode, i)));
+      return;
+    }
+    if (mode === "edit" && values.existingBiometricEnrolled && values.replaceBiometric === true && !hasWebAuthnEnrollment(values.webauthnEnrollment)) {
+      setBiometryError("Enregistrez la nouvelle empreinte avant d'enregistrer les modifications.");
+      setStep(steps.findIndex((_, i) => isBiometryStep(mode, i)));
       return;
     }
     if (mode !== "edit" && !hasWebAuthnEnrollment(values.webauthnEnrollment)) {
@@ -647,19 +676,58 @@ export function MemberForm({
       {step === 6 && mode === "edit" && (
         <div className="space-y-4">
           <Alert tone="info" title="Biométrie du membre">
-            Reconfigurez Windows Hello pour mettre à jour la biométrie du membre.
+            {values.existingBiometricEnrolled
+              ? "Ce membre possède déjà une empreinte enregistrée. Souhaitez-vous la remplacer par une nouvelle ?"
+              : "Aucune empreinte n'est enregistrée pour ce membre. Vous pouvez en ajouter une maintenant (facultatif)."}
           </Alert>
-          <BiometricEnrollmentField
-            value={values.webauthnEnrollment}
-            onChange={(webauthnEnrollment) => {
-              patch({ webauthnEnrollment });
-              setBiometryError(null);
-            }}
-            displayName={biometricDisplayName}
-            userName={biometricUserName}
-            alreadyEnrolled={values.existingBiometricEnrolled}
-            error={biometryError ?? errors.webauthn_enrollment}
-          />
+
+          {values.existingBiometricEnrolled && (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button
+                type="button"
+                variant={values.replaceBiometric === false ? "default" : "outline"}
+                className="h-auto min-h-11 whitespace-normal py-2.5 text-left"
+                onClick={() => {
+                  patch({ replaceBiometric: false, webauthnEnrollment: null });
+                  setBiometryError(null);
+                }}
+              >
+                Non — conserver l&apos;empreinte actuelle
+              </Button>
+              <Button
+                type="button"
+                variant={values.replaceBiometric === true ? "default" : "outline"}
+                className="h-auto min-h-11 whitespace-normal py-2.5 text-left"
+                onClick={() => {
+                  patch({ replaceBiometric: true, webauthnEnrollment: null });
+                  setBiometryError(null);
+                }}
+              >
+                Oui — enregistrer une nouvelle empreinte
+              </Button>
+            </div>
+          )}
+
+          {values.replaceBiometric === false && (
+            <Alert tone="success">L&apos;empreinte actuelle sera conservée.</Alert>
+          )}
+
+          {(values.replaceBiometric === true || !values.existingBiometricEnrolled) && (
+            <BiometricEnrollmentField
+              value={values.webauthnEnrollment}
+              onChange={(webauthnEnrollment) => {
+                patch({ webauthnEnrollment });
+                setBiometryError(null);
+              }}
+              displayName={biometricDisplayName}
+              userName={biometricUserName}
+              error={biometryError ?? errors.webauthn_enrollment}
+            />
+          )}
+
+          {biometryError && values.replaceBiometric !== true && values.existingBiometricEnrolled && (
+            <p className="text-xs text-red-600">{biometryError}</p>
+          )}
         </div>
       )}
 
