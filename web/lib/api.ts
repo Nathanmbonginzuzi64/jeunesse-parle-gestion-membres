@@ -143,6 +143,81 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return data as T;
 }
 
+/** Envoi multipart avec suivi de progression (XHR). */
+export function uploadFormData<T>(
+  path: string,
+  form: FormData,
+  onProgress?: (percent: number) => void,
+): Promise<T> {
+  if (USE_MOCKS) {
+    return new Promise((resolve, reject) => {
+      let p = 0;
+      const tick = setInterval(() => {
+        p += 12 + Math.random() * 15;
+        onProgress?.(Math.min(95, p));
+        if (p >= 95) {
+          clearInterval(tick);
+          onProgress?.(100);
+          import("./mocks/router")
+            .then(({ mockRequest }) =>
+              mockRequest<T>({ method: "POST", path, body: form }).then(resolve).catch(reject),
+            )
+            .catch(reject);
+        }
+      }, 120);
+    });
+  }
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const token = getToken();
+    const url = `${API_BASE_URL}${path}`;
+
+    xhr.open("POST", url);
+    xhr.setRequestHeader("Accept", "application/json");
+    xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) {
+        onProgress(Math.round((event.loaded / event.total) * 90));
+      }
+    };
+
+    xhr.onload = () => {
+      let data: unknown = {};
+      try {
+        data = JSON.parse(xhr.responseText);
+      } catch {
+        data = {};
+      }
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress?.(100);
+        resolve(data as T);
+        return;
+      }
+
+      if (xhr.status === 401) {
+        setToken(null);
+        onUnauthorized?.();
+      }
+
+      const parsed = (typeof data === "object" && data !== null ? data : {}) as Record<string, unknown>;
+      reject(
+        new ApiError(
+          xhr.status,
+          (parsed.message as string) || "Une erreur est survenue. Veuillez réessayer.",
+          parsed,
+        ),
+      );
+    };
+
+    xhr.onerror = () => reject(new ApiError(0, "Serveur injoignable. Vérifiez votre connexion réseau."));
+    xhr.send(form);
+  });
+}
+
 export const api = {
   get: <T>(path: string, query?: Query, signal?: AbortSignal) =>
     request<T>(path, { query, signal }),
@@ -151,6 +226,7 @@ export const api = {
   put: <T>(path: string, body?: unknown) => request<T>(path, { method: "PUT", body }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: "PATCH", body }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  uploadFormData,
   public: {
     get: <T>(path: string, query?: Query, signal?: AbortSignal) =>
       request<T>(path, { query, anonymous: true, signal }),

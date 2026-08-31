@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Image, Link2, Newspaper, Palette, Paperclip, Type, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/field";
@@ -8,7 +8,10 @@ import { Card, CardBody } from "@/components/ui/card";
 import { RichTextEditor } from "@/components/news/rich-text-editor";
 import { TextBackgroundPicker } from "@/components/news/text-background-picker";
 import { NewsFormPreview } from "@/components/news/news-form-preview";
-import { api, ApiError } from "@/lib/api";
+import { NewsImageDropzone, NewsPdfDropzone, NewsGalleryDropzone } from "@/components/news/news-file-dropzone";
+import { NewsUrlField } from "@/components/news/news-url-field";
+import { NewsPublishProgress, type PublishPhase } from "@/components/news/news-publish-progress";
+import { uploadFormData, ApiError } from "@/lib/api";
 import { NEWS_CATEGORIES, type NewsPostItem } from "@/lib/news/constants";
 import { decodeTextBackground, type TextBackgroundId } from "@/lib/news/text-backgrounds";
 import { useApi } from "@/lib/hooks";
@@ -22,11 +25,11 @@ interface ActivityOption {
 }
 
 const MEDIA_TYPES = [
-  { value: "text", label: "Texte", icon: Type, desc: "Message avec fond coloré" },
-  { value: "image", label: "Image", icon: Image, desc: "Photo principale" },
-  { value: "video", label: "Vidéo", icon: Video, desc: "Lien YouTube" },
+  { value: "text", label: "Texte", icon: Type, desc: "Fond coloré" },
+  { value: "image", label: "Image", icon: Image, desc: "Photo" },
+  { value: "video", label: "Vidéo", icon: Video, desc: "YouTube" },
   { value: "document", label: "PDF", icon: Paperclip, desc: "Document" },
-  { value: "link", label: "Lien", icon: Link2, desc: "URL externe" },
+  { value: "link", label: "Lien", icon: Link2, desc: "URL" },
 ] as const;
 
 interface NewsFormProps {
@@ -54,10 +57,39 @@ export function NewsForm({ initial, onSuccess }: NewsFormProps) {
   const [gallery, setGallery] = useState<File[]>([]);
   const [mediaType, setMediaType] = useState(initial?.media_type ?? "text");
   const [busy, setBusy] = useState(false);
+  const [publishPhase, setPublishPhase] = useState<PublishPhase>("idle");
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const imagePreview = useMemo(() => (image ? URL.createObjectURL(image) : null), [image]);
+  const galleryPreviews = useMemo(() => gallery.map((f) => URL.createObjectURL(f)), [gallery]);
+
+  useEffect(
+    () => () => {
+      if (imagePreview) URL.revokeObjectURL(imagePreview);
+      galleryPreviews.forEach((u) => URL.revokeObjectURL(u));
+    },
+    [imagePreview, galleryPreviews],
+  );
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+
+    if (mediaType === "image" && !image && !initial?.media_url) {
+      toast.error("Veuillez sélectionner une image.");
+      return;
+    }
+    if (mediaType === "document" && !document && initial?.media_type !== "document") {
+      toast.error("Veuillez sélectionner un fichier PDF.");
+      return;
+    }
+    if ((mediaType === "video" || mediaType === "link") && !externalUrl.trim()) {
+      toast.error("Veuillez saisir une URL.");
+      return;
+    }
+
     setBusy(true);
+    setPublishPhase("preparing");
+    setUploadProgress(5);
 
     const form = new FormData();
     form.append("title", title);
@@ -75,18 +107,34 @@ export function NewsForm({ initial, onSuccess }: NewsFormProps) {
     if (document) form.append("document", document);
     gallery.forEach((file, index) => form.append(`gallery[${index}]`, file));
 
+    const path = initial?.id ? `/news/${initial.id}` : "/news";
+    if (initial?.id) form.append("_method", "PUT");
+
+    const hasFiles = !!(image || document || gallery.length);
+    setPublishPhase(hasFiles ? "uploading" : "processing");
+    setUploadProgress(hasFiles ? 10 : 50);
+
     try {
-      if (initial?.id) {
-        form.append("_method", "PUT");
-        await api.post(`/news/${initial.id}`, form);
-        toast.success("Actualité mise à jour.");
-      } else {
-        await api.post("/news", form);
-        toast.success("Actualité publiée.");
-      }
+      await uploadFormData(path, form, (percent) => {
+        setUploadProgress(Math.max(10, percent));
+        if (percent >= 90) setPublishPhase("processing");
+      });
+
+      setPublishPhase("done");
+      setUploadProgress(100);
+      toast.success(initial?.id ? "Actualité mise à jour." : "Actualité publiée.");
+
+      await new Promise((r) => setTimeout(r, 700));
+      setPublishPhase("idle");
+      setUploadProgress(0);
       onSuccess();
     } catch (caught) {
+      setPublishPhase("error");
       toast.error(caught instanceof ApiError ? caught.message : "Enregistrement impossible.");
+      setTimeout(() => {
+        setPublishPhase("idle");
+        setUploadProgress(0);
+      }, 1500);
     } finally {
       setBusy(false);
     }
@@ -96,156 +144,143 @@ export function NewsForm({ initial, onSuccess }: NewsFormProps) {
   const previewText = body.trim() || title.trim() || "Votre message…";
 
   return (
-    <div className="grid gap-8 xl:grid-cols-[1fr_380px]">
-      <form onSubmit={submit} className="space-y-6">
-        {/* Section principale */}
-        <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[var(--shadow-card)]">
-          <div className="mb-5 flex items-center gap-2">
-            <Newspaper className="h-5 w-5 text-brand-600" />
-            <h2 className="font-semibold text-slate-900">Informations principales</h2>
-          </div>
-          <div className="space-y-4">
-            <Input label="Titre de l'actualité" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="Ex. : Grande conférence jeunesse RDC 2026" />
-            <Select
-              label="Catégorie"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              options={categories.map((c) => ({ value: c.value, label: c.label }))}
-            />
-            <RichTextEditor label="Description" value={body} onChange={setBody} required />
-          </div>
-        </section>
+    <>
+      <NewsPublishProgress open={busy || publishPhase === "done"} phase={publishPhase} progress={uploadProgress} />
 
-        {/* Type de média */}
-        <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[var(--shadow-card)]">
-          <div className="mb-5 flex items-center gap-2">
-            <Palette className="h-5 w-5 text-brand-600" />
-            <h2 className="font-semibold text-slate-900">Format de publication</h2>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-            {MEDIA_TYPES.map(({ value, label, icon: Icon, desc }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setMediaType(value)}
-                className={cn(
-                  "flex flex-col items-center gap-2 rounded-xl border-2 p-3 text-center transition",
-                  mediaType === value
-                    ? "border-brand-500 bg-brand-50 text-brand-700"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-brand-200 hover:bg-slate-50",
-                )}
-              >
-                <Icon className="h-5 w-5" />
-                <span className="text-xs font-semibold">{label}</span>
-                <span className="hidden text-[10px] text-slate-400 sm:block">{desc}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-5">
-            {mediaType === "text" ? (
-              <TextBackgroundPicker value={textBackground} onChange={setTextBackground} previewText={previewText} />
-            ) : null}
-
-            {mediaType === "image" ? (
-              <Input
-                label="Image principale"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={(e) => setImage(e.target.files?.[0] ?? null)}
-              />
-            ) : null}
-
-            {mediaType === "document" ? (
-              <Input label="Document PDF" type="file" accept="application/pdf" onChange={(e) => setDocument(e.target.files?.[0] ?? null)} />
-            ) : null}
-
-            {mediaType === "video" || mediaType === "link" ? (
-              <Input
-                label={mediaType === "video" ? "URL vidéo (YouTube)" : "Lien externe"}
-                type="url"
-                value={externalUrl}
-                onChange={(e) => setExternalUrl(e.target.value)}
-                placeholder="https://"
-              />
-            ) : null}
-
-            {mediaType !== "text" ? (
-              <div className="mt-4">
-                <Input
-                  label="Galerie images (optionnel)"
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  multiple
-                  onChange={(e) => setGallery(Array.from(e.target.files ?? []))}
-                />
-              </div>
-            ) : null}
-          </div>
-        </section>
-
-        {/* Activité + publication */}
-        <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[var(--shadow-card)]">
-          <h2 className="mb-4 font-semibold text-slate-900">Options avancées</h2>
-          <div className="space-y-4">
-            <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-4 transition hover:bg-slate-50">
-              <input type="checkbox" checked={linkActivity} onChange={(e) => setLinkActivity(e.target.checked)} className="h-4 w-4 rounded" />
-              <div>
-                <p className="text-sm font-medium text-slate-800">Associer une activité</p>
-                <p className="text-xs text-slate-500">Lier cette actualité à une activité existante</p>
-              </div>
-            </label>
-
-            {linkActivity ? (
+      <div className="grid gap-8 xl:grid-cols-[1fr_380px]">
+        <form onSubmit={submit} className="space-y-6">
+          <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[var(--shadow-card)]">
+            <div className="mb-5 flex items-center gap-2">
+              <Newspaper className="h-5 w-5 text-brand-600" />
+              <h2 className="font-semibold text-slate-900">Informations principales</h2>
+            </div>
+            <div className="space-y-4">
+              <Input label="Titre de l'actualité" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="Ex. : Grande conférence jeunesse RDC 2026" />
               <Select
-                label="Activité liée"
-                value={activityId}
-                onChange={(e) => setActivityId(e.target.value)}
-                options={[
-                  { value: "", label: "— Sélectionner —" },
-                  ...(activitiesData?.data ?? []).map((a) => ({
-                    value: String(a.id),
-                    label: `${a.title} (${a.code})`,
-                  })),
-                ]}
+                label="Catégorie"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                options={categories.map((c) => ({ value: c.value, label: c.label }))}
               />
-            ) : null}
+              <RichTextEditor label="Description" value={body} onChange={setBody} required />
+            </div>
+          </section>
 
-            <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
-              <input type="checkbox" checked={isPublished} onChange={(e) => setIsPublished(e.target.checked)} className="h-4 w-4 rounded" />
-              <div>
-                <p className="text-sm font-medium text-emerald-800">Publier immédiatement</p>
-                <p className="text-xs text-emerald-600">Les membres recevront une notification</p>
-              </div>
-            </label>
-          </div>
-        </section>
+          <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[var(--shadow-card)]">
+            <div className="mb-5 flex items-center gap-2">
+              <Palette className="h-5 w-5 text-brand-600" />
+              <h2 className="font-semibold text-slate-900">Format de publication</h2>
+            </div>
 
-        <div className="flex flex-wrap gap-3">
-          <Button type="submit" loading={busy} size="lg">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {MEDIA_TYPES.map(({ value, label, icon: Icon, desc }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setMediaType(value)}
+                  className={cn(
+                    "flex flex-col items-center gap-2 rounded-xl border-2 p-3 text-center transition",
+                    mediaType === value
+                      ? "border-brand-500 bg-brand-50 text-brand-700 shadow-sm"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-brand-200 hover:bg-slate-50",
+                  )}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span className="text-xs font-semibold">{label}</span>
+                  <span className="hidden text-[10px] text-slate-400 sm:block">{desc}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-6 space-y-5">
+              {mediaType === "text" ? (
+                <TextBackgroundPicker value={textBackground} onChange={setTextBackground} previewText={previewText} />
+              ) : null}
+
+              {mediaType === "image" ? (
+                <NewsImageDropzone value={image} onChange={setImage} existingUrl={!image ? initial?.media_url : null} />
+              ) : null}
+
+              {mediaType === "document" ? (
+                <NewsPdfDropzone value={document} onChange={setDocument} />
+              ) : null}
+
+              {mediaType === "video" ? (
+                <NewsUrlField mode="video" value={externalUrl} onChange={setExternalUrl} />
+              ) : null}
+
+              {mediaType === "link" ? (
+                <NewsUrlField mode="link" value={externalUrl} onChange={setExternalUrl} />
+              ) : null}
+
+              {mediaType !== "text" ? (
+                <NewsGalleryDropzone value={gallery} onChange={setGallery} />
+              ) : null}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[var(--shadow-card)]">
+            <h2 className="mb-4 font-semibold text-slate-900">Options avancées</h2>
+            <div className="space-y-4">
+              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-4 transition hover:bg-slate-50">
+                <input type="checkbox" checked={linkActivity} onChange={(e) => setLinkActivity(e.target.checked)} className="h-4 w-4 rounded" />
+                <div>
+                  <p className="text-sm font-medium text-slate-800">Associer une activité</p>
+                  <p className="text-xs text-slate-500">Lier cette actualité à une activité existante</p>
+                </div>
+              </label>
+
+              {linkActivity ? (
+                <Select
+                  label="Activité liée"
+                  value={activityId}
+                  onChange={(e) => setActivityId(e.target.value)}
+                  options={[
+                    { value: "", label: "— Sélectionner —" },
+                    ...(activitiesData?.data ?? []).map((a) => ({
+                      value: String(a.id),
+                      label: `${a.title} (${a.code})`,
+                    })),
+                  ]}
+                />
+              ) : null}
+
+              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+                <input type="checkbox" checked={isPublished} onChange={(e) => setIsPublished(e.target.checked)} className="h-4 w-4 rounded" />
+                <div>
+                  <p className="text-sm font-medium text-emerald-800">Publier immédiatement</p>
+                  <p className="text-xs text-emerald-600">Les membres recevront une notification</p>
+                </div>
+              </label>
+            </div>
+          </section>
+
+          <Button type="submit" loading={busy} size="lg" disabled={busy}>
             {initial ? "Enregistrer les modifications" : "Publier l'actualité"}
           </Button>
-        </div>
-      </form>
+        </form>
 
-      {/* Aperçu live */}
-      <aside className="xl:sticky xl:top-6 xl:self-start">
-        <Card className="overflow-hidden border-brand-100">
-          <div className="border-b border-brand-100 bg-gradient-to-r from-brand-50 to-blue-50 px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">Aperçu en direct</p>
-          </div>
-          <CardBody className="p-4">
-            <NewsFormPreview
-              title={title}
-              body={body}
-              category={category}
-              mediaType={mediaType}
-              textBackground={textBackground}
-            />
-          </CardBody>
-        </Card>
-      </aside>
-    </div>
+        <aside className="xl:sticky xl:top-6 xl:self-start">
+          <Card className="overflow-hidden border-brand-100">
+            <div className="border-b border-brand-100 bg-gradient-to-r from-brand-50 to-blue-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">Aperçu en direct</p>
+            </div>
+            <CardBody className="p-4">
+              <NewsFormPreview
+                title={title}
+                body={body}
+                category={category}
+                mediaType={mediaType}
+                textBackground={textBackground}
+                imagePreview={imagePreview ?? initial?.media_url}
+                externalUrl={externalUrl}
+                documentName={document?.name}
+                galleryPreviews={galleryPreviews}
+              />
+            </CardBody>
+          </Card>
+        </aside>
+      </div>
+    </>
   );
 }
