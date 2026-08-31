@@ -68,11 +68,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </Alert>
           )}
           {!user.must_change_password && user.must_confirm_biometric && (
-            <Alert tone="warning" className="mb-4 no-print" title="Première connexion — biométrie">
+            <Alert tone="warning" className="mb-4 no-print" title="Première connexion — empreinte">
               <Link href="/compte/biometrie?onboarding=1" className="font-medium underline">
-                Confirmez votre empreinte
+                Confirmez votre empreinte enregistrée
               </Link>{" "}
-              sur cet appareil (web ou mobile) pour finaliser votre accès.
+              (celle enregistrée lors de votre adhésion) pour finaliser votre accès au portail.
             </Alert>
           )}
           <OnboardingGuard>{children}</OnboardingGuard>

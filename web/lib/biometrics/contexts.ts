@@ -43,9 +43,9 @@ export const BIOMETRIC_CONTEXT_COPY: Record<
     successDefault: "Biométrie enregistrée.",
   },
   SECURITY_CONFIRMATION: {
-    title: "Confirmation de sécurité",
-    description: "Confirmez votre identité avec votre empreinte.",
-    waiting: "En attente…",
-    successDefault: "Identité confirmée.",
+    title: "Confirmer votre empreinte",
+    description: "Utilisez l'empreinte enregistrée lors de votre adhésion pour confirmer votre identité.",
+    waiting: "En attente de votre empreinte…",
+    successDefault: "Empreinte confirmée.",
   },
 };

@@ -72,14 +72,22 @@ export default function BiometriePage() {
     }
   }
 
+  async function handleOnboardingSuccess() {
+    toast.success("Empreinte confirmée.");
+    await refresh();
+    const me = await api.get<{ user: AuthUser }>("/auth/me");
+    router.replace(getPostLoginPath(me.user));
+  }
+
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <PageHeader title={onboarding ? "Confirmer votre empreinte" : "Biométrie"} />
 
       {onboarding && (
         <Alert tone="info">
-          Enregistrez votre empreinte sur <strong>cet appareil</strong> (navigateur web ou application mobile)
-          pour finaliser votre première connexion au portail membre.
+          Votre empreinte a déjà été enregistrée lors de votre adhésion. Utilisez{" "}
+          <strong>Windows Hello</strong> sur cet appareil pour la confirmer — vous n&apos;avez pas
+          besoin d&apos;enregistrer une nouvelle empreinte.
         </Alert>
       )}
 
@@ -92,33 +100,67 @@ export default function BiometriePage() {
 
       {error && <Alert tone="error">{error}</Alert>}
 
-      <Card>
-        <CardHeader
-          title="Configurer mon empreinte"
-          description="Enregistrez Windows Hello pour vous connecter, être identifié ou pointer une présence."
-        />
-        <CardBody className="space-y-4">
-          <div className="rounded-xl border border-brand-100 bg-brand-50/50 p-4 text-center">
-            <Fingerprint className="mx-auto h-12 w-12 text-brand-600" />
-            <p className="mt-2 text-sm text-slate-600">
-              Aucune image d&apos;empreinte n&apos;est stockée — uniquement une clé publique WebAuthn.
-            </p>
-            <Button
-              type="button"
-              size="lg"
-              className="mt-4 w-full"
-              disabled={!available}
-              onClick={() => setModalOpen(true)}
-            >
-              <Fingerprint className="h-4 w-4" />
-              Configurer mon empreinte
-            </Button>
-          </div>
-        </CardBody>
-      </Card>
+      {onboarding ? (
+        <Card>
+          <CardHeader
+            title="Confirmer l'empreinte enregistrée"
+            description="Validez l'identité biométrique associée à votre dossier membre."
+          />
+          <CardBody className="space-y-4">
+            <div className="rounded-xl border border-brand-100 bg-brand-50/50 p-4 text-center">
+              <Fingerprint className="mx-auto h-12 w-12 text-brand-600" />
+              <p className="mt-2 text-sm text-slate-600">
+                {loading
+                  ? "Chargement de votre empreinte…"
+                  : credentials.length > 0
+                    ? "Empreinte trouvée sur votre dossier. Confirmez-la avec Windows Hello."
+                    : "Aucune empreinte liée à votre dossier. Contactez un responsable si le problème persiste."}
+              </p>
+              <Button
+                type="button"
+                size="lg"
+                className="mt-4 w-full"
+                disabled={!available || loading || credentials.length === 0}
+                onClick={() => setModalOpen(true)}
+              >
+                <Fingerprint className="h-4 w-4" />
+                Confirmer mon empreinte
+              </Button>
+            </div>
+          </CardBody>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader
+            title="Configurer mon empreinte"
+            description="Enregistrez Windows Hello pour vous connecter, être identifié ou pointer une présence."
+          />
+          <CardBody className="space-y-4">
+            <div className="rounded-xl border border-brand-100 bg-brand-50/50 p-4 text-center">
+              <Fingerprint className="mx-auto h-12 w-12 text-brand-600" />
+              <p className="mt-2 text-sm text-slate-600">
+                Aucune image d&apos;empreinte n&apos;est stockée — uniquement une clé publique WebAuthn.
+              </p>
+              <Button
+                type="button"
+                size="lg"
+                className="mt-4 w-full"
+                disabled={!available}
+                onClick={() => setModalOpen(true)}
+              >
+                <Fingerprint className="h-4 w-4" />
+                Configurer mon empreinte
+              </Button>
+            </div>
+          </CardBody>
+        </Card>
+      )}
 
       <Card>
-        <CardHeader title="Appareils enregistrés" description="Credentials liés à votre compte." />
+        <CardHeader
+          title="Appareils enregistrés"
+          description={onboarding ? "Empreinte enregistrée sur votre dossier." : "Credentials liés à votre compte."}
+        />
         <CardBody>
           {loading ? (
             <PageLoader />
@@ -139,16 +181,18 @@ export default function BiometriePage() {
                         : ""}
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    loading={revoking === item.id}
-                    onClick={() => void revoke(item.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Révoquer
-                  </Button>
+                  {!onboarding && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      loading={revoking === item.id}
+                      onClick={() => void revoke(item.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Révoquer
+                    </Button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -159,15 +203,15 @@ export default function BiometriePage() {
       <BiometricModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        context="BIOMETRIC_REGISTRATION"
+        context={onboarding ? "SECURITY_CONFIRMATION" : "BIOMETRIC_REGISTRATION"}
         onSuccess={async () => {
-          toast.success(onboarding ? "Empreinte confirmée." : "Biométrie configurée.");
-          await reload();
           if (onboarding) {
-            const me = await api.get<{ user: AuthUser }>("/auth/me");
-            router.replace(getPostLoginPath(me.user));
+            setModalOpen(false);
+            await handleOnboardingSuccess();
             return;
           }
+          toast.success("Biométrie configurée.");
+          await reload();
           await refresh();
         }}
       />

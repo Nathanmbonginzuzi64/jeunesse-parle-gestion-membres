@@ -536,9 +536,9 @@ export function MemberForm({
                 </>
               )
             ) : mode === "create" ? (
-              "Un compte portail (rôle membre) sera créé automatiquement. Le membre pourra se connecter avec son téléphone ou e-mail et ce mot de passe provisoire."
+              "Un compte portail (rôle membre) sera créé automatiquement. Le membre pourra se connecter avec son téléphone ou e-mail et ce mot de passe provisoire, puis confirmer son empreinte déjà enregistrée à la première connexion."
             ) : (
-              "Un compte portail membre sera créé automatiquement. Choisissez un mot de passe pour accéder à votre espace sur le portail web et mobile."
+              "Un compte portail membre sera créé automatiquement. Choisissez un mot de passe pour accéder à votre espace ; votre empreinte enregistrée sera confirmée à la première connexion."
             )}
           </Alert>
           <div className="grid gap-4 sm:grid-cols-2">

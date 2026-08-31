@@ -388,7 +388,12 @@ class ContextualBiometricService
         $ids = [];
         if ($actor && ! $context->isDiscoverable()) {
             $ids = WebAuthnCredential::query()
-                ->where('user_id', $actor->id)
+                ->where(function ($query) use ($actor) {
+                    $query->where('user_id', $actor->id);
+                    if ($actor->member_id) {
+                        $query->orWhere('member_id', $actor->member_id);
+                    }
+                })
                 ->pluck('credential_id')
                 ->map(fn (string $id) => $this->b64urlDecode($id))
                 ->filter()
@@ -519,7 +524,12 @@ class ContextualBiometricService
     public function listCredentials(User $user): array
     {
         return WebAuthnCredential::query()
-            ->where('user_id', $user->id)
+            ->where(function ($query) use ($user) {
+                $query->where('user_id', $user->id);
+                if ($user->member_id) {
+                    $query->orWhere('member_id', $user->member_id);
+                }
+            })
             ->orderByDesc('created_at')
             ->get()
             ->map(fn (WebAuthnCredential $item) => [

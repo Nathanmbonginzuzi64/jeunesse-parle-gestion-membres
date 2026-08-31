@@ -124,6 +124,12 @@ class BiometricController extends Controller
             ]);
         }
 
+        if ($context === BiometricContext::SecurityConfirmation && ! $actor) {
+            throw ValidationException::withMessages([
+                'context' => 'Authentification requise pour confirmer votre empreinte.',
+            ]);
+        }
+
         if ($context === BiometricContext::BiometricRegistration) {
             throw ValidationException::withMessages([
                 'context' => 'Utilisez /biometrics/register/options pour la configuration.',
@@ -179,6 +185,10 @@ class BiometricController extends Controller
             $request,
             $activity,
         );
+
+        if ($context === BiometricContext::SecurityConfirmation && $actor) {
+            $actor->forceFill(['must_confirm_biometric' => false])->save();
+        }
 
         return response()->json($result);
     }
