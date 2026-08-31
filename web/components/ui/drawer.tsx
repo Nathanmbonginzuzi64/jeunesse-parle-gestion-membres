@@ -14,6 +14,8 @@ export function Drawer({
   children,
   footer,
   side = "right",
+  className,
+  header,
 }: {
   open: boolean;
   onClose: () => void;
@@ -22,6 +24,9 @@ export function Drawer({
   children: ReactNode;
   footer?: ReactNode;
   side?: "right" | "left";
+  className?: string;
+  /** Remplace l'en-tête par défaut si fourni. */
+  header?: ReactNode;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -51,21 +56,24 @@ export function Drawer({
         role="dialog"
         aria-modal="true"
         className={cn(
-          "animate-slide-in absolute inset-y-0 flex w-full max-w-md flex-col bg-white shadow-[var(--shadow-elevated)]",
+          "absolute inset-y-0 flex w-full max-w-md flex-col bg-white shadow-[var(--shadow-elevated)]",
+          side === "right" ? "animate-slide-in right-0 sm:rounded-l-2xl" : "animate-slide-in-left left-0 sm:rounded-r-2xl",
           "max-sm:inset-x-0 max-sm:top-auto max-sm:max-h-[92vh] max-sm:rounded-t-2xl",
-          side === "right" ? "right-0 sm:rounded-l-2xl" : "left-0 sm:rounded-r-2xl",
+          className,
         )}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
-          <div className="min-w-0">
-            <h2 className="text-base font-semibold text-slate-900">{title}</h2>
-            {description && <p className="mt-0.5 text-xs text-slate-500">{description}</p>}
+        {header ?? (
+          <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+              {description && <p className="mt-0.5 text-xs text-slate-500">{description}</p>}
+            </div>
+            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Fermer le panneau">
+              <X className="h-4 w-4" />
+            </Button>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Fermer le panneau">
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        )}
+        <div className="flex-1 overflow-y-auto">{children}</div>
         {footer && (
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 px-5 py-3.5">
             {footer}
