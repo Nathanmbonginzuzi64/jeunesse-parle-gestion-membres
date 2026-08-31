@@ -413,12 +413,12 @@ class ReportService
                 return [
                     'type' => $type->value,
                     'type_label' => $type->label(),
-                'activities_count' => (int) $row->activities_count,
-                'attendances_count' => (int) $row->attendances_count,
-                'present_count' => (int) $row->present_count,
-                'rate' => (int) $row->attendances_count > 0
-                    ? round(((int) $row->present_count / (int) $row->attendances_count) * 100)
-                    : 0,
+                    'activities_count' => (int) $row->activities_count,
+                    'attendances_count' => (int) $row->attendances_count,
+                    'present_count' => (int) $row->present_count,
+                    'rate' => (int) $row->attendances_count > 0
+                        ? round(((int) $row->present_count / (int) $row->attendances_count) * 100)
+                        : 0,
                 ];
             })
             ->values()
