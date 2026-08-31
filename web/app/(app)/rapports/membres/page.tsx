@@ -6,6 +6,7 @@ import { Fingerprint, MapPin, Users } from "lucide-react";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
 import { ReportExportButtons } from "@/components/reports/report-export-buttons";
+import { MembersListPdfDocument } from "@/components/reports/analytics-pdf-document";
 import {
   ReportFiltersBar,
   filtersToQuery,
@@ -15,11 +16,13 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardBody } from "@/components/ui/card";
 import { Alert, EmptyState, TableSkeleton } from "@/components/ui/feedback";
 import { Pagination } from "@/components/ui/table";
-import { useApi, useDebounced } from "@/lib/hooks";
+import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import {
   EMPTY_REPORT_FILTERS,
   type MembersReportResponse,
 } from "@/lib/reports/api-types";
+import { useApi, useDebounced } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
 import { formatNumber } from "@/lib/utils";
 
@@ -32,6 +35,7 @@ export default function MembersReportPage() {
 }
 
 function MembersReport() {
+  const { user } = useAuth();
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState(EMPTY_REPORT_FILTERS);
   const debouncedQ = useDebounced(filters.q);
@@ -67,7 +71,24 @@ function MembersReport() {
               Liste par localisation — Province → Ville → District → Commune → Quartier → Avenue
             </p>
           </div>
-          <ReportExportButtons filters={filters} />
+          <ReportExportButtons
+            reportId="membres"
+            disabled={!data?.data.length}
+            onPreparePdf={async () => {
+              const full = await api.get<MembersReportResponse>("/reports/members", {
+                ...filtersToQuery({ ...filters, q: debouncedQ }),
+                page: 1,
+                per_page: 5000,
+              });
+              return (
+                <MembersListPdfDocument
+                  data={full}
+                  generatedBy={user?.name}
+                  filters={filters}
+                />
+              );
+            }}
+          />
         </div>
       </DashboardAnimate>
 

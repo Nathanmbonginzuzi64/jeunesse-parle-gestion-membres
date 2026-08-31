@@ -3,12 +3,15 @@
 import { Users } from "lucide-react";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
+import { UsersPdfDocument } from "@/components/reports/analytics-pdf-document";
+import { ReportPdfExportButton } from "@/components/reports/report-pdf-export-button";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody } from "@/components/ui/card";
 import { Alert, Skeleton } from "@/components/ui/feedback";
 import { KpiCard, dashboardCardGrid } from "@/components/ui/kpi";
 import { useApi } from "@/lib/hooks";
+import { useAuth } from "@/lib/auth";
 import type { UsersReportResponse } from "@/lib/reports/api-types";
 import { PERMISSIONS } from "@/lib/permissions";
 import { formatDateTime, formatNumber } from "@/lib/utils";
@@ -22,6 +25,7 @@ export default function UsersReportPage() {
 }
 
 function UsersReport() {
+  const { user } = useAuth();
   const { data, loading, error } = useApi<UsersReportResponse>("/reports/users");
 
   return (
@@ -35,12 +39,24 @@ function UsersReport() {
       />
 
       <DashboardAnimate>
-        <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">
-          Rapport utilisateurs système
-        </h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Comptes internes, rôles et dernières connexions.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">
+              Rapport utilisateurs système
+            </h1>
+            <p className="mt-1 text-sm text-slate-600">
+              Comptes internes, rôles et dernières connexions.
+            </p>
+          </div>
+          <ReportPdfExportButton
+            reportId="utilisateurs"
+            disabled={!data}
+            onPrepare={async () => {
+              if (!data) throw new Error("Données indisponibles.");
+              return <UsersPdfDocument data={data} generatedBy={user?.name} />;
+            }}
+          />
+        </div>
       </DashboardAnimate>
 
       {error ? <Alert tone="danger">{error}</Alert> : null}

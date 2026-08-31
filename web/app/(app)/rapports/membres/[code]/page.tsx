@@ -4,12 +4,15 @@ import { useParams } from "next/navigation";
 import { Activity, CheckCircle2, User } from "lucide-react";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
+import { MemberProfilePdfDocument } from "@/components/reports/analytics-pdf-document";
+import { ReportPdfExportButton } from "@/components/reports/report-pdf-export-button";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { MemberStatusBadge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Alert, Skeleton } from "@/components/ui/feedback";
 import { KpiCard, dashboardCardGrid } from "@/components/ui/kpi";
 import { useApi } from "@/lib/hooks";
+import { useAuth } from "@/lib/auth";
 import type { MemberProfileReport } from "@/lib/reports/api-types";
 import { PERMISSIONS } from "@/lib/permissions";
 import { formatDateTime, formatNumber } from "@/lib/utils";
@@ -23,6 +26,7 @@ export default function MemberProfileReportPage() {
 }
 
 function MemberProfileReport() {
+  const { user } = useAuth();
   const params = useParams<{ code: string }>();
   const code = params.code;
 
@@ -46,22 +50,30 @@ function MemberProfileReport() {
       ) : (
         <>
           <DashboardAnimate>
-            <div className="flex flex-wrap items-start gap-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
-                <User className="h-8 w-8" aria-hidden />
-              </div>
-              <div>
-                <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">
-                  {data.member.full_name}
-                </h1>
-                <p className="text-sm text-slate-600">{data.member.member_code}</p>
-                <div className="mt-2">
-                  <MemberStatusBadge
-                    status={data.member.status}
-                    label={data.member.status_label}
-                  />
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="flex flex-wrap items-start gap-4">
+                <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+                  <User className="h-8 w-8" aria-hidden />
+                </div>
+                <div>
+                  <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">
+                    {data.member.full_name}
+                  </h1>
+                  <p className="text-sm text-slate-600">{data.member.member_code}</p>
+                  <div className="mt-2">
+                    <MemberStatusBadge
+                      status={data.member.status}
+                      label={data.member.status_label}
+                    />
+                  </div>
                 </div>
               </div>
+              <ReportPdfExportButton
+                reportId={`membre-${code}`}
+                onPrepare={async () => (
+                  <MemberProfilePdfDocument data={data} generatedBy={user?.name} />
+                )}
+              />
             </div>
           </DashboardAnimate>
 

@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { UserCheck } from "lucide-react";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
+import { AttendancePdfDocument } from "@/components/reports/analytics-pdf-document";
+import { ReportPdfExportButton } from "@/components/reports/report-pdf-export-button";
 import {
   ReportFiltersBar,
   filtersToQuery,
@@ -13,6 +15,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Alert, Skeleton } from "@/components/ui/feedback";
 import { KpiCard, dashboardCardGrid } from "@/components/ui/kpi";
 import { useApi } from "@/lib/hooks";
+import { useAuth } from "@/lib/auth";
 import {
   EMPTY_REPORT_FILTERS,
   type AttendanceReportResponse,
@@ -29,6 +32,7 @@ export default function AttendanceReportPage() {
 }
 
 function AttendanceReport() {
+  const { user } = useAuth();
   const [filters, setFilters] = useState(EMPTY_REPORT_FILTERS);
 
   const query = useMemo(() => filtersToQuery(filters), [filters]);
@@ -46,10 +50,24 @@ function AttendanceReport() {
       />
 
       <DashboardAnimate>
-        <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">Rapport des présences</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Suivi global de participation et analyse par type d&apos;activité.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">Rapport des présences</h1>
+            <p className="mt-1 text-sm text-slate-600">
+              Suivi global de participation et analyse par type d&apos;activité.
+            </p>
+          </div>
+          <ReportPdfExportButton
+            reportId="presences"
+            disabled={!data}
+            onPrepare={async () => {
+              if (!data) throw new Error("Données indisponibles.");
+              return (
+                <AttendancePdfDocument data={data} generatedBy={user?.name} filters={filters} />
+              );
+            }}
+          />
+        </div>
       </DashboardAnimate>
 
       <div className="mt-4 space-y-4">

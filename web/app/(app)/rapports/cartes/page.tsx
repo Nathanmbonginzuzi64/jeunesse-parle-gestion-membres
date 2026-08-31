@@ -5,6 +5,8 @@ import Link from "next/link";
 import { CreditCard } from "lucide-react";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
+import { CardsPdfDocument } from "@/components/reports/analytics-pdf-document";
+import { ReportPdfExportButton } from "@/components/reports/report-pdf-export-button";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { CardStatusBadge } from "@/components/ui/badge";
 import { Card, CardBody } from "@/components/ui/card";
@@ -12,6 +14,8 @@ import { Alert, EmptyState, TableSkeleton } from "@/components/ui/feedback";
 import { KpiCard, dashboardCardGrid } from "@/components/ui/kpi";
 import { Pagination } from "@/components/ui/table";
 import { useApi } from "@/lib/hooks";
+import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import type { CardsReportResponse } from "@/lib/reports/api-types";
 import { PERMISSIONS } from "@/lib/permissions";
 import { formatNumber } from "@/lib/utils";
@@ -25,6 +29,7 @@ export default function CardsReportPage() {
 }
 
 function CardsReport() {
+  const { user } = useAuth();
   const [page, setPage] = useState(1);
   const { data, loading, error } = useApi<CardsReportResponse>("/reports/cards", {
     page,
@@ -44,10 +49,22 @@ function CardsReport() {
       />
 
       <DashboardAnimate>
-        <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">Rapport des cartes</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Vue globale et détail par membre — actives, expirées, suspendues, perdues, remplacées.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">Rapport des cartes</h1>
+            <p className="mt-1 text-sm text-slate-600">
+              Vue globale et détail par membre — actives, expirées, suspendues, perdues, remplacées.
+            </p>
+          </div>
+          <ReportPdfExportButton
+            reportId="cartes"
+            disabled={!data?.data.length}
+            onPrepare={async () => {
+              const full = await api.get<CardsReportResponse>("/reports/cards", { page: 1, per_page: 5000 });
+              return <CardsPdfDocument data={full} generatedBy={user?.name} />;
+            }}
+          />
+        </div>
       </DashboardAnimate>
 
       {summary ? (

@@ -3,10 +3,13 @@
 import { Check, Shield, X } from "lucide-react";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
+import { RolesPdfDocument } from "@/components/reports/analytics-pdf-document";
+import { ReportPdfExportButton } from "@/components/reports/report-pdf-export-button";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Card, CardBody } from "@/components/ui/card";
 import { Alert, Skeleton } from "@/components/ui/feedback";
 import { useApi } from "@/lib/hooks";
+import { useAuth } from "@/lib/auth";
 import type { RolesReportResponse } from "@/lib/reports/api-types";
 import { PERMISSIONS } from "@/lib/permissions";
 import { formatNumber } from "@/lib/utils";
@@ -20,6 +23,7 @@ export default function RolesReportPage() {
 }
 
 function RolesReport() {
+  const { user } = useAuth();
   const { data, loading, error } = useApi<RolesReportResponse>("/reports/roles");
 
   return (
@@ -33,12 +37,24 @@ function RolesReport() {
       />
 
       <DashboardAnimate>
-        <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">
-          Rôles & permissions (RBAC)
-        </h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Permissions accordées, modules accessibles et actions autorisées par rôle.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">
+              Rôles & permissions (RBAC)
+            </h1>
+            <p className="mt-1 text-sm text-slate-600">
+              Permissions accordées, modules accessibles et actions autorisées par rôle.
+            </p>
+          </div>
+          <ReportPdfExportButton
+            reportId="roles"
+            disabled={!data?.data.length}
+            onPrepare={async () => {
+              if (!data) throw new Error("Données indisponibles.");
+              return <RolesPdfDocument data={data} generatedBy={user?.name} />;
+            }}
+          />
+        </div>
       </DashboardAnimate>
 
       {error ? <Alert tone="danger">{error}</Alert> : null}

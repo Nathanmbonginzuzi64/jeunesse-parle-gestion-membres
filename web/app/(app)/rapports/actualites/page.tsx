@@ -3,11 +3,14 @@
 import { Newspaper, Eye, Heart, MessageCircle, Share2 } from "lucide-react";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
+import { NewsPdfDocument } from "@/components/reports/analytics-pdf-document";
+import { ReportPdfExportButton } from "@/components/reports/report-pdf-export-button";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Alert, Skeleton } from "@/components/ui/feedback";
 import { KpiCard, dashboardCardGrid } from "@/components/ui/kpi";
 import { useApi } from "@/lib/hooks";
+import { useAuth } from "@/lib/auth";
 import { PERMISSIONS } from "@/lib/permissions";
 import { formatNumber } from "@/lib/utils";
 
@@ -29,6 +32,7 @@ export default function NewsReportPage() {
 }
 
 function NewsReport() {
+  const { user } = useAuth();
   const { data, loading, error } = useApi<NewsStats>("/news/stats");
 
   return (
@@ -41,8 +45,20 @@ function NewsReport() {
       />
 
       <DashboardAnimate>
-        <h1 className="text-xl font-semibold">Rapport JP Actualités</h1>
-        <p className="mt-1 text-sm text-slate-600">Engagement, vues et publications populaires</p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-semibold">Rapport JP Actualités</h1>
+            <p className="mt-1 text-sm text-slate-600">Engagement, vues et publications populaires</p>
+          </div>
+          <ReportPdfExportButton
+            reportId="actualites"
+            disabled={!data}
+            onPrepare={async () => {
+              if (!data) throw new Error("Données indisponibles.");
+              return <NewsPdfDocument data={data} generatedBy={user?.name} />;
+            }}
+          />
+        </div>
       </DashboardAnimate>
 
       {error ? <Alert tone="danger">{error}</Alert> : null}

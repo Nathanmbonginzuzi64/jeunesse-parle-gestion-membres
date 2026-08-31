@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Activity, CalendarDays } from "lucide-react";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
+import { ActivitiesPdfDocument } from "@/components/reports/analytics-pdf-document";
+import { ReportPdfExportButton } from "@/components/reports/report-pdf-export-button";
 import {
   ReportFiltersBar,
   filtersToQuery,
@@ -14,6 +16,8 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Alert, EmptyState, TableSkeleton } from "@/components/ui/feedback";
 import { Pagination } from "@/components/ui/table";
 import { useApi, useDebounced } from "@/lib/hooks";
+import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import {
   EMPTY_REPORT_FILTERS,
   type ActivitiesReportResponse,
@@ -30,6 +34,7 @@ export default function ActivitiesReportPage() {
 }
 
 function ActivitiesReport() {
+  const { user } = useAuth();
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState(EMPTY_REPORT_FILTERS);
   const debouncedQ = useDebounced(filters.q);
@@ -52,10 +57,28 @@ function ActivitiesReport() {
       />
 
       <DashboardAnimate>
-        <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">Rapport des activités</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Informations générales, participants et présences par activité.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">Rapport des activités</h1>
+            <p className="mt-1 text-sm text-slate-600">
+              Informations générales, participants et présences par activité.
+            </p>
+          </div>
+          <ReportPdfExportButton
+            reportId="activites"
+            disabled={!data?.data.length}
+            onPrepare={async () => {
+              const full = await api.get<ActivitiesReportResponse>("/reports/activities", {
+                ...filtersToQuery({ ...filters, q: debouncedQ }),
+                page: 1,
+                per_page: 5000,
+              });
+              return (
+                <ActivitiesPdfDocument data={full} generatedBy={user?.name} filters={filters} />
+              );
+            }}
+          />
+        </div>
       </DashboardAnimate>
 
       <div className="mt-4 space-y-4">
