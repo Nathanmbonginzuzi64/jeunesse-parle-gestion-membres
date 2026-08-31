@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Fingerprint, LogIn } from "lucide-react";
+import { Fingerprint, LogIn } from "lucide-react";
 import { BiometricModal, type BiometricResult } from "@/components/biometrics/biometric-modal";
 import { ApiError } from "@/lib/api";
 import { USE_MOCKS } from "@/lib/config";
@@ -24,7 +24,6 @@ export default function LoginPage() {
   const [mode, setMode] = useState<LoginMode>("password");
   const [login_, setLogin] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [biometricOpen, setBiometricOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,27 +125,16 @@ export default function LoginPage() {
               autoFocus
             />
 
-            <div className="relative">
-              <Input
-                label="Mot de passe"
-                type={showPassword ? "text" : "password"}
-                autoComplete="current-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="••••••••"
-                error={fieldErrors.password || undefined}
-                className="pr-10"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((value) => !value)}
-                className="absolute top-[1.85rem] right-2 rounded p-1 text-slate-400 hover:text-slate-600"
-                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
+            <Input
+              label="Mot de passe"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="••••••••"
+              error={fieldErrors.password || undefined}
+              required
+            />
 
             <div className="flex justify-end">
               <Link

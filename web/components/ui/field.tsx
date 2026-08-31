@@ -1,6 +1,7 @@
 "use client";
 
-import { forwardRef, useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { forwardRef, useId, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const CONTROL =
@@ -51,11 +52,25 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { label, hint, error, required, className, wrapperClassName, id, ...props },
+  { label, hint, error, required, className, wrapperClassName, id, type, ...props },
   ref,
 ) {
   const generatedId = useId();
   const inputId = id ?? generatedId;
+  const isPassword = type === "password";
+  const [visible, setVisible] = useState(false);
+
+  const control = (
+    <input
+      ref={ref}
+      id={inputId}
+      type={isPassword ? (visible ? "text" : "password") : type}
+      required={required}
+      aria-invalid={error ? true : undefined}
+      className={cn(CONTROL, error && ERROR_CONTROL, isPassword && "pr-10", className)}
+      {...props}
+    />
+  );
 
   return (
     <Field
@@ -66,14 +81,22 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       htmlFor={inputId}
       className={wrapperClassName}
     >
-      <input
-        ref={ref}
-        id={inputId}
-        required={required}
-        aria-invalid={error ? true : undefined}
-        className={cn(CONTROL, error && ERROR_CONTROL, className)}
-        {...props}
-      />
+      {isPassword ? (
+        <div className="relative">
+          {control}
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={() => setVisible((current) => !current)}
+            className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 transition hover:text-slate-600"
+            aria-label={visible ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+          >
+            {visible ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+          </button>
+        </div>
+      ) : (
+        control
+      )}
     </Field>
   );
 });
