@@ -62,12 +62,12 @@ function InfoRow({ label, value }: { label: string; value?: React.ReactNode }) {
 function PreviewSkeleton() {
   return (
     <div className="space-y-4 px-5 py-4">
-      <Skeleton className="h-28 w-full rounded-none" />
-      <div className="flex items-end gap-3 -mt-10 px-1">
-        <Skeleton className="h-20 w-20 rounded-xl" />
-        <div className="flex-1 space-y-2 pb-1">
-          <Skeleton className="h-5 w-3/4" />
-          <Skeleton className="h-4 w-1/2" />
+      <div className="flex items-start gap-4">
+        <Skeleton className="h-20 w-20 shrink-0 rounded-xl" />
+        <div className="flex-1 space-y-2 pt-1">
+          <Skeleton className="h-6 w-4/5" />
+          <Skeleton className="h-4 w-2/5" />
+          <Skeleton className="h-5 w-1/2" />
         </div>
       </div>
       <Skeleton className="h-24 w-full rounded-xl" />
@@ -132,62 +132,100 @@ export function MemberPreviewDrawer({
     <Drawer
       open={Boolean(member)}
       onClose={onClose}
-      side="left"
+      side="right"
       className="max-w-lg"
       title=""
       header={
-        <div className="relative shrink-0">
-          <div className="h-28 bg-gradient-to-br from-brand-600 via-brand-500 to-brand-700">
-            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(206,17,38,0.15)_0%,transparent_40%,rgba(250,210,1,0.12)_100%)]" />
-            <div className="absolute top-3 right-3">
-              <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/15" aria-label="Fermer">
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+        <div className="relative shrink-0 border-b border-slate-100 bg-gradient-to-b from-brand-50/70 via-white to-white">
+          <div className="flex h-1 w-full" aria-hidden>
+            <span className="w-1/3 bg-flag-red" />
+            <span className="w-1/3 bg-brand-600" />
+            <span className="w-1/3 bg-flag-yellow" />
           </div>
 
+          {loading && (
+            <div className="px-5 py-4">
+              <div className="flex items-start gap-4">
+                <Skeleton className="h-20 w-20 shrink-0 rounded-xl" />
+                <div className="flex-1 space-y-2 pt-1">
+                  <Skeleton className="h-6 w-4/5" />
+                  <Skeleton className="h-4 w-2/5" />
+                  <Skeleton className="h-5 w-1/2" />
+                </div>
+              </div>
+            </div>
+          )}
+
           {profile && !loading && (
-            <div className="relative px-5 pb-4">
-              <div className="-mt-12 flex items-end gap-3">
+            <div className="px-5 py-4">
+              <div className="flex items-start gap-4">
                 <Avatar
                   src={profile.photo_url}
                   name={profile.full_name}
                   size="lg"
                   rounded="lg"
-                  className="ring-4 ring-white shadow-md"
+                  className="ring-2 ring-white shadow-sm"
                 />
-                <div className="min-w-0 flex-1 pb-1">
-                  <h2 className="truncate text-lg font-bold text-slate-900">{profile.full_name}</h2>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold tracking-wide text-brand-600 uppercase">
+                        Aperçu membre
+                      </p>
+                      <h2 className="mt-0.5 text-xl leading-tight font-bold text-slate-900">
+                        {profile.full_name}
+                      </h2>
+                      <p className="mt-1 truncate text-sm font-medium text-slate-600">
+                        {profile.structure?.name ?? "Sans structure"}
+                        {profile.province?.name && (
+                          <span className="font-normal text-slate-400"> · {profile.province.name}</span>
+                        )}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={onClose}
+                      className="shrink-0 text-slate-500 hover:bg-slate-100"
+                      aria-label="Fermer"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => void copyMemberCode()}
-                    className="mt-0.5 inline-flex items-center gap-1 rounded-md bg-brand-50 px-2 py-0.5 font-mono text-xs font-medium text-brand-800 ring-1 ring-brand-100 transition hover:bg-brand-100"
+                    className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1 font-mono text-xs font-semibold text-brand-800 shadow-sm ring-1 ring-brand-100 transition hover:bg-brand-50"
                     title="Copier l'identifiant"
                   >
                     {profile.member_code}
-                    <Copy className="h-3 w-3 opacity-60" />
+                    <Copy className="h-3 w-3 opacity-50" />
                   </button>
+
+                  <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                    <MemberStatusBadge status={profile.status} label={profile.status_label} />
+                    {profile.card && (
+                      <CardStatusBadge status={profile.card.status} label={profile.card.status_label} />
+                    )}
+                    {profile.fingerprint_enrolled && (
+                      <Badge tone="success" className="gap-1">
+                        <Fingerprint className="h-3 w-3" />
+                        Biométrie
+                      </Badge>
+                    )}
+                  </div>
+
+                  {(profile.gender_label || profile.age || profile.profession) && (
+                    <p className="mt-2 text-sm text-slate-500">
+                      {[profile.gender_label, profile.age ? `${profile.age} ans` : null, profile.profession]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  )}
                 </div>
               </div>
-
-              <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                <MemberStatusBadge status={profile.status} label={profile.status_label} />
-                {profile.card && (
-                  <CardStatusBadge status={profile.card.status} label={profile.card.status_label} />
-                )}
-                {profile.fingerprint_enrolled && (
-                  <Badge tone="success" className="gap-1">
-                    <Fingerprint className="h-3 w-3" />
-                    Biométrie
-                  </Badge>
-                )}
-              </div>
-
-              <p className="mt-2 text-sm text-slate-600">
-                {[profile.gender_label, profile.age ? `${profile.age} ans` : null, profile.profession]
-                  .filter(Boolean)
-                  .join(" · ") || "Profil incomplet"}
-              </p>
             </div>
           )}
         </div>
