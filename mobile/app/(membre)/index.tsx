@@ -16,8 +16,10 @@ export default function MembreComingSoon() {
       </View>
       <Title>Bientôt disponible</Title>
       <Subtitle>
-        Bonjour {user?.name ?? ''}. L&apos;application membre (carte, activités, messages) arrive dans la
-        prochaine vague. Votre compte est bien reconnu.
+        Bonjour {user?.name ?? ''}.{' '}
+        {user?.member_status && user.member_status !== 'active'
+          ? 'Votre adhésion est encore en attente de validation par un super-administrateur.'
+          : 'L’application membre (carte, activités, messages) arrive dans la prochaine vague. Votre compte est bien reconnu.'}
       </Subtitle>
       <View style={{ height: 24 }} />
       <BigButton

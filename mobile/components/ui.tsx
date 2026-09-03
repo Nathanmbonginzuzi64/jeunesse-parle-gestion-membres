@@ -1,4 +1,6 @@
 import { JP } from '@/constants/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -22,16 +24,62 @@ export function Subtitle({ children, center }: { children: React.ReactNode; cent
   return <Text style={[styles.subtitle, center && { textAlign: 'center' }]}>{children}</Text>;
 }
 
-export function Field(props: TextInputProps & { label: string }) {
-  const { label, style, ...rest } = props;
+export function Field(
+  props: TextInputProps & {
+    label: string;
+    error?: string;
+    passwordToggle?: boolean;
+    valid?: boolean;
+  },
+) {
+  const {
+    label,
+    style,
+    error,
+    passwordToggle,
+    valid,
+    secureTextEntry,
+    autoComplete,
+    textContentType,
+    ...rest
+  } = props;
+  const [hidden, setHidden] = useState(true);
+  const secure = passwordToggle ? hidden : secureTextEntry;
+
   return (
     <View style={styles.field}>
       <Text style={styles.label}>{label}</Text>
-      <TextInput
-        placeholderTextColor={JP.muted}
-        style={[styles.input, style]}
-        {...rest}
-      />
+      <View
+        style={[
+          styles.inputWrap,
+          error ? styles.inputWrapError : null,
+          !error && valid ? styles.inputWrapValid : null,
+        ]}
+      >
+        <TextInput
+          placeholderTextColor={JP.muted}
+          style={[styles.input, passwordToggle && styles.inputWithIcon, style]}
+          secureTextEntry={secure}
+          autoComplete={passwordToggle ? 'password' : autoComplete}
+          textContentType={passwordToggle ? 'password' : textContentType}
+          {...rest}
+        />
+        {passwordToggle ? (
+          <Pressable
+            onPress={() => setHidden((value) => !value)}
+            hitSlop={8}
+            style={styles.eye}
+            accessibilityLabel={hidden ? 'Afficher le mot de passe' : 'Masquer le mot de passe'}
+          >
+            <Ionicons
+              name={hidden ? 'eye-outline' : 'eye-off-outline'}
+              size={22}
+              color={valid && !error ? JP.success : JP.muted}
+            />
+          </Pressable>
+        ) : null}
+      </View>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
     </View>
   );
 }
@@ -129,15 +177,39 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: JP.text,
   },
-  input: {
+  inputWrap: {
     borderWidth: 1,
     borderColor: JP.border,
     backgroundColor: JP.card,
     borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  inputWrapError: {
+    borderColor: JP.danger,
+  },
+  inputWrapValid: {
+    borderColor: JP.success,
+    backgroundColor: '#F0FDF4',
+  },
+  input: {
+    flex: 1,
     paddingHorizontal: 14,
     paddingVertical: 14,
     fontSize: 16,
     color: JP.text,
+  },
+  inputWithIcon: {
+    paddingRight: 8,
+  },
+  eye: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  error: {
+    marginTop: 6,
+    fontSize: 12,
+    color: JP.danger,
   },
   bigButton: {
     minHeight: 56,

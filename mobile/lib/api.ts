@@ -4,11 +4,53 @@ import * as SecureStore from 'expo-secure-store';
 
 const extra = Constants.expoConfig?.extra as { apiUrl?: string } | undefined;
 
-export const API_BASE_URL = (
-  extra?.apiUrl ??
-  process.env.EXPO_PUBLIC_API_URL ??
-  'http://127.0.0.1:8000/api'
-).replace(/\/$/, '');
+function expoLanHost(): string | null {
+  const candidates = [
+    Constants.expoConfig?.hostUri,
+    (Constants as { expoGoConfig?: { debuggerHost?: string } }).expoGoConfig?.debuggerHost,
+    Constants.linkingUri,
+  ];
+  for (const candidate of candidates) {
+    const match = String(candidate ?? '').match(/(\d{1,3}(?:\.\d{1,3}){3})/);
+    if (match?.[1]) return match[1];
+  }
+  return null;
+}
+
+function isLoopbackHost(host: string): boolean {
+  return host === '127.0.0.1' || host === 'localhost' || host === '::1';
+}
+
+function rewriteForDevice(url: string): string {
+  if (Platform.OS === 'android') {
+    return url.replace(/:\/\/(127\.0\.0\.1|localhost)(?=[:/]|$)/, '://10.0.2.2');
+  }
+  return url;
+}
+
+function resolveApiBaseUrl(): string {
+  const fromEnv = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '');
+  if (fromEnv) return rewriteForDevice(fromEnv);
+
+  const extraUrl = extra?.apiUrl?.replace(/\/$/, '');
+  let extraHost = '';
+  try {
+    extraHost = extraUrl ? new URL(extraUrl).hostname : '';
+  } catch {
+    extraHost = '';
+  }
+
+  const lan = expoLanHost();
+  if (lan && (!extraHost || isLoopbackHost(extraHost))) {
+    return `http://${lan}:8000/api`;
+  }
+
+  if (extraUrl) return rewriteForDevice(extraUrl);
+  if (lan) return `http://${lan}:8000/api`;
+  return rewriteForDevice('http://127.0.0.1:8000/api');
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 const TOKEN_KEY = 'jp.token';
 
@@ -85,8 +127,10 @@ async function request<T>(
     if (token) headers.Authorization = `Bearer ${token}`;
   }
 
-  let payload: string | undefined;
-  if (body !== undefined) {
+  let payload: string | FormData | undefined;
+  if (body instanceof FormData) {
+    payload = body;
+  } else if (body !== undefined) {
     headers['Content-Type'] = 'application/json';
     payload = JSON.stringify(body);
   }
@@ -99,7 +143,10 @@ async function request<T>(
       body: payload,
     });
   } catch {
-    throw new ApiError(0, 'Serveur injoignable. Vérifiez votre connexion.');
+    throw new ApiError(
+      0,
+      `Serveur injoignable (${API_BASE_URL}). Sur le PC : php artisan serve --host=0.0.0.0 --port=8000`,
+    );
   }
 
   if (response.status === 204) {
@@ -135,6 +182,7 @@ export const api = {
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
   public: {
+    get: <T>(path: string, query?: Query) => request<T>(path, { query, anonymous: true }),
     post: <T>(path: string, body?: unknown) =>
       request<T>(path, { method: 'POST', body, anonymous: true }),
   },

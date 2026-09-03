@@ -89,7 +89,7 @@ class MemberService
 
             $this->audit->log('member.created', $member, "Inscription du membre {$member->member_code}");
 
-            $member = $member->fresh();
+            $member = $member->fresh(['province']);
             $this->notifications->memberWelcome($member);
             $this->notifications->adminNewMember($member, $author);
 
@@ -168,6 +168,9 @@ class MemberService
             ])->save();
 
             $this->cards->issue($member, $author, 'Émission après validation');
+            if ($member->user_id) {
+                User::query()->whereKey($member->user_id)->update(['is_active' => true]);
+            }
             $this->notifications->memberValidated($member, $author);
             $this->audit->log('member.validated', $member, "Validation du membre {$member->member_code}");
 

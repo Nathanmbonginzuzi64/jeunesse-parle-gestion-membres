@@ -37,6 +37,7 @@ class AuthController extends Controller
     public function register(RegisterMemberRequest $request): JsonResponse
     {
         $data = $request->validated();
+        unset($data['confirm_duplicate'], $data['photo'], $data['device_name']);
 
         $matches = $this->duplicates->findMatches($data);
 
@@ -54,7 +55,7 @@ class AuthController extends Controller
             $request->file('photo'),
         );
 
-        $user = User::query()->findOrFail($member->user_id);
+        $user = User::query()->findOrFail($member->user_id)->load(['role', 'member']);
 
         $this->audit->log('auth.registered', $member, "Inscription publique {$member->member_code}");
 

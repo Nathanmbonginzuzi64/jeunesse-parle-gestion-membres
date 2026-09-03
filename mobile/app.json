@@ -12,18 +12,27 @@
       "supportsTablet": true,
       "bundleIdentifier": "cd.jeunesseparle.mobile",
       "infoPlist": {
-        "NSCameraUsageDescription": "Scanner les QR codes des cartes membres Jeunesse Parle."
+        "NSCameraUsageDescription": "Scanner les QR codes et prendre la photo d’identité pour l’adhésion Jeunesse Parle.",
+        "NSPhotoLibraryUsageDescription": "Choisir une photo d’identité pour le dossier d’adhésion Jeunesse Parle.",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true,
+          "NSAllowsArbitraryLoads": true
+        }
       }
     },
     "android": {
       "package": "cd.jeunesseparle.mobile",
+      "usesCleartextTraffic": true,
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#0087D1",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "permissions": ["CAMERA"],
+      "permissions": [
+        "CAMERA"
+      ],
       "edgeToEdgeEnabled": true
     },
     "web": {
@@ -36,7 +45,14 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Autoriser Jeunesse Parle à utiliser la caméra pour scanner les QR codes."
+          "cameraPermission": "Autoriser Jeunesse Parle à utiliser la caméra pour scanner les QR codes et prendre une photo d’identité."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Autoriser Jeunesse Parle à accéder à vos photos pour le dossier d’adhésion.",
+          "cameraPermission": "Autoriser Jeunesse Parle à prendre une photo d’identité."
         }
       ],
       [
@@ -47,7 +63,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#0087D1"
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "apiUrl": "http://127.0.0.1:8000/api"

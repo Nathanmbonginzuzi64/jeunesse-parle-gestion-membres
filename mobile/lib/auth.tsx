@@ -20,6 +20,8 @@ export interface AuthUser {
   role: { id: number; name: string; slug: string; scope_level: number } | null;
   member_id: number | null;
   member_code?: string | null;
+  member_status?: string | null;
+  member_status_label?: string | null;
   permissions?: string[];
 }
 
@@ -27,6 +29,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   login: (login: string, password: string) => Promise<AuthUser>;
+  applySession: (token: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
   can: (permission: string | string[]) => boolean;
@@ -39,7 +42,12 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function postLoginPath(user: AuthUser): string {
   const slug = user.role?.slug;
   if (slug === ROLE_SLUGS.agentVerification) return '/(agent)/(tabs)';
-  if (slug === ROLE_SLUGS.membre) return '/(membre)';
+  if (slug === ROLE_SLUGS.membre) {
+    if (user.member_status === 'pending') {
+      return '/(auth)/en-attente';
+    }
+    return '/(membre)';
+  }
   return '/(auth)/portail-web';
 }
 
@@ -64,18 +72,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => setUnauthorizedHandler(null);
   }, [refresh]);
 
+  const applySession = useCallback(async (token: string) => {
+    await setToken(token);
+    const me = await api.get<{ user: AuthUser }>('/auth/me');
+    setUser(me.user);
+    setLoading(false);
+    return me.user;
+  }, []);
+
   const login = useCallback(async (loginValue: string, password: string) => {
     const response = await api.public.post<{ token: string; user: AuthUser }>('/auth/login', {
       login: loginValue,
       password,
       device_name: deviceName(),
     });
-    await setToken(response.token);
-    const me = await api.get<{ user: AuthUser }>('/auth/me');
-    setUser(me.user);
-    setLoading(false);
-    return me.user;
-  }, []);
+    return applySession(response.token);
+  }, [applySession]);
 
   const logout = useCallback(async () => {
     try {
@@ -108,13 +120,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       login,
+      applySession,
       logout,
       refresh,
       can,
       hasRole,
       postLoginPath,
     }),
-    [user, loading, login, logout, refresh, can, hasRole],
+    [user, loading, login, applySession, logout, refresh, can, hasRole],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

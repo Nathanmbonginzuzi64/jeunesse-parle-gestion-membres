@@ -371,15 +371,18 @@ class NotificationService
     public function adminNewMember(Member $member, ?User $author = null): void
     {
         $province = $member->province?->name ?? '—';
+        $admins = $this->adminUsers(Permission::MembersValidate)
+            ->merge($this->adminUsers(Permission::MembersCreate))
+            ->unique('id');
 
-        foreach ($this->adminUsers(Permission::MembersCreate) as $admin) {
+        foreach ($admins as $admin) {
             $this->pushToUser(
                 $admin,
                 NotificationType::AdminNewMember,
-                '👤 Nouveau membre inscrit',
-                "Nom :\n{$member->full_name}\n\nProvince :\n{$province}",
+                'Demande d\'adhésion à approuver',
+                "{$member->full_name} a envoyé une demande pour rejoindre Jeunesse Parle.\n\nCode : {$member->member_code}\nProvince : {$province}\n\nOuvrez Membres → En attente, puis Valider le dossier.",
                 ['member_id' => $member->id, 'member_code' => $member->member_code, 'action' => 'view_member'],
-                'info',
+                'warning',
                 $member,
                 $author,
             );

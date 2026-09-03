@@ -78,14 +78,16 @@ class RegisterMemberRequest extends FormRequest
             'consent_given' => ['accepted'],
             'confirm_duplicate' => ['nullable', 'boolean'],
 
+            'device_name' => ['nullable', 'string', 'max:60'],
+
             'photo' => [
                 'nullable', 'file',
                 'mimes:'.implode(',', config('jeunesse.photo.mimes')),
                 'max:'.config('jeunesse.photo.max_kilobytes'),
             ],
 
-            'webauthn_enrollment' => ['required', 'array'],
-            'webauthn_enrollment.enrollment_key' => ['required', 'string', 'max:80'],
+            'webauthn_enrollment' => ['nullable', 'array'],
+            'webauthn_enrollment.enrollment_key' => ['required_with:webauthn_enrollment', 'string', 'max:80'],
             'webauthn_enrollment.clientDataJSON' => ['nullable', 'string'],
             'webauthn_enrollment.attestationObject' => ['nullable', 'string'],
             'webauthn_enrollment.transports' => ['nullable', 'array'],

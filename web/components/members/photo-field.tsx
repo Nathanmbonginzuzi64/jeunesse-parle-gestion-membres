@@ -5,7 +5,7 @@ import { Camera } from "lucide-react";
 import { Field } from "@/components/ui/field";
 import { Avatar } from "@/components/ui/avatar";
 
-const MAX_BYTES = 4 * 1024 * 1024;
+const MAX_BYTES = 10 * 1024 * 1024;
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp"];
 
 export function PhotoField({
@@ -48,7 +48,7 @@ export function PhotoField({
     }
 
     if (file.size > MAX_BYTES) {
-      setLocalError("La photo ne doit pas dépasser 4 Mo.");
+      setLocalError("La photo ne doit pas dépasser 10 Mo.");
       event.target.value = "";
       onChange(null);
       return;
@@ -62,7 +62,7 @@ export function PhotoField({
   return (
     <Field
       label={label}
-      hint="JPEG, PNG ou WebP — 4 Mo maximum. Le type réel du fichier est contrôlé côté serveur."
+      hint="JPEG, PNG ou WebP — 10 Mo maximum. Le type réel du fichier est contrôlé côté serveur."
       error={error ?? localError}
     >
       <div className="flex items-center gap-4">

@@ -46,7 +46,7 @@ return [
     |--------------------------------------------------------------------------
     */
     'photo' => [
-        'max_kilobytes' => (int) env('JP_PHOTO_MAX_KB', 4096),
+        'max_kilobytes' => (int) env('JP_PHOTO_MAX_KB', 10240),
         'mimes' => ['jpeg', 'jpg', 'png', 'webp'],
     ],
 
