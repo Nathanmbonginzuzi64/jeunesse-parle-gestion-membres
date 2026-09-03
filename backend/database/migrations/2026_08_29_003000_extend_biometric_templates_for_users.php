@@ -2,7 +2,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -14,8 +13,10 @@ return new class extends Migration
             $table->dropUnique('biometric_member_modality_unique');
         });
 
-        // Nullable pour permettre les templates liés à un user staff.
-        DB::statement('ALTER TABLE biometric_templates MODIFY member_id BIGINT UNSIGNED NULL');
+        // Nullable pour permettre les templates liés à un user staff (compatible MySQL + SQLite).
+        Schema::table('biometric_templates', function (Blueprint $table) {
+            $table->unsignedBigInteger('member_id')->nullable()->change();
+        });
 
         Schema::table('biometric_templates', function (Blueprint $table) {
             $table->foreignId('user_id')->nullable()->after('member_id')->constrained()->cascadeOnDelete();
@@ -35,7 +36,9 @@ return new class extends Migration
             $table->dropForeign(['member_id']);
         });
 
-        DB::statement('ALTER TABLE biometric_templates MODIFY member_id BIGINT UNSIGNED NOT NULL');
+        Schema::table('biometric_templates', function (Blueprint $table) {
+            $table->unsignedBigInteger('member_id')->nullable(false)->change();
+        });
 
         Schema::table('biometric_templates', function (Blueprint $table) {
             $table->foreign('member_id')->references('id')->on('members')->cascadeOnDelete();
