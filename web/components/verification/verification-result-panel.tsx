@@ -21,6 +21,7 @@ import { Alert, Skeleton } from "@/components/ui/feedback";
 import { DefinitionList } from "@/components/ui/table";
 import type { VerificationResult } from "@/lib/types";
 import { cn, formatShortDate } from "@/lib/utils";
+import { MemberQrCode } from "@/components/cards/member-qr-code";
 
 const RESULT_META: Record<
   VerificationResult["result"],
@@ -44,11 +45,13 @@ export function VerificationResultPanel({
   result,
   error,
   loading,
+  qrToken,
   onClear,
 }: {
   result: VerificationResult | null;
   error: string | null;
   loading?: boolean;
+  qrToken?: string | null;
   onClear?: () => void;
 }) {
   if (loading) {
@@ -141,7 +144,8 @@ export function VerificationResultPanel({
 
             {member && (
               <>
-                <div className="flex items-center gap-4 rounded-xl border border-white/80 bg-white/90 p-4 shadow-sm">
+                <div className="grid gap-4 lg:grid-cols-[1fr_10rem]">
+                  <div className="flex items-center gap-4 rounded-xl border border-white/80 bg-white/90 p-4 shadow-sm">
                   <PublicAvatar src={member.photo_url} name={member.full_name} size="lg" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-lg font-semibold text-slate-900">{member.full_name}</p>
@@ -157,6 +161,23 @@ export function VerificationResultPanel({
                       )}
                     </div>
                   </div>
+                  </div>
+
+                  {qrToken ? (
+                    <div className="rounded-xl border border-slate-200 bg-white/90 p-3 shadow-sm">
+                      <p className="text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                        QR de revalidation
+                      </p>
+                      <div className="mt-2 flex justify-center">
+                        <MemberQrCode value={`/verifier-membre/${qrToken}`} size={96} compact label="" />
+                      </div>
+                      <p className="mt-1 text-center text-[10px] text-slate-500">
+                        {result.valid ? "Valider à nouveau" : "Contrôle rapide"}
+                      </p>
+                    </div>
+                  ) : (
+                    <div />
+                  )}
                 </div>
 
                 <DefinitionList

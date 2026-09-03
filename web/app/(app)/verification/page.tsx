@@ -52,17 +52,20 @@ function VerificationTool() {
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<VerificationHistoryEntry[]>([]);
+  const [lastQrToken, setLastQrToken] = useState<string | null>(null);
 
   async function verify(tokenSource: string) {
     const token = extractTokenFromQr(tokenSource);
     if (!token.toUpperCase().startsWith("JP-RDC-") && token.length < 16) {
       setError("Identifiant ou jeton QR invalide.");
       setResult(null);
+      setLastQrToken(null);
       return;
     }
 
     setLoading(true);
     setError(null);
+    setLastQrToken(token);
 
     try {
       const response = await api.public.post<VerificationResult>("/members/verify", { token });
@@ -118,6 +121,7 @@ function VerificationTool() {
     };
     setResult(synthetic);
     setError(null);
+    setLastQrToken(null);
     pushHistory(synthetic);
     setBiometricOpen(false);
   }
@@ -125,6 +129,7 @@ function VerificationTool() {
   function clearResult() {
     setResult(null);
     setError(null);
+    setLastQrToken(null);
   }
 
   const kpis = stats.data?.kpis;
@@ -248,6 +253,7 @@ function VerificationTool() {
             result={result}
             error={error}
             loading={loading}
+            qrToken={lastQrToken}
             onClear={clearResult}
           />
         </div>
