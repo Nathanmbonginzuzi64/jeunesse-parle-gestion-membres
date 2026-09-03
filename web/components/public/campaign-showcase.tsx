@@ -156,7 +156,7 @@ export function CampaignShowcase() {
       <section className="border-t border-slate-200 bg-white py-12">
         <div className="mx-auto max-w-6xl px-4">
           <h3 className="text-xl font-semibold text-slate-900">Galerie campagne</h3>
-          <p className="mt-1 text-sm text-slate-500">Images locales — disponibles hors ligne.</p>
+          <p className="mt-1 text-sm text-slate-500">Images disponibles en ligne.</p>
           <CampaignGalleryCarousel images={[...INITIATOR.gallery]} />
         </div>
       </section>
@@ -183,32 +183,48 @@ function CampaignGalleryCarousel({ images }: { images: string[] }) {
 
   return (
     <div
-      className="relative mx-auto mt-6 max-w-3xl overflow-hidden rounded-2xl bg-slate-950 ring-1 ring-slate-200 shadow-lg"
+      className="relative mx-auto mt-6 max-w-3xl"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
-      <div
-        className="flex transition-transform duration-500 ease-out"
-        style={{ transform: `translateX(-${index * 100}%)` }}
-      >
-        {images.map((src, i) => (
-          <div key={src} className="min-w-full shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={src}
-              alt={`Campagne Jeunesse Parle ${i + 1}`}
-              className="mx-auto aspect-[16/9] max-h-56 w-full object-cover sm:max-h-64 md:max-h-72"
-            />
-          </div>
-        ))}
+      <div className="overflow-hidden px-1 py-1">
+        <div
+          className="flex transition-transform duration-500 ease-out"
+          style={{ transform: `translateX(-${index * 100}%)` }}
+        >
+          {images.map((src, i) => (
+            <div key={src} className="min-w-full shrink-0 px-1">
+              <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[var(--shadow-card)] ring-1 ring-slate-100">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={src}
+                  alt={`Campagne Jeunesse Parle ${i + 1}`}
+                  className="aspect-[16/10] max-h-56 w-full object-cover sm:max-h-64 md:max-h-72"
+                />
+                <div className="flex items-center justify-between gap-2 border-t border-slate-100 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Photo campagne</p>
+                    <p className="text-xs text-slate-500">Archive locale · Jeunesse Parle</p>
+                  </div>
+                  <span className="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700">
+                    {i + 1} / {total}
+                  </span>
+                </div>
+              </article>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 to-transparent" />
-
-      <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 p-4">
-        <p className="text-xs font-medium text-white/90">
-          {index + 1} / {total}
-        </p>
+      <div className="mt-4 flex items-center justify-center gap-3">
+        <button
+          type="button"
+          onClick={() => go(-1)}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-800"
+          aria-label="Image précédente"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </button>
         <div className="flex items-center gap-2">
           {images.map((src, i) => (
             <button
@@ -218,29 +234,19 @@ function CampaignGalleryCarousel({ images }: { images: string[] }) {
               onClick={() => setIndex(i)}
               className={cn(
                 "h-2 rounded-full transition-all",
-                i === index ? "w-6 bg-white" : "w-2 bg-white/40 hover:bg-white/70",
+                i === index ? "w-6 bg-brand-600" : "w-2 bg-slate-300 hover:bg-slate-400",
               )}
             />
           ))}
         </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => go(-1)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur transition hover:bg-white/30"
-            aria-label="Image précédente"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => go(1)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur transition hover:bg-white/30"
-            aria-label="Image suivante"
-          >
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => go(1)}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-800"
+          aria-label="Image suivante"
+        >
+          <ArrowRight className="h-4 w-4" />
+        </button>
       </div>
     </div>
   );
