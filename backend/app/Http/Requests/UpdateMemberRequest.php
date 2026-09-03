@@ -29,6 +29,13 @@ class UpdateMemberRequest extends FormRequest
             'email' => $this->input('email') ? mb_strtolower(trim($this->input('email'))) : null,
         ], fn ($v) => $v !== null && $v !== ''));
 
+        if (is_string($this->input('fingerprints'))) {
+            $decoded = json_decode($this->input('fingerprints'), true);
+            if (is_array($decoded)) {
+                $this->merge(['fingerprints' => $decoded]);
+            }
+        }
+
         $this->decodeWebAuthnEnrollmentInput();
     }
 
@@ -83,6 +90,13 @@ class UpdateMemberRequest extends FormRequest
                 'mimes:'.implode(',', config('jeunesse.photo.mimes')),
                 'max:'.config('jeunesse.photo.max_kilobytes'),
             ],
+
+            'fingerprints' => ['nullable', 'array', 'min:6', 'max:6'],
+            'fingerprints.*.slot' => ['required_with:fingerprints', 'string', 'max:40'],
+            'fingerprints.*.template_hash' => ['required_with:fingerprints', 'string', 'min:8', 'max:255'],
+            'fingerprints.*.hand' => ['nullable', 'string', 'max:20'],
+            'fingerprints.*.finger' => ['nullable', 'string', 'max:40'],
+            'fingerprints.*.captured_at' => ['nullable', 'date'],
 
             'webauthn_enrollment' => ['nullable', 'array'],
             'webauthn_enrollment.enrollment_key' => ['required_with:webauthn_enrollment', 'string', 'max:80'],

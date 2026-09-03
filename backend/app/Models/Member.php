@@ -28,7 +28,7 @@ class Member extends Model
         'skills', 'interests',
         'position', 'supervisor_member_id', 'joined_at',
         'status', 'status_reason', 'status_changed_at', 'validated_at', 'validated_by',
-        'registered_by', 'consent_given', 'consent_given_at', 'notes',
+        'registered_by', 'registration_channel', 'consent_given', 'consent_given_at', 'notes',
     ];
 
     protected function casts(): array
@@ -232,5 +232,20 @@ class Member extends Model
     {
         return $user->member_id === $this->id
             || ($user->hasRole(RoleSlug::Membre) && $this->user_id === $user->id);
+    }
+
+    /** Profil complémentaire requis avant consultation de la carte côté app membre. */
+    public function hasCompletedProfile(): bool
+    {
+        return filled($this->phone_alt)
+            && filled($this->city_id)
+            && filled($this->commune_id)
+            && filled($this->position)
+            && filled($this->education_level)
+            && filled($this->profession)
+            && filled($this->employment_status)
+            && filled($this->activity_domain)
+            && is_array($this->skills) && count($this->skills) > 0
+            && is_array($this->interests) && count($this->interests) > 0;
     }
 }

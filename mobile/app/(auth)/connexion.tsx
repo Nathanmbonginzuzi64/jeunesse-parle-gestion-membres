@@ -2,7 +2,6 @@ import { useState } from 'react';
 import {
   Alert,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -10,7 +9,6 @@ import {
 import { Link, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { KeyboardSafe } from '@/components/keyboard-safe';
 import { BigButton, Field, Screen, Subtitle, TextLink, Title } from '@/components/ui';
 import { BrandLogo } from '@/components/brand-logo';
 import { useAuth } from '@/lib/auth';
@@ -45,9 +43,10 @@ export default function ConnexionScreen() {
   }
 
   return (
-    <Screen style={{ paddingTop: Math.max(insets.top, 12), backgroundColor: JP.white }}>
-      <KeyboardSafe>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <Screen
+      style={{ paddingTop: Math.max(insets.top, 12), backgroundColor: JP.white }}
+      contentContainerStyle={styles.content}
+    >
           <Animated.View entering={FadeIn.duration(500)} style={styles.brand}>
             <BrandLogo size={88} />
             <Text style={styles.wordmark}>JEUNESSE PARLE</Text>
@@ -90,8 +89,6 @@ export default function ConnexionScreen() {
             <Text style={styles.dot}>·</Text>
             <TextLink label="Mentions" onPress={() => router.push('/(auth)/mentions')} />
           </View>
-        </ScrollView>
-      </KeyboardSafe>
     </Screen>
   );
 }

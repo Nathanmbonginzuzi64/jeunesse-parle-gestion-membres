@@ -347,6 +347,8 @@ export const members: Member[] = [
     status: "pending",
     status_label: "En attente",
     status_reason: null,
+    registration_channel: "mobile",
+    registered_by: null,
     province: ref(2, "Nord-Kivu"),
     city: ref(2, "Goma"),
     structure: ref(4, "Antenne Goma"),

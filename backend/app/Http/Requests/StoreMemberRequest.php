@@ -152,6 +152,9 @@ class StoreMemberRequest extends FormRequest
 
     public function messages(): array
     {
+        $minAge = (int) Setting::get('membership.minimum_age', config('jeunesse.minimum_age'));
+        $maxAge = (int) Setting::get('membership.maximum_age', config('jeunesse.maximum_age'));
+
         return [
             'phone.regex' => 'Le numéro de téléphone doit contenir entre 9 et 15 chiffres.',
             'phone.unique' => 'Ce numéro de téléphone est déjà utilisé pour un compte portail.',

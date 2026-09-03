@@ -97,6 +97,9 @@ class RegisterMemberRequest extends FormRequest
 
     public function messages(): array
     {
+        $minAge = (int) Setting::get('membership.minimum_age', config('jeunesse.minimum_age'));
+        $maxAge = (int) Setting::get('membership.maximum_age', config('jeunesse.maximum_age'));
+
         return [
             'phone.unique' => 'Le numéro de téléphone est déjà utilisé.',
             'email.unique' => 'L\'adresse e-mail est déjà utilisée.',

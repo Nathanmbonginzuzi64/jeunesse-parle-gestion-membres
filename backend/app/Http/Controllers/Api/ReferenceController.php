@@ -42,6 +42,20 @@ class ReferenceController extends Controller
                 'Étudiant', 'Élève', 'Sans emploi', 'Employé', 'Indépendant',
                 'Entrepreneur', 'Stagiaire', 'Fonctionnaire', 'Bénévole',
             ],
+            'activity_domains' => [
+                'Citoyenneté', 'Éducation', 'Santé', 'Environnement', 'Numérique',
+                'Culture', 'Sport', 'Entrepreneuriat', 'Agriculture', 'Genre',
+                'Médias', 'Innovation', 'Mobilisation communautaire',
+            ],
+            'suggested_skills' => [
+                'Leadership', 'Communication', 'Informatique', 'Médias',
+                'Mobilisation', 'Gestion de projet', 'Langues', 'Design',
+                'Comptabilité', 'Plaidoyer',
+            ],
+            'suggested_interests' => [
+                'Citoyenneté', 'Culture', 'Sport', 'Environnement', 'Innovation',
+                'Genre', 'Éducation', 'Santé', 'Entrepreneuriat', 'Arts',
+            ],
             'organization' => [
                 'name' => Setting::get('organization.name', config('jeunesse.organization.name')),
                 'country' => Setting::get('organization.country', config('jeunesse.organization.country')),

@@ -40,8 +40,8 @@ export default function EnAttenteScreen() {
         </View>
         <Title center>Demande envoyée</Title>
         <Subtitle center>
-          Votre dossier a été transmis au super-administrateur Jeunesse Parle. Votre compte sera
-          activé après validation (Membres → En attente → Valider).
+          Votre dossier a été transmis au super-administrateur. Il apparaîtra dans Membres → Demandes
+          mobile jusqu’à validation. Ensuite, vous choisirez votre structure dans l’application.
         </Subtitle>
         {user?.member_code ? (
           <View style={styles.codeBox}>

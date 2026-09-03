@@ -49,8 +49,16 @@ class AuthController extends Controller
             ], 409);
         }
 
+        $channel = strtolower((string) $request->header('X-Client-Portal', 'web'));
+        if (! in_array($channel, ['mobile', 'web'], true)) {
+            $channel = 'web';
+        }
+
         $member = $this->members->create(
-            array_merge($data, ['consent_given' => true]),
+            array_merge($data, [
+                'consent_given' => true,
+                'registration_channel' => $channel,
+            ]),
             null,
             $request->file('photo'),
         );
@@ -291,7 +299,7 @@ class AuthController extends Controller
     {
         $user = $request->user()->load([
             'role.permissions', 'province', 'city', 'commune', 'structure',
-            'member.province', 'member.structure', 'member.activeCard',
+            'member.province', 'member.city', 'member.commune', 'member.structure', 'member.activeCard',
         ]);
 
         return response()->json([
@@ -340,6 +348,149 @@ class AuthController extends Controller
             'user' => new UserResource($user->fresh()->load([
                 'role.permissions', 'province', 'city', 'structure', 'member',
             ])),
+        ]);
+    }
+
+    /**
+     * Le membre actif choisit sa structure d'appartenance (après approbation mobile).
+     */
+    public function assignStructure(Request $request): JsonResponse
+    {
+        $user = $request->user()->load('member');
+        $member = $user->member;
+
+        if (! $member) {
+            return response()->json(['message' => 'Aucun dossier membre lié à ce compte.'], 422);
+        }
+
+        if ($member->status?->value !== 'active') {
+            return response()->json([
+                'message' => 'Votre compte doit d\'abord être approuvé par un responsable.',
+            ], 422);
+        }
+
+        if ($member->structure_id) {
+            return response()->json([
+                'message' => 'Votre structure est déjà définie. Contactez un responsable pour la modifier.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'structure_id' => ['required', 'integer', 'exists:structures,id'],
+        ]);
+
+        $structure = \App\Models\Structure::query()
+            ->whereKey($validated['structure_id'])
+            ->where('is_active', true)
+            ->firstOrFail();
+
+        if ($member->province_id && (int) $structure->province_id !== (int) $member->province_id) {
+            return response()->json([
+                'message' => 'Choisissez une structure de votre province d\'inscription.',
+                'errors' => ['structure_id' => ['La structure doit appartenir à votre province.']],
+            ], 422);
+        }
+
+        $updated = $this->members->assignStructure($member, $structure, $user);
+
+        return response()->json([
+            'message' => 'Structure enregistrée. Complétez maintenant votre profil pour accéder à votre carte.',
+            'user' => new UserResource(
+                $user->fresh([
+                    'role.permissions', 'province', 'city', 'commune', 'structure',
+                    'member.province', 'member.structure', 'member.activeCard',
+                ])
+            ),
+            'member' => new \App\Http\Resources\MemberResource($updated->load(['province', 'structure', 'activeCard'])),
+        ]);
+    }
+
+    /**
+     * Complète le profil socio-professionnel requis avant l'accès à la carte membre.
+     */
+    public function completeProfile(Request $request): JsonResponse
+    {
+        $user = $request->user()->load('member');
+        $member = $user->member;
+
+        if (! $member) {
+            return response()->json(['message' => 'Aucun dossier membre lié à ce compte.'], 422);
+        }
+
+        if ($member->status?->value !== 'active') {
+            return response()->json([
+                'message' => 'Votre compte doit d\'abord être approuvé.',
+            ], 422);
+        }
+
+        if (! $member->structure_id) {
+            return response()->json([
+                'message' => 'Choisissez d\'abord votre structure d\'appartenance.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'phone_alt' => ['required', 'string', 'max:30', 'regex:/^\+?[0-9]{9,15}$/'],
+            'city_id' => ['required', 'integer', 'exists:cities,id'],
+            'commune_id' => ['required', 'integer', 'exists:communes,id'],
+            'zone_id' => ['nullable', 'integer', 'exists:zones,id'],
+            'position' => ['required', 'string', 'max:120'],
+            'education_level' => ['required', 'string', 'max:60'],
+            'profession' => ['required', 'string', 'max:120'],
+            'employment_status' => ['required', 'string', 'max:60'],
+            'activity_domain' => ['required', 'string', 'max:120'],
+            'skills' => ['required', 'array', 'min:1', 'max:30'],
+            'skills.*' => ['string', 'max:60'],
+            'interests' => ['required', 'array', 'min:1', 'max:30'],
+            'interests.*' => ['string', 'max:60'],
+        ]);
+
+        $validated['phone_alt'] = preg_replace('/[\s().-]+/', '', $validated['phone_alt']);
+
+        // Inscription mobile : la fonction est toujours « Membre ».
+        if ($member->registration_channel === 'mobile') {
+            $validated['position'] = 'Membre';
+        }
+
+        $city = \App\Models\City::query()->findOrFail($validated['city_id']);
+        if ((int) $city->province_id !== (int) $member->province_id) {
+            return response()->json([
+                'message' => 'La ville doit appartenir à votre province d\'inscription.',
+                'errors' => ['city_id' => ['Ville hors de votre province.']],
+            ], 422);
+        }
+
+        $commune = \App\Models\Commune::query()->findOrFail($validated['commune_id']);
+        if ((int) $commune->city_id !== (int) $validated['city_id']) {
+            return response()->json([
+                'message' => 'La commune doit appartenir à la ville sélectionnée.',
+                'errors' => ['commune_id' => ['Commune hors de la ville choisie.']],
+            ], 422);
+        }
+
+        if (! empty($validated['zone_id'])) {
+            $zone = \App\Models\Zone::query()->findOrFail($validated['zone_id']);
+            if ((int) $zone->commune_id !== (int) $validated['commune_id']) {
+                return response()->json([
+                    'message' => 'Le secteur/quartier doit appartenir à la commune sélectionnée.',
+                    'errors' => ['zone_id' => ['Secteur hors de la commune choisie.']],
+                ], 422);
+            }
+        }
+
+        $updated = $this->members->completeProfile($member, $validated, $user);
+
+        return response()->json([
+            'message' => 'Profil complété. Votre carte membre est maintenant accessible.',
+            'user' => new UserResource(
+                $user->fresh([
+                    'role.permissions', 'province', 'city', 'commune', 'structure',
+                    'member.province', 'member.city', 'member.commune', 'member.structure', 'member.activeCard',
+                ])
+            ),
+            'member' => new \App\Http\Resources\MemberResource(
+                $updated->load(['province', 'city', 'commune', 'structure', 'activeCard'])
+            ),
         ]);
     }
 

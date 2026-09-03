@@ -5,6 +5,7 @@ import { TerritorySelect } from "@/components/forms/territory-select";
 import { TagInput } from "@/components/forms/tag-input";
 import { PhotoField } from "@/components/members/photo-field";
 import { BiometricEnrollmentField } from "@/components/members/biometric-enrollment-field";
+import { FingerprintCaptureField } from "@/components/members/fingerprint-capture-field";
 import { Alert } from "@/components/ui/feedback";
 import { Button } from "@/components/ui/button";
 import { Checkbox, Input, Select, Textarea } from "@/components/ui/field";
@@ -12,6 +13,12 @@ import { usePublicStructures, useReferences, useTerritories } from "@/lib/hooks"
 import { Stepper } from "@/components/ui/stepper";
 import { PasswordStrength } from "@/components/ui/password-strength";
 import { hasWebAuthnEnrollment, type WebAuthnEnrollmentPayload } from "@/lib/biometrics/types";
+import {
+  allFingerprintsCaptured,
+  emptyFingerprintMap,
+  fingerprintListFromMap,
+  type FingerprintCaptureMap,
+} from "@/lib/fingerprints";
 import type { DuplicateMatch, Member } from "@/lib/types";
 
 const SKILL_SUGGESTIONS = [
@@ -72,6 +79,7 @@ export interface MemberFormValues {
   photo_url: string | null;
   has_portal_account: boolean;
   webauthnEnrollment: WebAuthnEnrollmentPayload | null;
+  fingerprints: FingerprintCaptureMap;
   existingBiometricEnrolled: boolean;
   /** Édition : null = non choisi, true = remplacer, false = conserver */
   replaceBiometric: boolean | null;
@@ -115,6 +123,7 @@ export const EMPTY_MEMBER_FORM: MemberFormValues = {
   photo_url: null,
   has_portal_account: false,
   webauthnEnrollment: null,
+  fingerprints: emptyFingerprintMap(),
   existingBiometricEnrolled: false,
   replaceBiometric: null,
   confirm_duplicate: false,
@@ -151,6 +160,16 @@ export function toMemberPayload(values: MemberFormValues, mode: MemberFormMode):
 
   if (values.webauthnEnrollment) {
     payload.webauthn_enrollment = values.webauthnEnrollment;
+  }
+
+  if (allFingerprintsCaptured(values.fingerprints ?? emptyFingerprintMap())) {
+    payload.fingerprints = fingerprintListFromMap(values.fingerprints).map((item) => ({
+      slot: item.slot,
+      template_hash: item.template_hash,
+      hand: item.hand,
+      finger: item.finger,
+      captured_at: item.captured_at,
+    }));
   }
 
   if (mode === "register" || mode === "create") {
@@ -209,6 +228,7 @@ export function valuesFromMember(member: Member): MemberFormValues {
     photo_url: member.photo_url ?? null,
     has_portal_account: member.has_portal_account ?? false,
     webauthnEnrollment: null,
+    fingerprints: emptyFingerprintMap(),
     existingBiometricEnrolled: Boolean(member.fingerprint_enrolled),
     replaceBiometric: null,
   };
@@ -266,6 +286,13 @@ export function MemberForm({
     [values.last_name, values.middle_name, values.first_name],
   );
 
+  const biometricDisplayName = fullName || "Nouveau membre";
+  const biometricUserName = values.phone || values.email || biometricDisplayName;
+  const memberSeed = values.phone || values.email || biometricDisplayName;
+  const hasFingerprintCapture = allFingerprintsCaptured(values.fingerprints);
+  const hasBiometric =
+    hasWebAuthnEnrollment(values.webauthnEnrollment) || hasFingerprintCapture;
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (step < steps.length - 1) {
@@ -295,12 +322,12 @@ export function MemberForm({
             setBiometryError("Indiquez si vous souhaitez changer l'empreinte du membre.");
             return;
           }
-          if (values.replaceBiometric === true && !hasWebAuthnEnrollment(values.webauthnEnrollment)) {
-            setBiometryError("Enregistrez la nouvelle empreinte avant de continuer.");
+          if (values.replaceBiometric === true && !hasBiometric) {
+            setBiometryError("Enregistrez Windows Hello ou les 6 empreintes avant de continuer.");
             return;
           }
-        } else if (mode !== "edit" && !hasWebAuthnEnrollment(values.webauthnEnrollment)) {
-          setBiometryError("Enregistrez la biométrie Windows Hello du membre avant de continuer.");
+        } else if (mode !== "edit" && !hasBiometric) {
+          setBiometryError("Enregistrez Windows Hello ou le lecteur DigitalPersona avant de continuer.");
           return;
         }
       }
@@ -318,21 +345,18 @@ export function MemberForm({
       setStep(steps.findIndex((_, i) => isBiometryStep(mode, i)));
       return;
     }
-    if (mode === "edit" && values.existingBiometricEnrolled && values.replaceBiometric === true && !hasWebAuthnEnrollment(values.webauthnEnrollment)) {
-      setBiometryError("Enregistrez la nouvelle empreinte avant d'enregistrer les modifications.");
+    if (mode === "edit" && values.existingBiometricEnrolled && values.replaceBiometric === true && !hasBiometric) {
+      setBiometryError("Enregistrez Windows Hello ou les 6 empreintes avant d'enregistrer.");
       setStep(steps.findIndex((_, i) => isBiometryStep(mode, i)));
       return;
     }
-    if (mode !== "edit" && !hasWebAuthnEnrollment(values.webauthnEnrollment)) {
-      setBiometryError("La biométrie Windows Hello est obligatoire pour finaliser l'inscription.");
+    if (mode !== "edit" && !hasBiometric) {
+      setBiometryError("La biométrie (Hello ou DigitalPersona) est obligatoire pour finaliser.");
       setStep(steps.findIndex((_, i) => isBiometryStep(mode, i)));
       return;
     }
     await onSubmit(values);
   }
-
-  const biometricDisplayName = fullName || "Nouveau membre";
-  const biometricUserName = values.phone || values.email || biometricDisplayName;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6" noValidate>
@@ -624,8 +648,8 @@ export function MemberForm({
       {step === 6 && mode === "register" && (
         <div className="space-y-4">
           <Alert tone="info" title="Enregistrement biométrique obligatoire">
-            Le membre configure <strong>Windows Hello</strong> sur cet appareil. Aucune image d&apos;empreinte
-            n&apos;est stockée — uniquement un credential WebAuthn sécurisé.
+            Configurez <strong>Windows Hello</strong> et/ou capturez les <strong>6 empreintes</strong> via
+            DigitalPersona. Au moins une méthode est requise.
           </Alert>
           <BiometricEnrollmentField
             value={values.webauthnEnrollment}
@@ -636,6 +660,15 @@ export function MemberForm({
             displayName={biometricDisplayName}
             userName={biometricUserName}
             error={biometryError ?? errors.webauthn_enrollment}
+          />
+          <FingerprintCaptureField
+            value={values.fingerprints}
+            onChange={(fingerprints) => {
+              patch({ fingerprints });
+              setBiometryError(null);
+            }}
+            memberSeed={memberSeed}
+            error={errors.fingerprints}
           />
         </div>
       )}
@@ -668,7 +701,7 @@ export function MemberForm({
             <li><strong>Contact :</strong> {values.phone}{values.email ? ` · ${values.email}` : ""}</li>
             <li><strong>Compétences :</strong> {values.skills.join(", ") || "—"}</li>
             <li><strong>Accès portail :</strong> Mot de passe défini</li>
-            <li><strong>Biométrie :</strong> Windows Hello configuré</li>
+            <li><strong>Biométrie :</strong> {hasBiometric ? "Configurée" : "À compléter"}</li>
           </ul>
           <p className="mt-4 text-xs text-slate-500">
             En validant, votre dossier sera transmis pour vérification par un responsable territorial.
@@ -679,7 +712,7 @@ export function MemberForm({
       {step === 6 && mode === "create" && (
         <div className="space-y-4">
           <Alert tone="info" title="Biométrie du membre">
-            Le membre doit enregistrer Windows Hello avant la création du dossier.
+            Enregistrez Windows Hello et/ou les empreintes DigitalPersona avant la création du dossier.
           </Alert>
           <BiometricEnrollmentField
             value={values.webauthnEnrollment}
@@ -691,6 +724,15 @@ export function MemberForm({
             userName={biometricUserName}
             error={biometryError ?? errors.webauthn_enrollment}
           />
+          <FingerprintCaptureField
+            value={values.fingerprints}
+            onChange={(fingerprints) => {
+              patch({ fingerprints });
+              setBiometryError(null);
+            }}
+            memberSeed={memberSeed}
+            error={errors.fingerprints}
+          />
         </div>
       )}
 
@@ -698,8 +740,8 @@ export function MemberForm({
         <div className="space-y-4">
           <Alert tone="info" title="Biométrie du membre">
             {values.existingBiometricEnrolled
-              ? "Ce membre possède déjà une empreinte enregistrée. Souhaitez-vous la remplacer par une nouvelle ?"
-              : "Aucune empreinte n'est enregistrée pour ce membre. Vous pouvez en ajouter une maintenant (facultatif)."}
+              ? "Ce membre possède déjà une empreinte enregistrée. Souhaitez-vous la remplacer ?"
+              : "Aucune empreinte n'est enregistrée. Vous pouvez en ajouter une (Hello et/ou DigitalPersona)."}
           </Alert>
 
           {values.existingBiometricEnrolled && (
@@ -709,7 +751,11 @@ export function MemberForm({
                 variant={values.replaceBiometric === false ? "default" : "outline"}
                 className="h-auto min-h-11 whitespace-normal py-2.5 text-left"
                 onClick={() => {
-                  patch({ replaceBiometric: false, webauthnEnrollment: null });
+                  patch({
+                    replaceBiometric: false,
+                    webauthnEnrollment: null,
+                    fingerprints: emptyFingerprintMap(),
+                  });
                   setBiometryError(null);
                 }}
               >
@@ -734,16 +780,27 @@ export function MemberForm({
           )}
 
           {(values.replaceBiometric === true || !values.existingBiometricEnrolled) && (
-            <BiometricEnrollmentField
-              value={values.webauthnEnrollment}
-              onChange={(webauthnEnrollment) => {
-                patch({ webauthnEnrollment });
-                setBiometryError(null);
-              }}
-              displayName={biometricDisplayName}
-              userName={biometricUserName}
-              error={biometryError ?? errors.webauthn_enrollment}
-            />
+            <>
+              <BiometricEnrollmentField
+                value={values.webauthnEnrollment}
+                onChange={(webauthnEnrollment) => {
+                  patch({ webauthnEnrollment });
+                  setBiometryError(null);
+                }}
+                displayName={biometricDisplayName}
+                userName={biometricUserName}
+                error={biometryError ?? errors.webauthn_enrollment}
+              />
+              <FingerprintCaptureField
+                value={values.fingerprints}
+                onChange={(fingerprints) => {
+                  patch({ fingerprints });
+                  setBiometryError(null);
+                }}
+                memberSeed={memberSeed}
+                error={errors.fingerprints}
+              />
+            </>
           )}
 
           {biometryError && values.replaceBiometric !== true && values.existingBiometricEnrolled && (

@@ -88,6 +88,8 @@ export interface Member {
   status: MemberStatus;
   status_label: string;
   status_reason: string | null;
+  registration_channel?: "mobile" | "web" | "admin" | null;
+  registered_by?: number | null;
 
   province?: NamedRef | null;
   city?: NamedRef | null;

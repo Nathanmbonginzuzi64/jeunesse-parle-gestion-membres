@@ -40,6 +40,36 @@ class UserResource extends JsonResource
             'member_code' => $this->whenLoaded('member', fn () => $this->member?->member_code),
             'member_status' => $this->whenLoaded('member', fn () => $this->member?->status?->value),
             'member_status_label' => $this->whenLoaded('member', fn () => $this->member?->status?->label()),
+            'member_structure_id' => $this->whenLoaded('member', fn () => $this->member?->structure_id),
+            'member_structure_name' => $this->whenLoaded('member', fn () => $this->member?->structure?->name),
+            'needs_structure_choice' => $this->whenLoaded('member', function () {
+                $member = $this->member;
+                if (! $member) {
+                    return false;
+                }
+
+                return $member->status?->value === 'active' && empty($member->structure_id);
+            }),
+            'needs_profile_completion' => $this->whenLoaded('member', function () {
+                $member = $this->member;
+                if (! $member) {
+                    return false;
+                }
+
+                return $member->status?->value === 'active'
+                    && filled($member->structure_id)
+                    && ! $member->hasCompletedProfile();
+            }),
+            'can_view_card' => $this->whenLoaded('member', function () {
+                $member = $this->member;
+                if (! $member) {
+                    return false;
+                }
+
+                return $member->status?->value === 'active'
+                    && filled($member->structure_id)
+                    && $member->hasCompletedProfile();
+            }),
             'fingerprint_enrolled' => app(\App\Services\BiometricService::class)->userIsEnrolled($this->resource),
             'permissions' => $this->when(
                 $request->user()?->id === $this->id,

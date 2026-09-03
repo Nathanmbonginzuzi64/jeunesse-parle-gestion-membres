@@ -17,7 +17,7 @@ class RecordAttendanceRequest extends FormRequest
     {
         return [
             // Trois façons d'identifier le membre : scan QR, code membre ou identifiant.
-            'qr_token' => ['nullable', 'string', 'max:64', 'required_without_all:member_id,member_code'],
+            'qr_token' => ['nullable', 'string', 'max:120', 'required_without_all:member_id,member_code'],
             'member_code' => ['nullable', 'string', 'max:20', 'required_without_all:member_id,qr_token'],
             'member_id' => ['nullable', 'integer', 'exists:members,id', 'required_without_all:qr_token,member_code'],
             'status' => ['nullable', Rule::in(AttendanceStatus::values())],

@@ -22,6 +22,11 @@ export interface AuthUser {
   member_code?: string | null;
   member_status?: string | null;
   member_status_label?: string | null;
+  member_structure_id?: number | null;
+  member_structure_name?: string | null;
+  needs_structure_choice?: boolean;
+  needs_profile_completion?: boolean;
+  can_view_card?: boolean;
   permissions?: string[];
 }
 
@@ -46,7 +51,13 @@ export function postLoginPath(user: AuthUser): string {
     if (user.member_status === 'pending') {
       return '/(auth)/en-attente';
     }
-    return '/(membre)';
+    if (user.needs_structure_choice || (user.member_status === 'active' && !user.member_structure_id)) {
+      return '/(auth)/choix-structure';
+    }
+    if (user.needs_profile_completion) {
+      return '/(auth)/completer-profil';
+    }
+    return '/(membre)/(tabs)';
   }
   return '/(auth)/portail-web';
 }

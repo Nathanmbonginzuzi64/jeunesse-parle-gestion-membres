@@ -39,7 +39,7 @@ export default function PresencesScreen() {
   }, [load]);
 
   return (
-    <Screen>
+    <Screen scroll={false}>
       <Title>Présences</Title>
       <Subtitle>Activités ouvertes au pointage dans votre périmètre.</Subtitle>
       <FlatList
@@ -47,6 +47,8 @@ export default function PresencesScreen() {
         keyExtractor={(item) => String(item.id)}
         refreshing={loading}
         onRefresh={() => void load()}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         contentContainerStyle={{ paddingVertical: 16, gap: 8 }}
         ListEmptyComponent={
           !loading ? (
@@ -56,23 +58,46 @@ export default function PresencesScreen() {
           ) : null
         }
         renderItem={({ item }) => (
-          <Pressable
-            style={[styles.row, params.activityId === String(item.id) && styles.rowActive]}
-            onPress={() =>
-              router.push({
-                pathname: '/(agent)/(tabs)/verifier',
-                params: { activityId: String(item.id) },
-              })
-            }
-          >
-            <View style={{ flex: 1 }}>
+          <View style={[styles.row, params.activityId === String(item.id) && styles.rowActive]}>
+            <Pressable
+              style={{ flex: 1 }}
+              onPress={() =>
+                router.push({
+                  pathname: '/(agent)/(tabs)/verifier',
+                  params: { activityId: String(item.id) },
+                })
+              }
+            >
               <Text style={styles.title}>{item.title}</Text>
               <Text style={styles.muted}>
                 {item.code} · {item.attendances_count ?? 0} présence(s)
               </Text>
+            </Pressable>
+            <View style={styles.actions}>
+              <Pressable
+                style={styles.actionBtn}
+                onPress={() =>
+                  router.push({
+                    pathname: '/(agent)/(tabs)/scan-qr',
+                    params: { activityId: String(item.id), activityTitle: item.title },
+                  })
+                }
+              >
+                <Text style={styles.actionText}>QR</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.actionBtn, styles.actionBtnAlt]}
+                onPress={() =>
+                  router.push({
+                    pathname: '/(agent)/(tabs)/empreinte',
+                    params: { activityId: String(item.id), activityTitle: item.title },
+                  })
+                }
+              >
+                <Text style={styles.actionText}>Empreinte</Text>
+              </Pressable>
             </View>
-            <Text style={styles.chevron}>›</Text>
-          </Pressable>
+          </View>
         )}
       />
     </Screen>
@@ -88,9 +113,19 @@ const styles = StyleSheet.create({
     padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
   rowActive: { borderColor: JP.brand, backgroundColor: JP.brandLight },
   title: { fontWeight: '700', color: JP.text, fontSize: 15 },
   muted: { color: JP.muted, fontSize: 13, marginTop: 2 },
-  chevron: { fontSize: 22, color: JP.muted, paddingLeft: 8 },
+  actions: { gap: 6 },
+  actionBtn: {
+    backgroundColor: JP.brand,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  actionBtnAlt: { backgroundColor: JP.brandDark },
+  actionText: { color: JP.white, fontSize: 11, fontWeight: '800' },
 });

@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\AttendanceStatus;
 use App\Enums\MemberStatus;
+use App\Enums\RoleSlug;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RecordAttendanceRequest;
 use App\Http\Requests\RecordFingerprintAttendanceRequest;
 use App\Http\Resources\AttendanceResource;
+use App\Enums\ActivityStatus;
 use App\Models\Activity;
 use App\Models\Attendance;
 use App\Models\Member;
@@ -19,6 +21,7 @@ use App\Services\VerificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AttendanceController extends Controller
@@ -62,6 +65,8 @@ class AttendanceController extends Controller
             ], 403);
         }
 
+        $wasRegistered = $activity->members()->where('members.id', $member->id)->exists();
+
         $status = AttendanceStatus::from($validated['status'] ?? AttendanceStatus::Present->value);
         $method = ! empty($validated['qr_token']) ? 'qr' : 'manual';
 
@@ -72,12 +77,16 @@ class AttendanceController extends Controller
                 'method' => $method,
                 'recorded_at' => now(),
                 'recorded_by' => $request->user()->id,
-                'note' => $validated['note'] ?? null,
+                'note' => $validated['note'] ?? ($wasRegistered ? null : 'Inscription automatique au pointage'),
             ],
         );
 
         $activity->members()->syncWithoutDetaching([
-            $member->id => ['status' => 'confirmed', 'confirmed_at' => now()],
+            $member->id => array_filter([
+                'status' => 'confirmed',
+                'invited_at' => $wasRegistered ? null : now(),
+                'confirmed_at' => now(),
+            ], fn ($value) => $value !== null),
         ]);
 
         $this->audit->log(
@@ -90,14 +99,155 @@ class AttendanceController extends Controller
                 'member_code' => $member->member_code,
                 'activity_id' => $activity->id,
                 'method' => $method,
+                'auto_registered' => ! $wasRegistered,
                 'recorded_by' => $request->user()->name,
             ],
         );
 
         $this->notifications->attendanceRecorded($member, $activity, $status->label());
 
+        $suffix = $wasRegistered ? '' : ' (inscrit automatiquement)';
+
         return response()->json([
-            'message' => "Présence enregistrée : {$member->full_name} — {$status->label()}.",
+            'message' => "Présence enregistrée : {$member->full_name} — {$status->label()}{$suffix}.",
+            'auto_registered' => ! $wasRegistered,
+            'data' => new AttendanceResource($attendance->load(['member', 'recorder'])),
+        ], 201);
+    }
+
+    /**
+     * Auto-pointage du membre connecté (QR de sa carte ou empreinte déjà enrôlée).
+     */
+    public function storeSelf(Request $request, Activity $activity): JsonResponse
+    {
+        $user = $request->user()->loadMissing('member.activeCard.activeQrToken');
+
+        if (! $user->hasRole(RoleSlug::Membre) || ! $user->member_id || ! $user->member) {
+            abort(403, "Réservé à l'espace membre.");
+        }
+
+        $member = $user->member;
+
+        if ($member->status !== MemberStatus::Active) {
+            return response()->json(['message' => 'Votre compte membre doit être actif.'], 422);
+        }
+
+        if (! in_array($activity->status?->value, [ActivityStatus::Planned->value, ActivityStatus::Ongoing->value], true)) {
+            return response()->json(['message' => 'Cette activité n\'accepte plus de pointage.'], 422);
+        }
+
+        if (! $activity->members()->where('members.id', $member->id)->exists()) {
+            return response()->json(['message' => 'Inscrivez-vous d\'abord à cette activité.'], 422);
+        }
+
+        $validated = $request->validate([
+            'method' => ['required', 'string', 'in:qr,fingerprint,biometric'],
+            'qr_token' => ['nullable', 'string', 'max:255'],
+            'template_hash' => ['nullable', 'string', 'min:8', 'max:255'],
+            'format' => ['nullable', 'string', 'in:hardware,simulation'],
+        ]);
+
+        $method = $validated['method'];
+        $note = null;
+
+        if ($method === 'qr') {
+            $rawToken = $validated['qr_token']
+                ?? $member->activeCard?->activeQrToken?->token;
+
+            if (! $rawToken) {
+                return response()->json(['message' => 'Aucun QR actif sur votre carte.'], 422);
+            }
+
+            $tokenValue = $this->normalizeQrToken((string) $rawToken);
+            $qrToken = QrToken::query()->where('token', $tokenValue)->first();
+
+            if (! $qrToken || (int) $qrToken->member_id !== (int) $member->id) {
+                return response()->json(['message' => 'Ce QR ne correspond pas à votre carte.'], 422);
+            }
+
+            $outcome = $this->verification->verify($tokenValue, $request, $user, 'attendance');
+            if (! $outcome['valid']) {
+                return response()->json([
+                    'message' => $outcome['message'],
+                    'result' => $outcome['result'],
+                ], 422);
+            }
+
+            $method = 'qr';
+            $note = 'Auto-pointage QR (espace membre)';
+        } elseif ($method === 'fingerprint') {
+            $fingerprintEnrolled = $this->biometrics->countForMember($member) > 0
+                || $member->webAuthnCredentials()->exists();
+
+            if (! $fingerprintEnrolled) {
+                return response()->json(['message' => 'Aucune empreinte enregistrée pour votre dossier.'], 422);
+            }
+
+            if ($this->biometrics->countForMember($member) > 0) {
+                try {
+                    $this->biometrics->matchMember(
+                        $member,
+                        $validated['template_hash'] ?? null,
+                        $validated['format'] ?? 'hardware',
+                    );
+                } catch (ValidationException $e) {
+                    return response()->json([
+                        'message' => collect($e->errors())->flatten()->first() ?? 'Empreinte non reconnue.',
+                    ], 422);
+                }
+            } elseif (empty($validated['template_hash']) && ($validated['format'] ?? null) !== 'simulation') {
+                // WebAuthn only : confirmation explicite côté client (biométrie appareil).
+                $method = 'fingerprint';
+            }
+
+            $method = 'fingerprint';
+            $note = 'Auto-pointage empreinte (espace membre)';
+        } else {
+            // biometric : confirmation si enrôlé (Hello ou templates), sans lecteur téléphone.
+            $fingerprintEnrolled = $this->biometrics->countForMember($member) > 0
+                || $member->webAuthnCredentials()->exists();
+
+            if (! $fingerprintEnrolled) {
+                return response()->json([
+                    'message' => 'Enregistrez d\'abord votre empreinte auprès d\'un responsable.',
+                ], 422);
+            }
+
+            $method = 'fingerprint';
+            $note = 'Auto-pointage biométrique (espace membre)';
+        }
+
+        $attendance = Attendance::updateOrCreate(
+            ['activity_id' => $activity->id, 'member_id' => $member->id],
+            [
+                'status' => AttendanceStatus::Present,
+                'method' => $method,
+                'recorded_at' => now(),
+                'recorded_by' => $user->id,
+                'note' => $note,
+            ],
+        );
+
+        $activity->members()->syncWithoutDetaching([
+            $member->id => ['status' => 'confirmed', 'confirmed_at' => now()],
+        ]);
+
+        $this->audit->log(
+            'attendance.self-recorded',
+            $attendance,
+            "Auto-présence — {$member->member_code} — {$method} — {$activity->code}",
+            [],
+            [
+                'member_id' => $member->id,
+                'activity_id' => $activity->id,
+                'method' => $method,
+            ],
+        );
+
+        $this->notifications->attendanceRecorded($member, $activity, AttendanceStatus::Present->label());
+
+        return response()->json([
+            'message' => 'Présence confirmée.',
             'data' => new AttendanceResource($attendance->load(['member', 'recorder'])),
         ], 201);
     }
@@ -193,6 +343,8 @@ class AttendanceController extends Controller
             ], 403);
         }
 
+        $wasRegistered = $activity->members()->where('members.id', $member->id)->exists();
+
         $attendance = Attendance::updateOrCreate(
             ['activity_id' => $activity->id, 'member_id' => $member->id],
             [
@@ -200,12 +352,20 @@ class AttendanceController extends Controller
                 'method' => 'fingerprint',
                 'recorded_at' => now(),
                 'recorded_by' => $request->user()->id,
-                'note' => $lab ? 'Pointage empreinte (mode labo)' : 'Pointage empreinte digitale',
+                'note' => $lab
+                    ? 'Pointage empreinte (mode labo)'
+                    : ($wasRegistered
+                        ? 'Pointage empreinte digitale'
+                        : 'Inscription + présence automatique (empreinte)'),
             ],
         );
 
         $activity->members()->syncWithoutDetaching([
-            $member->id => ['status' => 'confirmed', 'confirmed_at' => now()],
+            $member->id => array_filter([
+                'status' => 'confirmed',
+                'invited_at' => $wasRegistered ? null : now(),
+                'confirmed_at' => now(),
+            ], fn ($value) => $value !== null),
         ]);
 
         $this->audit->log(
@@ -220,15 +380,19 @@ class AttendanceController extends Controller
                 'method' => 'fingerprint',
                 'matched_slot' => $matchedSlot,
                 'lab' => $lab,
+                'auto_registered' => ! $wasRegistered,
             ],
         );
 
         $this->notifications->attendanceRecorded($member, $activity, AttendanceStatus::Present->label());
 
+        $suffix = $wasRegistered ? '' : ' — inscrit automatiquement';
+
         return response()->json([
             'valid' => true,
-            'message' => "Présence enregistrée : {$member->full_name} — empreinte reconnue.",
+            'message' => "Présence enregistrée : {$member->full_name} — empreinte reconnue{$suffix}.",
             'attendance_recorded' => true,
+            'auto_registered' => ! $wasRegistered,
             'matched_slot' => $matchedSlot,
             'member_code' => $member->member_code,
             'member_id' => $member->id,
@@ -421,8 +585,9 @@ class AttendanceController extends Controller
     private function resolveMember(array $validated, Request $request, Activity $activity): Member|JsonResponse
     {
         if (! empty($validated['qr_token'])) {
+            $tokenValue = $this->normalizeQrToken((string) $validated['qr_token']);
             $outcome = $this->verification->verify(
-                $validated['qr_token'],
+                $tokenValue,
                 $request,
                 $request->user(),
                 'attendance',
@@ -435,7 +600,7 @@ class AttendanceController extends Controller
                 ], 422);
             }
 
-            $token = QrToken::where('token', $validated['qr_token'])->first();
+            $token = QrToken::where('token', $tokenValue)->first();
 
             return Member::findOrFail($token->member_id);
         }
@@ -451,5 +616,22 @@ class AttendanceController extends Controller
         }
 
         return Member::findOrFail($validated['member_id']);
+    }
+
+    private function normalizeQrToken(string $value): string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return $trimmed;
+        }
+
+        if (str_contains($trimmed, '/')) {
+            $path = parse_url($trimmed, PHP_URL_PATH);
+            if (is_string($path) && $path !== '') {
+                return basename($path);
+            }
+        }
+
+        return $trimmed;
     }
 }

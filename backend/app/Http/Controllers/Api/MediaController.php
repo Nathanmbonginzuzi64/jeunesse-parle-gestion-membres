@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ActivityStatus;
+use App\Enums\RoleSlug;
 use App\Http\Controllers\Controller;
 use App\Models\Activity;
 use App\Models\ChatAttachment;
@@ -110,12 +112,38 @@ class MediaController extends Controller
     public function activityImage(Request $request, string $activity): Response
     {
         $record = Activity::where('code', $activity)->firstOrFail();
+        $user = $request->user();
 
-        $this->authorize('view', $record);
+        if (! $user->can('view', $record)) {
+            abort_unless(
+                $user->hasRole(RoleSlug::Membre) && $this->memberCanAccessActivity($user, $record),
+                403,
+                "Vous n'avez pas l'autorisation d'effectuer cette action.",
+            );
+        }
 
         abort_unless($record->image_path, 404, 'Ressource introuvable.');
 
         return $this->streamActivity($record->image_path, $record->code);
+    }
+
+    /** Un membre actif peut voir l'image des activités de son périmètre. */
+    private function memberCanAccessActivity(User $user, Activity $activity): bool
+    {
+        $user->loadMissing('member');
+        $member = $user->member;
+        if (! $member || $member->status?->value !== 'active') {
+            return false;
+        }
+
+        if ($activity->status === ActivityStatus::Cancelled) {
+            return false;
+        }
+
+        return (bool) $activity->is_public
+            || ($member->structure_id && (int) $activity->structure_id === (int) $member->structure_id)
+            || ($member->province_id && (int) $activity->province_id === (int) $member->province_id)
+            || $activity->members()->where('members.id', $member->id)->exists();
     }
 
     /** Média principal d'une actualité (image, vidéo ou PDF). */

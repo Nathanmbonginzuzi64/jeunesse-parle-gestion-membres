@@ -3,7 +3,6 @@ import {
   Alert,
   Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -286,7 +285,7 @@ export default function InscriptionScreen() {
   }
 
   return (
-    <Screen style={{ paddingTop: Math.max(insets.top, 8), backgroundColor: JP.white }}>
+    <Screen style={{ paddingTop: Math.max(insets.top, 8), backgroundColor: JP.white }} scroll={false}>
       <View style={styles.header}>
         <Pressable onPress={() => (step === 0 ? router.back() : setStep((s) => s - 1))} hitSlop={10}>
           <Ionicons name="chevron-back" size={24} color={JP.text} />
@@ -295,8 +294,7 @@ export default function InscriptionScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      <KeyboardSafe>
-        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+      <KeyboardSafe contentContainerStyle={styles.body}>
           <View style={styles.intro}>
             <BrandLogo size={56} />
             <Text style={styles.kicker}>Nouveau membre</Text>
@@ -452,7 +450,6 @@ export default function InscriptionScreen() {
               </Text>
             </Text>
           ) : null}
-        </ScrollView>
       </KeyboardSafe>
     </Screen>
   );

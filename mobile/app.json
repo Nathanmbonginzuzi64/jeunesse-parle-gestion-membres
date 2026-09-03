@@ -64,7 +64,8 @@
           "backgroundColor": "#0087D1"
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-video"
     ],
     "extra": {
       "apiUrl": "http://127.0.0.1:8000/api"

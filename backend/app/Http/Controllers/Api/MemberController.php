@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -139,6 +140,147 @@ class MemberController extends Controller
         return response()->json([
             'message' => 'Membre validé. Sa carte et son QR code ont été générés.',
             'data' => new MemberResource($updated->load(['province', 'structure', 'activeCard'])),
+        ]);
+    }
+
+    /** Valide plusieurs dossiers en attente (inscriptions mobiles / en masse). */
+    public function bulkValidate(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', Member::class);
+
+        $validated = $request->validate([
+            'member_ids' => ['nullable', 'array', 'max:200'],
+            'member_ids.*' => ['integer', 'exists:members,id'],
+            'all_pending_mobile' => ['nullable', 'boolean'],
+        ]);
+
+        $query = Member::query()
+            ->visibleTo($request->user())
+            ->where('status', MemberStatus::Pending->value);
+
+        if (! empty($validated['all_pending_mobile'])) {
+            $query->where(function (Builder $q) {
+                $q->where('registration_channel', 'mobile')
+                    ->orWhere(function (Builder $inner) {
+                        $inner->whereNull('registration_channel')
+                            ->whereNull('registered_by')
+                            ->whereNotNull('user_id');
+                    });
+            });
+        } elseif (! empty($validated['member_ids'])) {
+            $query->whereIn('id', $validated['member_ids']);
+        } else {
+            return response()->json([
+                'message' => 'Sélectionnez au moins un dossier ou activez « tout approuver ».',
+            ], 422);
+        }
+
+        $author = $request->user();
+        $validatedCount = 0;
+        $failed = [];
+
+        foreach ($query->orderBy('id')->get() as $member) {
+            if (! $author->can('validate', $member)) {
+                $failed[] = ['id' => $member->id, 'reason' => 'Permission refusée'];
+                continue;
+            }
+
+            try {
+                $this->members->validate($member, $author);
+                $validatedCount++;
+            } catch (\Throwable $e) {
+                $failed[] = ['id' => $member->id, 'reason' => $e->getMessage()];
+            }
+        }
+
+        return response()->json([
+            'message' => $validatedCount === 0
+                ? 'Aucun dossier n\'a pu être validé.'
+                : "{$validatedCount} dossier(s) approuvé(s).",
+            'validated_count' => $validatedCount,
+            'failed' => $failed,
+        ]);
+    }
+
+    /**
+     * KPI + rapport d'inscriptions mobiles (jour / mois / année) pour le super-admin.
+     */
+    public function mobileStats(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', Member::class);
+
+        $validated = $request->validate([
+            'group_by' => ['nullable', Rule::in(['day', 'month', 'year'])],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date', 'after_or_equal:from'],
+            'year' => ['nullable', 'integer', 'min:2000', 'max:2100'],
+            'month' => ['nullable', 'integer', 'min:1', 'max:12'],
+        ]);
+
+        $groupBy = $validated['group_by'] ?? 'day';
+        $base = $this->mobileRegistrationsQuery($request->user());
+
+        $kpis = [
+            'total' => (clone $base)->count(),
+            'pending' => (clone $base)->where('status', MemberStatus::Pending->value)->count(),
+            'active' => (clone $base)->where('status', MemberStatus::Active->value)->count(),
+            'suspended' => (clone $base)->where('status', MemberStatus::Suspended->value)->count(),
+            'today' => (clone $base)->whereDate('created_at', now()->toDateString())->count(),
+            'this_month' => (clone $base)
+                ->whereYear('created_at', now()->year)
+                ->whereMonth('created_at', now()->month)
+                ->count(),
+            'this_year' => (clone $base)->whereYear('created_at', now()->year)->count(),
+        ];
+
+        $reportQuery = $this->mobileRegistrationsQuery($request->user());
+
+        if (! empty($validated['from'])) {
+            $reportQuery->whereDate('created_at', '>=', $validated['from']);
+        }
+        if (! empty($validated['to'])) {
+            $reportQuery->whereDate('created_at', '<=', $validated['to']);
+        }
+        if (! empty($validated['year'])) {
+            $reportQuery->whereYear('created_at', (int) $validated['year']);
+        }
+        if (! empty($validated['month']) && $groupBy === 'day') {
+            $reportQuery->whereMonth('created_at', (int) $validated['month']);
+            if (empty($validated['year'])) {
+                $reportQuery->whereYear('created_at', now()->year);
+            }
+        }
+
+        $periodExpr = $this->periodExpression('created_at', $groupBy);
+        $pending = MemberStatus::Pending->value;
+        $active = MemberStatus::Active->value;
+
+        $rows = $reportQuery
+            ->selectRaw(
+                "{$periodExpr} as period, COUNT(*) as total, SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as pending, SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as active",
+                [$pending, $active],
+            )
+            ->groupBy(DB::raw($periodExpr))
+            ->orderByDesc(DB::raw($periodExpr))
+            ->limit(366)
+            ->get();
+
+        $report = $rows->map(function ($row) use ($groupBy) {
+            $period = (string) $row->period;
+
+            return [
+                'period' => $period,
+                'label' => $this->periodLabel($period, $groupBy),
+                'total' => (int) $row->total,
+                'pending' => (int) $row->pending,
+                'active' => (int) $row->active,
+            ];
+        })->values();
+
+        return response()->json([
+            'kpis' => $kpis,
+            'group_by' => $groupBy,
+            'report' => $report,
         ]);
     }
 
@@ -317,6 +459,16 @@ class MemberController extends Controller
 
     private function validateFilters(Request $request): array
     {
+        if ($request->has('self_registered')) {
+            $request->merge([
+                'self_registered' => filter_var(
+                    $request->input('self_registered'),
+                    FILTER_VALIDATE_BOOLEAN,
+                    FILTER_NULL_ON_FAILURE,
+                ),
+            ]);
+        }
+
         return $request->validate([
             'q' => ['nullable', 'string', 'max:120'],
             'status' => ['nullable', Rule::in(MemberStatus::values())],
@@ -332,10 +484,13 @@ class MemberController extends Controller
             'age_max' => ['nullable', 'integer', 'min:0', 'max:120'],
             'registered_from' => ['nullable', 'date'],
             'registered_to' => ['nullable', 'date'],
+            'registration_channel' => ['nullable', Rule::in(['mobile', 'web', 'admin'])],
+            'self_registered' => ['nullable', 'boolean'],
             'has_card' => ['nullable', 'boolean'],
             'sort' => ['nullable', Rule::in(self::SORTABLE)],
             'direction' => ['nullable', Rule::in(['asc', 'desc'])],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:'.self::PER_PAGE_MAX],
+            'page' => ['nullable', 'integer', 'min:1'],
         ]);
     }
 
@@ -352,7 +507,19 @@ class MemberController extends Controller
             ->when($filters['profession'] ?? null, fn (Builder $q, $v) => $q->where('members.profession', 'like', '%'.$v.'%'))
             ->when($filters['skill'] ?? null, fn (Builder $q, $v) => $q->where('members.skills', 'like', '%'.$v.'%'))
             ->when($filters['registered_from'] ?? null, fn (Builder $q, $v) => $q->whereDate('members.created_at', '>=', $v))
-            ->when($filters['registered_to'] ?? null, fn (Builder $q, $v) => $q->whereDate('members.created_at', '<=', $v));
+            ->when($filters['registered_to'] ?? null, fn (Builder $q, $v) => $q->whereDate('members.created_at', '<=', $v))
+            ->when($filters['registration_channel'] ?? null, fn (Builder $q, $v) => $q->where('members.registration_channel', $v));
+
+        if (! empty($filters['self_registered'])) {
+            $query->where(function (Builder $q) {
+                $q->where('members.registration_channel', 'mobile')
+                    ->orWhere(function (Builder $inner) {
+                        $inner->whereNull('members.registration_channel')
+                            ->whereNull('members.registered_by')
+                            ->whereNotNull('members.user_id');
+                    });
+            });
+        }
 
         if (isset($filters['age_min'])) {
             $query->whereDate('members.birth_date', '<=', now()->subYears((int) $filters['age_min'])->toDateString());
@@ -366,6 +533,56 @@ class MemberController extends Controller
             $filters['has_card']
                 ? $query->whereHas('activeCard')
                 : $query->whereDoesntHave('activeCard');
+        }
+    }
+
+    private function mobileRegistrationsQuery(\App\Models\User $user): Builder
+    {
+        return Member::query()
+            ->visibleTo($user)
+            ->where(function (Builder $q) {
+                $q->where('registration_channel', 'mobile')
+                    ->orWhere(function (Builder $inner) {
+                        $inner->whereNull('registration_channel')
+                            ->whereNull('registered_by')
+                            ->whereNotNull('user_id');
+                    });
+            });
+    }
+
+    private function periodExpression(string $column, string $groupBy): string
+    {
+        $driver = DB::connection()->getDriverName();
+
+        if ($driver === 'sqlite') {
+            return match ($groupBy) {
+                'year' => "strftime('%Y', {$column})",
+                'month' => "strftime('%Y-%m', {$column})",
+                default => "strftime('%Y-%m-%d', {$column})",
+            };
+        }
+
+        return match ($groupBy) {
+            'year' => "DATE_FORMAT({$column}, '%Y')",
+            'month' => "DATE_FORMAT({$column}, '%Y-%m')",
+            default => "DATE_FORMAT({$column}, '%Y-%m-%d')",
+        };
+    }
+
+    private function periodLabel(string $period, string $groupBy): string
+    {
+        try {
+            return match ($groupBy) {
+                'year' => $period,
+                'month' => \Illuminate\Support\Carbon::createFromFormat('Y-m', $period)
+                    ->locale('fr')
+                    ->translatedFormat('F Y'),
+                default => \Illuminate\Support\Carbon::createFromFormat('Y-m-d', $period)
+                    ->locale('fr')
+                    ->translatedFormat('d M Y'),
+            };
+        } catch (\Throwable) {
+            return $period;
         }
     }
 }

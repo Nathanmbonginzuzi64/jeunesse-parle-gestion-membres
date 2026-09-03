@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CheckCircle2, Fingerprint, Loader2, XCircle } from "lucide-react";
 import { FingerprintScannerPad } from "@/components/members/fingerprint-scanner-pad";
 import { Button } from "@/components/ui/button";
@@ -31,14 +31,20 @@ export function FingerprintAttendancePanel({
   onLoadingChange,
   onRecorded,
   compact = false,
+  initialMemberCode = "",
 }: {
   activityId: number;
   loading?: boolean;
   onLoadingChange?: (loading: boolean) => void;
   onRecorded?: (result: FingerprintAttendanceResult) => void;
   compact?: boolean;
+  initialMemberCode?: string;
 }) {
-  const [memberCode, setMemberCode] = useState("");
+  const [memberCode, setMemberCode] = useState(initialMemberCode);
+
+  useEffect(() => {
+    setMemberCode(initialMemberCode);
+  }, [initialMemberCode]);
   const [scanning, setScanning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<FingerprintAttendanceResult | null>(null);

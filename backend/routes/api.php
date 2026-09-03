@@ -97,6 +97,8 @@ Route::middleware(['auth:sanctum', 'account.active', 'session.timeout', 'mainten
         Route::delete('sessions/{tokenId}', [AuthController::class, 'destroySession'])->whereNumber('tokenId');
         Route::post('change-password', [AuthController::class, 'changePassword'])->middleware('throttle:6,1');
         Route::post('profile', [AuthController::class, 'updateProfile'])->middleware('throttle:12,1');
+        Route::post('structure', [AuthController::class, 'assignStructure'])->middleware('throttle:12,1');
+        Route::post('complete-profile', [AuthController::class, 'completeProfile'])->middleware('throttle:12,1');
     });
 
     // ------------------------------------------------------------ Biométrie WebAuthn (configuration)
@@ -129,6 +131,12 @@ Route::middleware(['auth:sanctum', 'account.active', 'session.timeout', 'mainten
 
         Route::get('export', [MemberController::class, 'export'])
             ->middleware(['permission:members.export', 'throttle:10,1']);
+
+        Route::post('bulk-validate', [MemberController::class, 'bulkValidate'])
+            ->middleware('permission:members.validate');
+
+        Route::get('mobile-stats', [MemberController::class, 'mobileStats'])
+            ->middleware('permission:members.validate');
 
         Route::post('check-duplicates', [MemberController::class, 'checkDuplicates'])
             ->middleware('permission:members.view');
@@ -167,6 +175,9 @@ Route::middleware(['auth:sanctum', 'account.active', 'session.timeout', 'mainten
 
     // ------------------------------------------------------------ Activités & présences
     Route::get('activities/for-attendance', [ActivityController::class, 'forAttendance']);
+    Route::get('activities/for-member', [ActivityController::class, 'forMember']);
+    Route::get('activities/{activity}/for-member', [ActivityController::class, 'showForMember']);
+    Route::post('activities/{activity}/register', [ActivityController::class, 'registerSelf']);
     Route::apiResource('activities', ActivityController::class);
     Route::post('activities/{activity}', [ActivityController::class, 'update']); // multipart + _method
 
@@ -184,6 +195,7 @@ Route::middleware(['auth:sanctum', 'account.active', 'session.timeout', 'mainten
         Route::get('attendance/sheet', [AttendanceController::class, 'sheet']);
         Route::get('attendance/sheet/export', [AttendanceController::class, 'exportSheet']);
         Route::post('attendance', [AttendanceController::class, 'store']);
+        Route::post('attendance/self', [AttendanceController::class, 'storeSelf']);
         Route::post('attendance/fingerprint', [AttendanceController::class, 'storeFingerprint']);
         Route::patch('attendance/{attendance}', [AttendanceController::class, 'update']);
     });

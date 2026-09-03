@@ -26,11 +26,15 @@ class MemberResource extends JsonResource
             'gender' => $this->gender?->value,
             'gender_label' => $this->gender?->label(),
             'age' => $this->age,
-            'photo_url' => $this->photo_path ? route('media.member-photo', ['member' => $this->member_code]) : null,
+            'photo_url' => $this->photo_path
+                ? url('/api/media/members/'.rawurlencode($this->member_code).'/photo')
+                : null,
 
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
             'status_reason' => $this->status_reason,
+            'registration_channel' => $this->registration_channel,
+            'registered_by' => $this->registered_by,
 
             'province' => $this->whenLoaded('province', fn () => ['id' => $this->province->id, 'name' => $this->province->name]),
             'city' => $this->whenLoaded('city', fn () => $this->city ? ['id' => $this->city->id, 'name' => $this->city->name] : null),

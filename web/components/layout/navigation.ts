@@ -18,6 +18,7 @@ import {
   Settings,
   ShieldCheck,
   ShieldOff,
+  Smartphone,
   UserCog,
   UserCircle,
   Users,
@@ -69,6 +70,7 @@ export const NAV_SECTIONS: NavSection[] = [
         permissions: [PERMISSIONS.membersView],
         children: [
           { href: "/membres", label: "Tous les membres", icon: Users, exact: true },
+          { href: "/membres/demandes-mobile", label: "Demandes mobile", icon: Smartphone, permissions: [PERMISSIONS.membersValidate] },
           { href: "/membres?status=active", label: "Membres actifs", icon: Users },
           { href: "/membres?status=pending", label: "En attente", icon: Users },
           { href: "/membres?status=suspended", label: "Suspendus", icon: Users },

@@ -1,19 +1,69 @@
 import { JP } from '@/constants/theme';
+import { KeyboardSafe, useKeepAboveKeyboard } from '@/components/keyboard-safe';
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
   type TextInputProps,
+  type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export function Screen({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
-  return <View style={[styles.screen, style]}>{children}</View>;
+export function Screen({
+  children,
+  style,
+  contentContainerStyle,
+  scroll = true,
+  keyboard = true,
+  refreshControl,
+}: {
+  children: ReactNode;
+  style?: ViewStyle;
+  contentContainerStyle?: StyleProp<ViewStyle>;
+  /** Défilement + champ au-dessus du clavier. Désactiver si l’écran a déjà une FlatList. */
+  scroll?: boolean;
+  keyboard?: boolean;
+  refreshControl?: ReactElement;
+}) {
+  const insets = useSafeAreaInsets();
+  const { justifyContent, ...boxStyle } = style ?? {};
+
+  const body = scroll ? (
+    <View style={[styles.screen, boxStyle, { flex: 1 }]}>
+      <KeyboardSafe
+        refreshControl={refreshControl}
+        contentContainerStyle={[
+          { flexGrow: 1 },
+          justifyContent ? { justifyContent } : null,
+          contentContainerStyle,
+        ]}
+      >
+        {children}
+      </KeyboardSafe>
+    </View>
+  ) : (
+    <View style={[styles.screen, style]}>{children}</View>
+  );
+
+  if (!keyboard) return body;
+
+  return (
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: JP.white }}
+      behavior="padding"
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
+    >
+      {body}
+    </KeyboardAvoidingView>
+  );
 }
 
 export function Title({ children, center }: { children: React.ReactNode; center?: boolean }) {
@@ -44,10 +94,12 @@ export function Field(
     ...rest
   } = props;
   const [hidden, setHidden] = useState(true);
+  const fieldRef = useRef<View>(null);
+  const keepAbove = useKeepAboveKeyboard(fieldRef);
   const secure = passwordToggle ? hidden : secureTextEntry;
 
   return (
-    <View style={styles.field}>
+    <View ref={fieldRef} collapsable={false} style={styles.field}>
       <Text style={styles.label}>{label}</Text>
       <View
         style={[
@@ -63,6 +115,14 @@ export function Field(
           autoComplete={passwordToggle ? 'password' : autoComplete}
           textContentType={passwordToggle ? 'password' : textContentType}
           {...rest}
+          onFocus={(event) => {
+            keepAbove.onFocus();
+            rest.onFocus?.(event);
+          }}
+          onBlur={(event) => {
+            keepAbove.onBlur();
+            rest.onBlur?.(event);
+          }}
         />
         {passwordToggle ? (
           <Pressable

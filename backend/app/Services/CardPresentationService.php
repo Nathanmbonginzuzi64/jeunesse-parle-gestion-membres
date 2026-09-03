@@ -26,7 +26,9 @@ class CardPresentationService
             'last_name' => $member->last_name,
             'first_name' => $member->first_name,
             'middle_name' => $member->middle_name,
-            'photo_url' => $member->photo_path ? route('media.member-photo', ['member' => $member->member_code]) : null,
+            'photo_url' => $member->photo_path
+                ? url('/api/media/members/'.rawurlencode($member->member_code).'/photo')
+                : null,
             'structure' => $member->structure?->name,
             'province' => $member->province?->name,
             'city' => $member->city?->name,

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Enums\ActivityStatus;
 use App\Enums\ActivityType;
 use App\Enums\Permission;
+use App\Enums\RoleSlug;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreActivityRequest;
 use App\Http\Requests\UpdateActivityRequest;
@@ -71,6 +72,221 @@ class ActivityController extends Controller
             ->withQueryString();
 
         return ActivityResource::collection($activities);
+    }
+
+    /**
+     * Catalogue d'activités pour l'app membre (sans permission activities.view).
+     */
+    public function forMember(Request $request): JsonResponse
+    {
+        $user = $request->user()->loadMissing('member');
+
+        if (! $user->hasRole(RoleSlug::Membre) || ! $user->member_id || ! $user->member) {
+            abort(403, "Réservé à l'espace membre.");
+        }
+
+        if ($user->member->status?->value !== 'active') {
+            abort(403, 'Votre compte membre doit être actif.');
+        }
+
+        $member = $user->member;
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:120'],
+            'tab' => ['nullable', 'string', 'in:upcoming,mine,past'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+        $tab = $filters['tab'] ?? 'upcoming';
+
+        $query = Activity::query()
+            ->where(function (Builder $q) use ($member) {
+                $q->where('is_public', true)
+                    ->orWhereHas('members', fn (Builder $m) => $m->where('members.id', $member->id));
+
+                if ($member->structure_id) {
+                    $q->orWhere('structure_id', $member->structure_id);
+                }
+
+                if ($member->province_id) {
+                    $q->orWhere('province_id', $member->province_id);
+                }
+            })
+            ->where('status', '!=', ActivityStatus::Cancelled->value)
+            ->with(['province:id,name', 'city:id,name', 'structure:id,name'])
+            ->withCount(['members', 'attendances'])
+            ->when($filters['q'] ?? null, fn (Builder $q, $v) => $q->where(function (Builder $sub) use ($v) {
+                $sub->where('title', 'like', '%'.$v.'%')->orWhere('code', 'like', '%'.$v.'%');
+            }))
+            ->when($tab === 'upcoming', fn (Builder $q) => $q
+                ->where('starts_at', '>=', now()->subHours(2))
+                ->whereIn('status', [ActivityStatus::Planned->value, ActivityStatus::Ongoing->value])
+                ->orderBy('starts_at'))
+            ->when($tab === 'past', fn (Builder $q) => $q
+                ->where(function (Builder $sub) {
+                    $sub->where('starts_at', '<', now())
+                        ->orWhere('status', ActivityStatus::Completed->value);
+                })
+                ->orderByDesc('starts_at'))
+            ->when($tab === 'mine', fn (Builder $q) => $q
+                ->whereHas('members', fn (Builder $m) => $m->where('members.id', $member->id))
+                ->orderByDesc('starts_at'));
+
+        if (! in_array($tab, ['upcoming', 'past', 'mine'], true)) {
+            $query->orderByDesc('starts_at');
+        }
+
+        $activities = $query
+            ->paginate(min((int) ($filters['per_page'] ?? 20), 100))
+            ->withQueryString();
+
+        $activityIds = $activities->getCollection()->pluck('id');
+        $registeredIds = $activityIds->isEmpty()
+            ? []
+            : DB::table('activity_member')
+                ->where('member_id', $member->id)
+                ->whereIn('activity_id', $activityIds)
+                ->pluck('activity_id')
+                ->all();
+        $registeredLookup = array_fill_keys($registeredIds, true);
+
+        return response()->json([
+            'data' => $activities->getCollection()->map(function (Activity $activity) use ($registeredLookup) {
+                return (new ActivityResource($activity))->additional([])->resolve() + [
+                    'is_registered' => isset($registeredLookup[$activity->id]),
+                ];
+            })->values(),
+            'meta' => [
+                'current_page' => $activities->currentPage(),
+                'last_page' => $activities->lastPage(),
+                'per_page' => $activities->perPage(),
+                'total' => $activities->total(),
+            ],
+        ]);
+    }
+
+    /** Inscription volontaire du membre connecté à une activité. */
+    public function registerSelf(Request $request, Activity $activity): JsonResponse
+    {
+        $user = $request->user()->loadMissing('member');
+
+        if (! $user->hasRole(RoleSlug::Membre) || ! $user->member_id || ! $user->member) {
+            abort(403, "Réservé à l'espace membre.");
+        }
+
+        $member = $user->member;
+
+        if ($member->status?->value !== 'active') {
+            return response()->json(['message' => 'Votre compte membre doit être actif.'], 422);
+        }
+
+        if (in_array($activity->status?->value, [ActivityStatus::Cancelled->value], true)) {
+            return response()->json(['message' => 'Cette activité n\'est pas ouverte aux inscriptions.'], 422);
+        }
+
+        $allowed = $activity->is_public
+            || ($member->structure_id && (int) $activity->structure_id === (int) $member->structure_id)
+            || ($member->province_id && (int) $activity->province_id === (int) $member->province_id)
+            || $activity->members()->where('members.id', $member->id)->exists();
+
+        if (! $allowed) {
+            abort(403, 'Cette activité n\'est pas disponible pour votre périmètre.');
+        }
+
+        if ($activity->capacity) {
+            $count = $activity->members()->count();
+            if ($count >= $activity->capacity && ! $activity->members()->where('members.id', $member->id)->exists()) {
+                return response()->json(['message' => 'Capacité maximale atteinte.'], 422);
+            }
+        }
+
+        $activity->members()->syncWithoutDetaching([
+            $member->id => [
+                'status' => 'confirmed',
+                'invited_at' => now(),
+                'confirmed_at' => now(),
+            ],
+        ]);
+
+        $this->audit->log('activity.self-registered', $activity, "Inscription mobile de {$member->member_code}");
+
+        return response()->json([
+            'message' => 'Inscription enregistrée.',
+            'data' => (new ActivityResource(
+                $activity->fresh()->load(['province:id,name', 'city:id,name', 'structure:id,name'])->loadCount(['members', 'attendances'])
+            ))->resolve() + ['is_registered' => true],
+        ]);
+    }
+
+    /** Détail d'une activité pour le membre connecté (présence + QR + biométrie). */
+    public function showForMember(Request $request, Activity $activity): JsonResponse
+    {
+        $user = $request->user()->loadMissing('member.activeCard.activeQrToken');
+
+        if (! $user->hasRole(RoleSlug::Membre) || ! $user->member_id || ! $user->member) {
+            abort(403, "Réservé à l'espace membre.");
+        }
+
+        $member = $user->member;
+
+        if ($member->status?->value !== 'active') {
+            abort(403, 'Votre compte membre doit être actif.');
+        }
+
+        $allowed = $activity->is_public
+            || ($member->structure_id && (int) $activity->structure_id === (int) $member->structure_id)
+            || ($member->province_id && (int) $activity->province_id === (int) $member->province_id)
+            || $activity->members()->where('members.id', $member->id)->exists();
+
+        if (! $allowed || $activity->status === ActivityStatus::Cancelled) {
+            abort(404, 'Activité introuvable.');
+        }
+
+        $activity->load(['province:id,name', 'city:id,name', 'structure:id,name', 'organizer:id,name'])
+            ->loadCount(['members', 'attendances']);
+
+        $isRegistered = $activity->members()->where('members.id', $member->id)->exists();
+        $attendance = $activity->attendances()->where('member_id', $member->id)->first();
+
+        $fingerprintEnrolled = $member->webAuthnCredentials()->exists()
+            || $member->biometricTemplates()
+                ->where('modality', 'fingerprint')
+                ->where('status', 'enrolled')
+                ->exists();
+
+        $card = $member->activeCard;
+        $token = $card?->activeQrToken;
+        $qrCodes = app(\App\Services\QrCodeService::class);
+
+        // Garantit un jeton QR actif si la carte existe mais n'en a plus.
+        if ($card && ! $token) {
+            $token = $qrCodes->issueForCard($card);
+            $card->setRelation('activeQrToken', $token);
+        }
+
+        $canCheckIn = $isRegistered
+            && in_array($activity->status?->value, [ActivityStatus::Planned->value, ActivityStatus::Ongoing->value], true)
+            && (! $attendance || $attendance->status?->value !== 'present');
+
+        $verificationUrl = $token ? $qrCodes->verificationUrl($token->token) : null;
+
+        return response()->json([
+            'data' => (new ActivityResource($activity))->resolve() + [
+                'is_registered' => $isRegistered,
+                'fingerprint_enrolled' => $fingerprintEnrolled,
+                'can_check_in' => $canCheckIn,
+                'attendance' => $attendance ? [
+                    'id' => $attendance->id,
+                    'status' => $attendance->status?->value,
+                    'status_label' => $attendance->status?->label(),
+                    'method' => $attendance->method,
+                    'recorded_at' => $attendance->recorded_at?->toIso8601String(),
+                ] : null,
+                'qr' => $token ? [
+                    'token' => $token->token,
+                    'verification_url' => $verificationUrl,
+                    'qr_svg' => $verificationUrl ? $qrCodes->renderDataUri($verificationUrl) : null,
+                ] : null,
+            ],
+        ]);
     }
 
     /**

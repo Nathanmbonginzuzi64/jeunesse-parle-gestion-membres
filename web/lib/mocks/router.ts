@@ -326,7 +326,7 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     return { message: "Profil mis à jour.", user } as T;
   }
 
-  if (method === "GET" && path === "/members") {
+    if (method === "GET" && path === "/members") {
     let list = [...db.members];
     const q = String(query?.q ?? "").toLowerCase();
     if (q) {
@@ -339,8 +339,18 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     }
     if (query?.status) list = list.filter((member) => member.status === query.status);
     if (query?.province_id) list = list.filter((member) => member.province?.id === Number(query.province_id));
-  if (query?.structure_id) list = list.filter((member) => member.structure?.id === Number(query.structure_id));
+    if (query?.structure_id) list = list.filter((member) => member.structure?.id === Number(query.structure_id));
     if (query?.gender) list = list.filter((member) => member.gender === query.gender);
+    if (query?.registration_channel) {
+      list = list.filter((member) => member.registration_channel === query.registration_channel);
+    }
+    if (query?.self_registered === true || query?.self_registered === 1 || query?.self_registered === "1" || query?.self_registered === "true") {
+      list = list.filter(
+        (member) =>
+          member.registration_channel === "mobile" ||
+          (!member.registration_channel && member.has_portal_account),
+      );
+    }
     return paginate(list, query) as T;
   }
 
@@ -366,6 +376,74 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
 
   if (method === "POST" && path === "/members/check-duplicates") {
     return { has_duplicates: false, duplicates: [] } as T;
+  }
+
+  if (method === "POST" && path === "/members/bulk-validate") {
+    const input = jsonBody(body) as { member_ids?: number[]; all_pending_mobile?: boolean };
+    let targets = db.members.filter((member) => member.status === "pending");
+    if (input.all_pending_mobile) {
+      targets = targets.filter(
+        (member) =>
+          member.registration_channel === "mobile" ||
+          (!member.registration_channel && member.has_portal_account),
+      );
+    } else if (input.member_ids?.length) {
+      targets = targets.filter((member) => input.member_ids!.includes(member.id));
+    } else {
+      throw new ApiError(422, "Sélectionnez au moins un dossier ou activez « tout approuver ».");
+    }
+    for (const member of targets) {
+      member.status = "active";
+      member.status_label = "Actif";
+      member.registration_channel = member.registration_channel ?? "mobile";
+    }
+    return {
+      message: `${targets.length} dossier(s) approuvé(s).`,
+      validated_count: targets.length,
+      failed: [],
+    } as T;
+  }
+
+  if (method === "GET" && path === "/members/mobile-stats") {
+    const mobile = db.members.filter(
+      (member) =>
+        member.registration_channel === "mobile" ||
+        (!member.registration_channel && member.has_portal_account),
+    );
+    const today = new Date().toISOString().slice(0, 10);
+    const month = today.slice(0, 7);
+    const year = today.slice(0, 4);
+    const groupBy = String(query?.group_by ?? "day");
+    const buckets = new Map<string, { total: number; pending: number; active: number }>();
+    for (const member of mobile) {
+      const created = (member.created_at ?? today).slice(0, 10);
+      const period =
+        groupBy === "year" ? created.slice(0, 4) : groupBy === "month" ? created.slice(0, 7) : created;
+      const bucket = buckets.get(period) ?? { total: 0, pending: 0, active: 0 };
+      bucket.total += 1;
+      if (member.status === "pending") bucket.pending += 1;
+      if (member.status === "active") bucket.active += 1;
+      buckets.set(period, bucket);
+    }
+    return {
+      kpis: {
+        total: mobile.length,
+        pending: mobile.filter((m) => m.status === "pending").length,
+        active: mobile.filter((m) => m.status === "active").length,
+        suspended: mobile.filter((m) => m.status === "suspended").length,
+        today: mobile.filter((m) => (m.created_at ?? "").startsWith(today)).length,
+        this_month: mobile.filter((m) => (m.created_at ?? "").startsWith(month)).length,
+        this_year: mobile.filter((m) => (m.created_at ?? "").startsWith(year)).length,
+      },
+      group_by: groupBy,
+      report: [...buckets.entries()]
+        .sort((a, b) => b[0].localeCompare(a[0]))
+        .map(([period, values]) => ({
+          period,
+          label: period,
+          ...values,
+        })),
+    } as T;
   }
 
   if (segments[0] === "members" && segments[1]) {

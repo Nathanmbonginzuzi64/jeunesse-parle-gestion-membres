@@ -55,6 +55,8 @@ class MemberService
             $data['status'] = $data['status'] ?? MemberStatus::Pending->value;
             $data['status_changed_at'] = now();
             $data['registered_by'] = $author?->id;
+            $data['registration_channel'] = $data['registration_channel']
+                ?? ($author ? 'admin' : 'web');
             $data['joined_at'] = $data['joined_at'] ?? now()->toDateString();
 
             if (! empty($data['consent_given'])) {
@@ -175,6 +177,58 @@ class MemberService
             $this->audit->log('member.validated', $member, "Validation du membre {$member->member_code}");
 
             return $member->fresh(['activeCard.activeQrToken']);
+        });
+    }
+
+    /** Affecte la structure choisie par le membre après validation du dossier. */
+    public function assignStructure(Member $member, \App\Models\Structure $structure, User $actor): Member
+    {
+        return DB::transaction(function () use ($member, $structure, $actor) {
+            $member->forceFill([
+                'structure_id' => $structure->id,
+                'province_id' => $member->province_id ?: $structure->province_id,
+                'city_id' => $member->city_id ?: $structure->city_id,
+                'commune_id' => $member->commune_id ?: $structure->commune_id,
+                'zone_id' => $member->zone_id ?: $structure->zone_id,
+            ])->save();
+
+            $this->syncMemberPortalUser($member);
+            $this->audit->log(
+                'member.structure-chosen',
+                $member,
+                "Structure « {$structure->name} » choisie par {$actor->name}",
+            );
+
+            return $member->fresh(['structure', 'province', 'city']);
+        });
+    }
+
+    /** Complète le profil membre après choix de structure (accès carte). */
+    public function completeProfile(Member $member, array $data, User $actor): Member
+    {
+        return DB::transaction(function () use ($member, $data, $actor) {
+            $member->fill([
+                'phone_alt' => $data['phone_alt'],
+                'city_id' => $data['city_id'],
+                'commune_id' => $data['commune_id'],
+                'zone_id' => $data['zone_id'] ?? null,
+                'position' => $data['position'],
+                'education_level' => $data['education_level'],
+                'profession' => $data['profession'],
+                'employment_status' => $data['employment_status'],
+                'activity_domain' => $data['activity_domain'],
+                'skills' => array_values(array_unique(array_filter($data['skills'] ?? []))),
+                'interests' => array_values(array_unique(array_filter($data['interests'] ?? []))),
+            ])->save();
+
+            $this->syncMemberPortalUser($member);
+            $this->audit->log(
+                'member.profile-completed',
+                $member,
+                "Profil complété par {$actor->name} pour accès carte",
+            );
+
+            return $member->fresh(['province', 'city', 'commune', 'structure', 'activeCard']);
         });
     }
 

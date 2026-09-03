@@ -30,7 +30,7 @@ class ActivityResource extends JsonResource
             'capacity' => $this->capacity,
             'is_public' => $this->is_public,
             'image_url' => $this->image_path
-                ? route('media.activity-image', ['activity' => $this->code])
+                ? url('/api/media/activities/'.rawurlencode($this->code).'/image')
                 : null,
             'province' => $this->whenLoaded('province', fn () => $this->province ? ['id' => $this->province->id, 'name' => $this->province->name] : null),
             'city' => $this->whenLoaded('city', fn () => $this->city ? ['id' => $this->city->id, 'name' => $this->city->name] : null),

@@ -52,6 +52,26 @@ function resolveApiBaseUrl(): string {
 
 export const API_BASE_URL = resolveApiBaseUrl();
 
+/** Réécrit les URLs médias Laravel (souvent localhost) vers l’hôte API du téléphone. */
+export function resolveMediaUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith('data:')) return url;
+  try {
+    const api = new URL(API_BASE_URL);
+    const origin = `${api.protocol}//${api.host}`;
+    if (url.startsWith('/')) {
+      return `${origin}${url}`;
+    }
+    const media = new URL(url);
+    media.protocol = api.protocol;
+    media.hostname = api.hostname;
+    media.port = api.port;
+    return media.toString();
+  } catch {
+    return url;
+  }
+}
+
 const TOKEN_KEY = 'jp.token';
 
 export class ApiError extends Error {

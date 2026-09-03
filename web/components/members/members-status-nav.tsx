@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   Clock,
+  Fingerprint,
   ShieldAlert,
   UserCheck,
   Users,
@@ -111,6 +112,13 @@ export function MembersStatusNav() {
           </Link>
         );
       })}
+      <Link
+        href="/membres/empreintes"
+        className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-brand-50 hover:text-brand-700 sm:px-4"
+      >
+        <Fingerprint className="h-4 w-4 shrink-0" aria-hidden />
+        <span className="truncate">Empreintes</span>
+      </Link>
     </nav>
   );
 }
