@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import {
@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/topbar";
 import { Can } from "@/components/auth/require-permission";
+import { MemberCardPresentation } from "@/components/cards/member-card-presentation";
 import { MemberCardVisual } from "@/components/members/member-card-visual";
 import { MemberFormDialog } from "@/components/members/member-form-dialog";
 import { Avatar } from "@/components/ui/avatar";
@@ -60,11 +61,7 @@ function MemberShowContent() {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState("profil");
-  const [editOpen, setEditOpen] = useState(false);
-
-  useEffect(() => {
-    if (searchParams.get("edit") === "1") setEditOpen(true);
-  }, [searchParams]);
+  const [editOpen, setEditOpen] = useState(() => searchParams.get("edit") === "1");
 
   const member = data?.data;
   const cards = Array.isArray(data?.cards) ? data.cards : (data?.cards as { data?: MemberCard[] })?.data ?? [];
@@ -220,8 +217,8 @@ function MemberShowContent() {
       />
 
       <TabPanel when="profil" active={tab}>
-      <div className="mt-6 grid gap-6 xl:grid-cols-3">
-        <div className="space-y-6 xl:col-span-2">
+      <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(24rem,0.95fr)]">
+        <div className="space-y-6">
           <Card>
             <CardHeader title="Identité" />
             <CardBody>
@@ -291,6 +288,7 @@ function MemberShowContent() {
           <Card>
             <CardHeader
               title="Carte & QR"
+              description="Aperçu rapide de la carte active du membre."
               action={
                 <Can permission={PERMISSIONS.cardsIssue}>
                   <Button size="sm" variant="secondary" onClick={() => void issueCard()} loading={busy}>
@@ -302,7 +300,9 @@ function MemberShowContent() {
             />
             <CardBody>
               {card.data?.render ? (
-                <MemberCardVisual render={card.data.render} className="max-w-full" />
+                <div className="rounded-2xl bg-gradient-to-br from-slate-50 to-brand-50/40 p-3 sm:p-4">
+                  <MemberCardVisual render={card.data.render} className="mx-auto max-w-2xl" />
+                </div>
               ) : (
                 <EmptyState title="Aucune carte active" description="Validez le membre ou générez une carte." />
               )}
@@ -363,10 +363,12 @@ function MemberShowContent() {
 
       <TabPanel when="carte" active={tab}>
         <Card className="mt-6">
-          <CardHeader title="Aperçu de la carte" description="Face avant telle qu'elle sera imprimée." />
+          <CardHeader title="Aperçu de la carte" description="Version agrandie et plus lisible de la carte générée." />
           <CardBody className="flex flex-col items-center gap-4">
             {card.data?.render ? (
-              <MemberCardVisual render={card.data.render} className="max-w-md" />
+              <div className="w-full rounded-3xl bg-gradient-to-br from-slate-50 via-white to-brand-50/40 p-4 sm:p-6">
+                <MemberCardPresentation render={card.data.render} className="mx-auto max-w-5xl" />
+              </div>
             ) : (
               <EmptyState title="Aucune carte active" description="Validez le membre ou générez une carte." />
             )}
