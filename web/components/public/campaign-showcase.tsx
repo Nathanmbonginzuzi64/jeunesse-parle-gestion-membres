@@ -25,7 +25,7 @@ export function CampaignShowcase() {
           <img
             src={CAMPAIGN_INTRO.heroImage}
             alt="Lancement Jeunesse Parle — Kinshasa"
-            className="h-full w-full scale-105 object-cover object-center"
+            className="h-full w-full scale-[1.02] object-cover object-[center_22%]"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-brand-950/75 via-brand-950/35 to-brand-950/15" />
         </div>
