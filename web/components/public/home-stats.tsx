@@ -10,10 +10,16 @@ const STAT_META = [
   { key: "cards_verified" as const, label: "Cartes vérifiées", accent: "border-brand-300" },
 ];
 
-export function HomeStatsDisplay({ stats }: { stats: PublicLandingStats }) {
+export function HomeStatsDisplay({
+  stats,
+  overlap = true,
+}: {
+  stats: PublicLandingStats;
+  overlap?: boolean;
+}) {
   return (
     <section className="relative z-10 mx-auto max-w-6xl px-4">
-      <div className={cn(dashboardCardGrid, "-mt-10 sm:grid-cols-2 lg:grid-cols-4")}>
+      <div className={cn(dashboardCardGrid, "sm:grid-cols-2 lg:grid-cols-4", overlap ? "-mt-10" : "mt-0")}>
         {STAT_META.map((stat, index) => (
           <RevealOnScroll key={stat.label} delay={index * 140} animation="scale-in" className="h-full">
             <article

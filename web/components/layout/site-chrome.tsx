@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 const LINKS = [
   { href: "/", label: "Accueil" },
   { href: "/a-propos", label: "À propos" },
+  { href: "/infos", label: "Actualités" },
+  { href: "/open-data", label: "Open Data" },
   { href: "/fonctionnement", label: "Fonctionnement" },
   { href: "/opportunites", label: "Opportunités" },
   { href: "/verifier", label: "Vérifier un membre" },
@@ -102,6 +104,8 @@ export function SiteFooter() {
           <p className="text-xs font-semibold tracking-wider text-slate-400 uppercase">Plateforme</p>
           <ul className="mt-3 space-y-2 text-sm">
             <li><Link href="/a-propos" className="text-slate-600 hover:text-brand-700">À propos</Link></li>
+            <li><Link href="/infos" className="text-slate-600 hover:text-brand-700">Actualités</Link></li>
+            <li><Link href="/open-data" className="text-slate-600 hover:text-brand-700">Open Data</Link></li>
             <li><Link href="/fonctionnement" className="text-slate-600 hover:text-brand-700">Comment ça marche</Link></li>
             <li><Link href="/inscription" className="text-slate-600 hover:text-brand-700">Devenir membre</Link></li>
           </ul>

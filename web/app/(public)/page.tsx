@@ -15,6 +15,7 @@ import { AnimateIn } from "@/components/ui/animate-in";
 import { RevealOnScroll } from "@/components/ui/reveal-on-scroll";
 import { StaggerTags } from "@/components/public/stagger-tags";
 import { HomeStatsDisplay } from "@/components/public/home-stats";
+import { CampaignShowcase } from "@/components/public/campaign-showcase";
 import { cn, formatNumber } from "@/lib/utils";
 import { getPublicLandingStats } from "@/lib/public-stats";
 
@@ -184,6 +185,8 @@ export default async function HomePage() {
       </section>
 
       <HomeStatsDisplay stats={stats} />
+
+      <CampaignShowcase />
 
       {/* Features bento */}
       <section className="mx-auto max-w-6xl px-4 py-20 lg:py-24">
