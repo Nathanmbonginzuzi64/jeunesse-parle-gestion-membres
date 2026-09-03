@@ -1437,8 +1437,13 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
         if (item.member_id && me.member_id) return true;
         return (item.role?.scope_level ?? 4) === 0;
       })
+      .filter((item) => {
+        const isMember = (item.role?.scope_level ?? 4) >= 4 || Boolean(item.member_id && item.role?.slug === "membre");
+        if (!q && isMember) return false;
+        return true;
+      })
       .map((item) => {
-        const group_id = (item.role?.scope_level ?? 4) >= 4 || item.member_id ? "members" : "national";
+        const group_id = (item.role?.scope_level ?? 4) >= 4 || item.role?.slug === "membre" ? "members" : "national";
         return {
           id: item.id,
           name: item.name,

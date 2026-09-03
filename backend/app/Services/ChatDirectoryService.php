@@ -83,7 +83,10 @@ class ChatDirectoryService
             $query->whereIn('id', $ids);
         }
 
-        if ($search !== '') {
+        // Par défaut : staff / responsables uniquement. Les membres apparaissent via la recherche.
+        if ($search === '') {
+            $query->whereHas('role', fn (Builder $q) => $q->where('scope_level', '<', 4));
+        } else {
             $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $search).'%';
             $query->where(function (Builder $q) use ($like) {
                 $q->where('name', 'like', $like)
@@ -100,7 +103,6 @@ class ChatDirectoryService
         }
 
         $paginator = $query
-            ->orderByRaw('CASE WHEN EXISTS (SELECT 1 FROM members WHERE members.user_id = users.id) THEN 1 ELSE 0 END')
             ->orderBy('name')
             ->paginate($perPage);
 

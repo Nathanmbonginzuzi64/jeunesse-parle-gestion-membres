@@ -422,8 +422,12 @@ function ComposeHub({
       </div>
       {mode === "directory" ? (
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          <Input placeholder="Nom, rôle, identifiant…" value={q} onChange={(e) => setQ(e.target.value)} />
-          <p className="mt-2 text-[11px] text-slate-400">{total} contact{total > 1 ? "s" : ""}</p>
+          <Input placeholder="Rechercher un membre (nom, JP-RDC…) ou un responsable…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <p className="mt-2 text-[11px] text-slate-400">
+            {debouncedQ
+              ? `${total} résultat${total > 1 ? "s" : ""} (membres inclus)`
+              : `${total} responsable${total > 1 ? "s" : ""} — recherchez pour trouver un membre`}
+          </p>
           <div className="mt-4 space-y-4">
             {loadingContacts ? <Skeleton className="h-24 w-full" /> : null}
             {!loadingContacts && grouped.length === 0 ? (
