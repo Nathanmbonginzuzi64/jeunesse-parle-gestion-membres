@@ -13,7 +13,7 @@ import {
   XCircle,
   type LucideIcon,
 } from "lucide-react";
-import { PublicAvatar } from "@/components/ui/avatar";
+import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -146,7 +146,7 @@ export function VerificationResultPanel({
               <>
                 <div className="grid gap-4 lg:grid-cols-[1fr_10rem]">
                   <div className="flex items-center gap-4 rounded-xl border border-white/80 bg-white/90 p-4 shadow-sm">
-                  <PublicAvatar src={member.photo_url} name={member.full_name} size="lg" />
+                  <Avatar src={member.photo_url} name={member.full_name} size="lg" rounded="lg" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-lg font-semibold text-slate-900">{member.full_name}</p>
                     <p className="font-mono text-xs text-brand-700">{member.member_code}</p>

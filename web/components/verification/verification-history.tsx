@@ -1,7 +1,7 @@
 "use client";
 
 import { ScanLine } from "lucide-react";
-import { PublicAvatar } from "@/components/ui/avatar";
+import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import type { VerificationResult } from "@/lib/types";
@@ -27,7 +27,7 @@ export function VerificationHistory({ entries }: { entries: VerificationHistoryE
           return (
             <div key={entry.id} className="flex items-center gap-3 px-4 py-3">
               {member ? (
-                <PublicAvatar src={member.photo_url} name={member.full_name} size="sm" />
+                <Avatar src={member.photo_url} name={member.full_name} size="sm" />
               ) : (
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs text-slate-400">
                   ?

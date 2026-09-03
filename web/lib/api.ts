@@ -289,23 +289,26 @@ export async function downloadFile(path: string, query?: Query, fallbackName = "
  */
 export async function fetchProtectedImage(url: string): Promise<string | null> {
   if (!url) return null;
-  if (url.startsWith("/") || url.startsWith("data:") || url.startsWith("blob:") || USE_MOCKS) {
+  if (url.startsWith("data:") || url.startsWith("blob:") || USE_MOCKS) {
     return url;
   }
 
   const token = getToken();
+  const headers: Record<string, string> = { Accept: "image/*,application/octet-stream" };
+  if (token) headers.Authorization = `Bearer ${token}`;
 
   try {
-    const response = await fetch(url, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+    const response = await fetch(url, { headers, cache: "no-store" });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      return url.startsWith("/") ? url : null;
+    }
 
     const blob = await response.blob();
+    if (!blob.type.startsWith("image/") && blob.size === 0) return null;
     return URL.createObjectURL(blob);
   } catch {
-    return null;
+    return url.startsWith("/") ? url : null;
   }
 }
 
