@@ -12,6 +12,7 @@ use App\Services\PhotoStorageService;
 use App\Models\NewsPost;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class MediaController extends Controller
 {
@@ -70,8 +71,8 @@ class MediaController extends Controller
         return $this->streamActivity($record->image_path, $record->code);
     }
 
-    /** Média principal d'une actualité (image ou PDF). */
-    public function newsFile(Request $request, NewsPost $newsPost): Response
+    /** Média principal d'une actualité (image, vidéo ou PDF). */
+    public function newsFile(Request $request, NewsPost $newsPost): Response|BinaryFileResponse
     {
         abort_unless($newsPost->media_path, 404, 'Ressource introuvable.');
 
@@ -79,7 +80,7 @@ class MediaController extends Controller
     }
 
     /** Image de galerie d'une actualité. */
-    public function newsGallery(Request $request, NewsPost $newsPost, int $index): Response
+    public function newsGallery(Request $request, NewsPost $newsPost, int $index): Response|BinaryFileResponse
     {
         $paths = $newsPost->gallery_paths ?? [];
         abort_unless(isset($paths[$index]), 404, 'Ressource introuvable.');
@@ -87,16 +88,18 @@ class MediaController extends Controller
         return $this->streamNews($paths[$index], 'news-'.$newsPost->id.'-'.$index);
     }
 
-    private function streamNews(string $path, string $reference): Response
+    private function streamNews(string $path, string $reference): BinaryFileResponse
     {
-        $contents = $this->newsMedia->get($path);
+        $absolute = $this->newsMedia->absolutePath($path);
 
-        abort_unless($contents !== null, 404, 'Ressource introuvable.');
+        abort_unless($absolute !== null, 404, 'Ressource introuvable.');
 
-        return response($contents, 200, [
+        $extension = pathinfo($path, PATHINFO_EXTENSION);
+
+        return response()->file($absolute, [
             'Content-Type' => $this->newsMedia->mimeFor($path),
             'Cache-Control' => 'private, max-age=600',
-            'Content-Disposition' => 'inline; filename="'.$reference.'.'.pathinfo($path, PATHINFO_EXTENSION).'"',
+            'Content-Disposition' => 'inline; filename="'.$reference.'.'.$extension.'"',
         ]);
     }
 

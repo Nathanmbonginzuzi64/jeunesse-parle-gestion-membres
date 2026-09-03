@@ -8,7 +8,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { RichTextEditor } from "@/components/news/rich-text-editor";
 import { TextBackgroundPicker } from "@/components/news/text-background-picker";
 import { NewsFormPreview } from "@/components/news/news-form-preview";
-import { NewsImageDropzone, NewsPdfDropzone, NewsGalleryDropzone } from "@/components/news/news-file-dropzone";
+import { NewsImageDropzone, NewsPdfDropzone, NewsGalleryDropzone, NewsVideoDropzone } from "@/components/news/news-file-dropzone";
 import { NewsUrlField } from "@/components/news/news-url-field";
 import { NewsPublishProgress, type PublishPhase } from "@/components/news/news-publish-progress";
 import { uploadFormData, ApiError } from "@/lib/api";
@@ -27,8 +27,8 @@ interface ActivityOption {
 
 const MEDIA_TYPES = [
   { value: "text", label: "Texte", icon: Type, desc: "Fond coloré" },
-  { value: "image", label: "Image", icon: Image, desc: "Photo" },
-  { value: "video", label: "Vidéo", icon: Video, desc: "YouTube" },
+  { value: "image", label: "Image", icon: Image, desc: "100 Mo max" },
+  { value: "video", label: "Vidéo", icon: Video, desc: "Fichier / YouTube" },
   { value: "document", label: "PDF", icon: Paperclip, desc: "Document" },
   { value: "link", label: "Lien", icon: Link2, desc: "URL" },
 ] as const;
@@ -54,6 +54,7 @@ export function NewsForm({ initial, onSuccess }: NewsFormProps) {
   const [activityId, setActivityId] = useState<string>(initial?.activity?.id ? String(initial.activity.id) : "");
   const [isPublished, setIsPublished] = useState(initial?.is_published ?? true);
   const [image, setImage] = useState<File | null>(null);
+  const [video, setVideo] = useState<File | null>(null);
   const [document, setDocument] = useState<File | null>(null);
   const [gallery, setGallery] = useState<File[]>([]);
   const [mediaType, setMediaType] = useState(initial?.media_type ?? "text");
@@ -62,14 +63,16 @@ export function NewsForm({ initial, onSuccess }: NewsFormProps) {
   const [uploadProgress, setUploadProgress] = useState(0);
 
   const imagePreview = useMemo(() => (image ? URL.createObjectURL(image) : null), [image]);
+  const videoPreview = useMemo(() => (video ? URL.createObjectURL(video) : null), [video]);
   const galleryPreviews = useMemo(() => gallery.map((f) => URL.createObjectURL(f)), [gallery]);
 
   useEffect(
     () => () => {
       if (imagePreview) URL.revokeObjectURL(imagePreview);
+      if (videoPreview) URL.revokeObjectURL(videoPreview);
       galleryPreviews.forEach((u) => URL.revokeObjectURL(u));
     },
-    [imagePreview, galleryPreviews],
+    [imagePreview, videoPreview, galleryPreviews],
   );
 
   async function submit(e: React.FormEvent) {
@@ -84,14 +87,18 @@ export function NewsForm({ initial, onSuccess }: NewsFormProps) {
       return;
     }
     if ((mediaType === "video" || mediaType === "link") && !externalUrl.trim()) {
-      toast.error("Veuillez saisir une URL.");
-      return;
-    }
-    if (mediaType === "video") {
-      if (!extractYoutubeId(externalUrl)) {
-        toast.error("URL YouTube invalide. Utilisez un lien watch, youtu.be ou Shorts.");
+      if (mediaType === "link") {
+        toast.error("Veuillez saisir une URL.");
         return;
       }
+      if (!video && !initial?.media_url) {
+        toast.error("Ajoutez un fichier vidéo (100 Mo max) ou un lien YouTube.");
+        return;
+      }
+    }
+    if (mediaType === "video" && externalUrl.trim() && !extractYoutubeId(externalUrl)) {
+      toast.error("URL YouTube invalide. Utilisez un lien watch, youtu.be ou Shorts.");
+      return;
     }
 
     setBusy(true);
@@ -111,13 +118,14 @@ export function NewsForm({ initial, onSuccess }: NewsFormProps) {
     }
     if (linkActivity && activityId) form.append("activity_id", activityId);
     if (image) form.append("image", image);
+    if (video) form.append("video", video);
     if (document) form.append("document", document);
     gallery.forEach((file, index) => form.append(`gallery[${index}]`, file));
 
     const path = initial?.id ? `/news/${initial.id}` : "/news";
     if (initial?.id) form.append("_method", "PUT");
 
-    const hasFiles = !!(image || document || gallery.length);
+    const hasFiles = !!(image || video || document || gallery.length);
     setPublishPhase(hasFiles ? "uploading" : "processing");
     setUploadProgress(hasFiles ? 10 : 50);
 
@@ -210,7 +218,14 @@ export function NewsForm({ initial, onSuccess }: NewsFormProps) {
               ) : null}
 
               {mediaType === "video" ? (
-                <NewsUrlField mode="video" value={externalUrl} onChange={setExternalUrl} />
+                <div className="space-y-5">
+                  <NewsVideoDropzone
+                    value={video}
+                    onChange={setVideo}
+                    existingUrl={!video && initial?.media_type === "video" ? initial?.media_url : null}
+                  />
+                  <NewsUrlField mode="video" value={externalUrl} onChange={setExternalUrl} />
+                </div>
               ) : null}
 
               {mediaType === "link" ? (
@@ -277,6 +292,7 @@ export function NewsForm({ initial, onSuccess }: NewsFormProps) {
                 mediaType={mediaType}
                 textBackground={textBackground}
                 imagePreview={imagePreview ?? initial?.media_url}
+                videoPreview={videoPreview ?? (initial?.media_type === "video" ? initial?.media_url : null)}
                 externalUrl={externalUrl}
                 documentName={document?.name}
                 galleryPreviews={galleryPreviews}

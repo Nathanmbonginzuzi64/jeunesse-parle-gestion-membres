@@ -146,6 +146,9 @@ class NewsController extends Controller
         if ($request->hasFile('image')) {
             $mediaPath = $this->media->storeImage($request->file('image'));
             $validated['media_type'] = 'image';
+        } elseif ($request->hasFile('video')) {
+            $mediaPath = $this->media->storeVideo($request->file('video'));
+            $validated['media_type'] = 'video';
         } elseif ($request->hasFile('document')) {
             $mediaPath = $this->media->storeDocument($request->file('document'));
             $validated['media_type'] = 'document';
@@ -188,6 +191,9 @@ class NewsController extends Controller
         if ($request->hasFile('image')) {
             $validated['media_path'] = $this->media->storeImage($request->file('image'), $newsPost->media_path);
             $validated['media_type'] = 'image';
+        } elseif ($request->hasFile('video')) {
+            $validated['media_path'] = $this->media->storeVideo($request->file('video'), $newsPost->media_path);
+            $validated['media_type'] = 'video';
         } elseif ($request->hasFile('document')) {
             $validated['media_path'] = $this->media->storeDocument($request->file('document'), $newsPost->media_path);
             $validated['media_type'] = 'document';
@@ -539,6 +545,8 @@ class NewsController extends Controller
 
     private function validatePost(Request $request, bool $updating = false): array
     {
+        $mediaMaxKb = (int) config('jeunesse.news_media.max_kilobytes', 102400);
+
         $rules = [
             'title' => [$updating ? 'sometimes' : 'required', 'string', 'max:200'],
             'body' => [$updating ? 'sometimes' : 'required', 'string', 'max:50000'],
@@ -548,10 +556,11 @@ class NewsController extends Controller
             'text_background' => ['nullable', 'string', 'in:none,ocean,sunset,forest,royal,rdc,night,coral,mint,lavender,sky,fire'],
             'activity_id' => ['nullable', 'integer', 'exists:activities,id'],
             'is_published' => ['nullable', 'boolean'],
-            'image' => ['nullable', 'file', 'max:5120'],
+            'image' => ['nullable', 'file', 'max:'.$mediaMaxKb],
+            'video' => ['nullable', 'file', 'max:'.$mediaMaxKb],
             'document' => ['nullable', 'file', 'max:10240'],
             'gallery' => ['nullable', 'array', 'max:10'],
-            'gallery.*' => ['file', 'max:5120'],
+            'gallery.*' => ['file', 'max:'.$mediaMaxKb],
         ];
 
         return $request->validate($rules);

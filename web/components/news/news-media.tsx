@@ -14,48 +14,65 @@ export function NewsMediaBlock({ post, compact = false }: { post: NewsPostItem; 
   const hasGallery = (post.gallery_urls?.length ?? 0) > 0;
   const spacing = compact ? "mt-3" : "mt-4";
 
-  if (post.media_type === "video" && post.external_url) {
-    const embed = toYoutubeEmbedUrl(post.external_url);
-    return (
-      <div className={cn("space-y-2", spacing)}>
-        {embed ? (
-          <div className="overflow-hidden rounded-xl bg-slate-900 ring-1 ring-slate-800">
-            <iframe
-              src={embed}
-              title={post.title}
-              className="aspect-video w-full"
-              allow={YOUTUBE_IFRAME_ALLOW}
-              allowFullScreen
-              loading="lazy"
-              referrerPolicy="strict-origin-when-cross-origin"
-            />
-          </div>
-        ) : (
-          <a
-            href={post.external_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 transition hover:bg-red-100"
-          >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white">
-              <Play className="h-5 w-5" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block">Ouvrir la vidéo</span>
-              <span className="block truncate text-xs font-normal text-red-600/80">{post.external_url}</span>
-            </span>
-            <ExternalLink className="h-4 w-4 shrink-0 opacity-60" />
-          </a>
-        )}
-        {hasGallery ? (
-          <div className={cn("grid gap-2", compact ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3")}>
-            {post.gallery_urls!.map((url) => (
-              <GalleryThumb key={url} url={url} compact={compact} />
-            ))}
-          </div>
-        ) : null}
-      </div>
-    );
+  if (post.media_type === "video") {
+    if (post.media_url) {
+      return (
+        <div className={cn("space-y-2", spacing)}>
+          <ProtectedVideo url={post.media_url} title={post.title} compact={compact} />
+          {hasGallery ? (
+            <div className={cn("grid gap-2", compact ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3")}>
+              {post.gallery_urls!.map((url) => (
+                <GalleryThumb key={url} url={url} compact={compact} />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      );
+    }
+
+    if (post.external_url) {
+      const embed = toYoutubeEmbedUrl(post.external_url);
+      return (
+        <div className={cn("space-y-2", spacing)}>
+          {embed ? (
+            <div className="overflow-hidden rounded-xl bg-slate-900 ring-1 ring-slate-800">
+              <iframe
+                src={embed}
+                title={post.title}
+                className="aspect-video w-full"
+                allow={YOUTUBE_IFRAME_ALLOW}
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="strict-origin-when-cross-origin"
+              />
+            </div>
+          ) : (
+            <a
+              href={post.external_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 transition hover:bg-red-100"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white">
+                <Play className="h-5 w-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block">Ouvrir la vidéo</span>
+                <span className="block truncate text-xs font-normal text-red-600/80">{post.external_url}</span>
+              </span>
+              <ExternalLink className="h-4 w-4 shrink-0 opacity-60" />
+            </a>
+          )}
+          {hasGallery ? (
+            <div className={cn("grid gap-2", compact ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3")}>
+              {post.gallery_urls!.map((url) => (
+                <GalleryThumb key={url} url={url} compact={compact} />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      );
+    }
   }
 
   if (post.media_type === "link" && post.external_url) {
@@ -144,6 +161,29 @@ function GalleryThumb({ url, compact = false }: { url: string; compact?: boolean
       src={src}
       alt=""
       className={cn("w-full rounded-lg object-cover", compact ? "aspect-[4/3]" : "aspect-square")}
+    />
+  );
+}
+
+function ProtectedVideo({ url, title, compact = false }: { url: string; title: string; compact?: boolean }) {
+  const src = useProtectedImage(url);
+  if (!src) {
+    return (
+      <div
+        className={cn(
+          "animate-pulse rounded-xl bg-slate-200",
+          compact ? "aspect-video max-h-72" : "aspect-video",
+        )}
+      />
+    );
+  }
+  return (
+    <video
+      src={src}
+      controls
+      preload="metadata"
+      title={title}
+      className="aspect-video w-full rounded-xl bg-slate-900"
     />
   );
 }

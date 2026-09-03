@@ -26,7 +26,8 @@ interface NewsImageDropzoneProps {
 }
 
 const IMAGE_ACCEPT = ["image/jpeg", "image/png", "image/webp"];
-const IMAGE_MAX = 5 * 1024 * 1024;
+const MEDIA_MAX_BYTES = 100 * 1024 * 1024; // 100 Mo
+const MEDIA_MAX_LABEL = "100 Mo";
 
 export function NewsImageDropzone({ value, onChange, existingUrl, error }: NewsImageDropzoneProps) {
   const [preview, setPreview] = useState<string | null>(null);
@@ -54,8 +55,8 @@ export function NewsImageDropzone({ value, onChange, existingUrl, error }: NewsI
         setLocalError("Formats acceptés : JPEG, PNG ou WebP.");
         return;
       }
-      if (file.size > IMAGE_MAX) {
-        setLocalError("L'image ne doit pas dépasser 5 Mo.");
+      if (file.size > MEDIA_MAX_BYTES) {
+        setLocalError(`L'image ne doit pas dépasser ${MEDIA_MAX_LABEL}.`);
         return;
       }
       if (preview) URL.revokeObjectURL(preview);
@@ -86,7 +87,7 @@ export function NewsImageDropzone({ value, onChange, existingUrl, error }: NewsI
   return (
     <Field
       label="Image principale"
-      hint="Glissez-déposez ou cliquez pour sélectionner · JPEG, PNG, WebP · 5 Mo max"
+      hint={`Glissez-déposez ou cliquez pour sélectionner · JPEG, PNG, WebP · ${MEDIA_MAX_LABEL} max`}
       error={error ?? localError}
     >
       <div
@@ -259,8 +260,8 @@ export function NewsGalleryDropzone({ value, onChange, maxFiles = 10 }: NewsGall
     const valid: File[] = [];
     for (const f of files) {
       if (!IMAGE_ACCEPT.includes(f.type)) continue;
-      if (f.size > IMAGE_MAX) {
-        setLocalError("Chaque image doit faire moins de 5 Mo.");
+      if (f.size > MEDIA_MAX_BYTES) {
+        setLocalError(`Chaque image doit faire moins de ${MEDIA_MAX_LABEL}.`);
         continue;
       }
       valid.push(f);
@@ -281,7 +282,7 @@ export function NewsGalleryDropzone({ value, onChange, maxFiles = 10 }: NewsGall
   return (
     <Field
       label="Galerie photos (optionnel)"
-      hint={`Jusqu'à ${maxFiles} images · Glisser-déposer plusieurs fichiers`}
+      hint={`Jusqu'à ${maxFiles} images · ${MEDIA_MAX_LABEL} max chacune · Glisser-déposer`}
       error={localError}
     >
       <div
@@ -331,6 +332,125 @@ export function NewsGalleryDropzone({ value, onChange, maxFiles = 10 }: NewsGall
             <ImagePlus className="h-8 w-8 text-brand-500" />
             <p className="text-sm font-medium text-slate-700">Ajoutez plusieurs photos</p>
             <p className="text-xs text-slate-500">Glissez-déposez ou cliquez</p>
+          </button>
+        )}
+      </div>
+    </Field>
+  );
+}
+
+interface NewsVideoDropzoneProps {
+  value: File | null;
+  onChange: (file: File | null) => void;
+  existingUrl?: string | null;
+  error?: string | null;
+}
+
+const VIDEO_ACCEPT = ["video/mp4", "video/webm", "video/quicktime"];
+
+export function NewsVideoDropzone({ value, onChange, existingUrl, error }: NewsVideoDropzoneProps) {
+  const [preview, setPreview] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(
+    () => () => {
+      if (preview) URL.revokeObjectURL(preview);
+    },
+    [preview],
+  );
+
+  function validateAndSet(file: File | null) {
+    setLocalError(null);
+    if (!file) {
+      if (preview) URL.revokeObjectURL(preview);
+      setPreview(null);
+      onChange(null);
+      return;
+    }
+    const okType = VIDEO_ACCEPT.includes(file.type) || /\.(mp4|webm|mov)$/i.test(file.name);
+    if (!okType) {
+      setLocalError("Formats acceptés : MP4, WebM ou MOV.");
+      return;
+    }
+    if (file.size > MEDIA_MAX_BYTES) {
+      setLocalError(`La vidéo ne doit pas dépasser ${MEDIA_MAX_LABEL}.`);
+      return;
+    }
+    if (preview) URL.revokeObjectURL(preview);
+    setPreview(URL.createObjectURL(file));
+    onChange(file);
+  }
+
+  const src = preview ?? existingUrl ?? null;
+
+  return (
+    <Field
+      label="Fichier vidéo"
+      hint={`MP4, WebM ou MOV · ${MEDIA_MAX_LABEL} max · ou utilisez un lien YouTube ci-dessous`}
+      error={error ?? localError}
+    >
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          validateAndSet(e.dataTransfer.files?.[0] ?? null);
+        }}
+        className={cn(
+          "overflow-hidden rounded-2xl border-2 border-dashed transition-all",
+          dragging ? "border-brand-500 bg-brand-50" : "border-slate-300 bg-slate-50",
+        )}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept={[...VIDEO_ACCEPT, ".mp4", ".webm", ".mov"].join(",")}
+          className="sr-only"
+          onChange={(e) => {
+            validateAndSet(e.target.files?.[0] ?? null);
+            e.target.value = "";
+          }}
+        />
+
+        {src ? (
+          <div className="space-y-3 p-4">
+            <video src={src} controls className="aspect-video w-full rounded-xl bg-slate-900" />
+            <div className="flex flex-wrap items-center gap-2">
+              {value ? (
+                <span className="rounded-lg bg-slate-200 px-2 py-1 text-xs text-slate-700">
+                  {value.name} · {formatFileSize(value.size)}
+                </span>
+              ) : (
+                <span className="rounded-lg bg-slate-200 px-2 py-1 text-xs text-slate-700">Vidéo actuelle</span>
+              )}
+              <Button type="button" variant="secondary" size="sm" onClick={() => inputRef.current?.click()}>
+                Remplacer
+              </Button>
+              {(value || preview) && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => validateAndSet(null)}>
+                  <Trash2 className="mr-1 h-3.5 w-3.5" />
+                  Retirer
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="flex w-full flex-col items-center gap-3 px-6 py-10 text-center"
+          >
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+              <Upload className="h-7 w-7 text-brand-600" />
+            </span>
+            <p className="font-semibold text-slate-800">Déposez votre vidéo ici</p>
+            <p className="text-sm text-slate-500">MP4 / WebM / MOV · jusqu&apos;à {MEDIA_MAX_LABEL}</p>
           </button>
         )}
       </div>

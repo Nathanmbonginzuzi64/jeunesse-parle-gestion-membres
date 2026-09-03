@@ -52,6 +52,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Médias actualités (image / vidéo)
+    |--------------------------------------------------------------------------
+    */
+    'news_media' => [
+        'max_kilobytes' => (int) env('JP_NEWS_MEDIA_MAX_KB', 102400), // 100 Mo
+        'image_mimes' => ['jpeg', 'jpg', 'png', 'webp'],
+        'video_mimes' => ['mp4', 'webm', 'mov', 'quicktime'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Exports
     |--------------------------------------------------------------------------
     | Plafond de lignes exportables en une fois, pour éviter les fuites massives

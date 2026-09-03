@@ -16,6 +16,7 @@ interface NewsFormPreviewProps {
   mediaType: string;
   textBackground: TextBackgroundId;
   imagePreview?: string | null;
+  videoPreview?: string | null;
   externalUrl?: string;
   documentName?: string;
   galleryPreviews?: string[];
@@ -28,13 +29,14 @@ export function NewsFormPreview({
   mediaType,
   textBackground,
   imagePreview,
+  videoPreview,
   externalUrl = "",
   documentName,
   galleryPreviews = [],
 }: NewsFormPreviewProps) {
   const cat = NEWS_CATEGORIES.find((c) => c.value === category);
   const hasBg = mediaType === "text" && textBackground !== "none";
-  const yt = mediaType === "video" && externalUrl ? toYoutubeEmbedUrl(externalUrl) : null;
+  const yt = mediaType === "video" && !videoPreview && externalUrl ? toYoutubeEmbedUrl(externalUrl) : null;
 
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -68,6 +70,10 @@ export function NewsFormPreview({
         {mediaType === "image" && imagePreview ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={imagePreview} alt="" className="rounded-xl object-cover" />
+        ) : null}
+
+        {mediaType === "video" && videoPreview ? (
+          <video src={videoPreview} controls className="aspect-video w-full rounded-xl bg-slate-900" />
         ) : null}
 
         {yt ? (
