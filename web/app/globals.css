@@ -367,6 +367,13 @@ body {
     background: #ffffff !important;
   }
 
+  body:has(#member-card-print) {
+    min-height: 100vh !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
   .no-print {
     display: none !important;
   }
@@ -382,9 +389,7 @@ body {
   }
 
   body:has(#member-card-print) #member-card-print {
-    position: absolute;
-    left: 0;
-    top: 0;
+    position: static !important;
     width: 100%;
     max-width: none !important;
     /* Même cadre visuel qu'à l'écran */
