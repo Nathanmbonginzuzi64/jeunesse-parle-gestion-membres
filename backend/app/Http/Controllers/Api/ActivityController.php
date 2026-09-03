@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\ActivityStatus;
 use App\Enums\ActivityType;
+use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreActivityRequest;
 use App\Http\Requests\UpdateActivityRequest;
@@ -67,6 +68,41 @@ class ActivityController extends Controller
                 ->where('status', ActivityStatus::Completed->value))
             ->orderByDesc('starts_at')
             ->paginate(min((int) ($filters['per_page'] ?? 20), 100))
+            ->withQueryString();
+
+        return ActivityResource::collection($activities);
+    }
+
+    /**
+     * Liste allégée pour le pointage (agents de vérification inclus).
+     * N'exige pas activities.view — uniquement attendance.view|record + périmètre.
+     */
+    public function forAttendance(Request $request): AnonymousResourceCollection
+    {
+        $user = $request->user();
+
+        if (
+            ! $user->hasPermission(Permission::AttendanceView)
+            && ! $user->hasPermission(Permission::AttendanceRecord)
+        ) {
+            abort(403, "Vous n'avez pas l'autorisation d'effectuer cette action.");
+        }
+
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:120'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $activities = Activity::query()
+            ->visibleTo($user)
+            ->whereIn('status', [ActivityStatus::Planned->value, ActivityStatus::Ongoing->value])
+            ->with(['province:id,name', 'city:id,name', 'structure:id,name'])
+            ->withCount(['members', 'attendances'])
+            ->when($filters['q'] ?? null, fn (Builder $q, $v) => $q->where(function (Builder $sub) use ($v) {
+                $sub->where('title', 'like', '%'.$v.'%')->orWhere('code', 'like', '%'.$v.'%');
+            }))
+            ->orderByDesc('starts_at')
+            ->paginate(min((int) ($filters['per_page'] ?? 30), 100))
             ->withQueryString();
 
         return ActivityResource::collection($activities);

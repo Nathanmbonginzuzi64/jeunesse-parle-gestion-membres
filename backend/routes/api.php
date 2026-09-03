@@ -166,6 +166,7 @@ Route::middleware(['auth:sanctum', 'account.active', 'session.timeout', 'mainten
     Route::apiResource('structures', StructureController::class);
 
     // ------------------------------------------------------------ Activités & présences
+    Route::get('activities/for-attendance', [ActivityController::class, 'forAttendance']);
     Route::apiResource('activities', ActivityController::class);
     Route::post('activities/{activity}', [ActivityController::class, 'update']); // multipart + _method
 
