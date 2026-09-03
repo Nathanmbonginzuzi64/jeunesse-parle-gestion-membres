@@ -183,7 +183,7 @@ function CampaignGalleryCarousel({ images }: { images: string[] }) {
 
   return (
     <div
-      className="relative mt-6 overflow-hidden rounded-2xl bg-slate-950 ring-1 ring-slate-200 shadow-lg"
+      className="relative mx-auto mt-6 max-w-3xl overflow-hidden rounded-2xl bg-slate-950 ring-1 ring-slate-200 shadow-lg"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
@@ -197,7 +197,7 @@ function CampaignGalleryCarousel({ images }: { images: string[] }) {
             <img
               src={src}
               alt={`Campagne Jeunesse Parle ${i + 1}`}
-              className="aspect-[16/9] w-full object-cover sm:aspect-[21/9]"
+              className="mx-auto aspect-[16/9] max-h-56 w-full object-cover sm:max-h-64 md:max-h-72"
             />
           </div>
         ))}
