@@ -366,13 +366,16 @@ function MemberShowContent() {
           <CardHeader title="Aperçu de la carte" description="Version agrandie et plus lisible de la carte générée." />
           <CardBody className="flex flex-col items-center gap-4">
             {card.data?.render ? (
-              <div className="w-full rounded-3xl bg-gradient-to-br from-slate-50 via-white to-brand-50/40 p-4 sm:p-6">
+              <div
+                id="member-card-print"
+                className="w-full rounded-3xl bg-gradient-to-br from-slate-50 via-white to-brand-50/40 p-4 sm:p-6"
+              >
                 <MemberCardPresentation render={card.data.render} className="mx-auto max-w-5xl" />
               </div>
             ) : (
               <EmptyState title="Aucune carte active" description="Validez le membre ou générez une carte." />
             )}
-            <div className="flex flex-wrap gap-2">
+            <div className="no-print flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => window.print()}>Imprimer</Button>
               <Can permission={PERMISSIONS.cardsIssue}>
                 <Button onClick={() => void issueCard()} loading={busy}>Générer</Button>
