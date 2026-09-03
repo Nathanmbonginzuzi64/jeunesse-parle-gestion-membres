@@ -16,7 +16,7 @@ import {
 
 export function CampaignShowcase() {
   return (
-    <div className="bg-white">
+    <div className="mt-16 bg-white sm:mt-20 lg:mt-24">
       <section className="relative isolate overflow-hidden border-b border-slate-200">
         <div className="absolute inset-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -27,7 +27,7 @@ export function CampaignShowcase() {
           />
           <div className="absolute inset-0 bg-gradient-to-r from-brand-950/95 via-brand-900/85 to-brand-800/70" />
         </div>
-        <div className="relative mx-auto grid max-w-6xl gap-10 px-4 py-16 lg:grid-cols-[1.1fr_0.9fr] lg:py-20">
+        <div className="relative mx-auto grid max-w-6xl gap-10 px-4 pb-16 pt-20 lg:grid-cols-[1.1fr_0.9fr] lg:pb-20 lg:pt-24">
           <RevealOnScroll animation="slide-up">
             <p className="text-xs font-semibold tracking-[0.2em] text-brand-200 uppercase">
               Campagne citoyenne · Archive locale
