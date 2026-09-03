@@ -96,6 +96,11 @@ class User extends Authenticatable
         return $this->hasOne(NotificationPreference::class);
     }
 
+    public function preferences(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(UserPreference::class);
+    }
+
     public function deviceTokens(): HasMany
     {
         return $this->hasMany(DeviceToken::class);

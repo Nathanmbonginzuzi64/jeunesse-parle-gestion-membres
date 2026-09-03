@@ -124,7 +124,8 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     title: "Mon espace",
     items: [
-      { href: "/profil", label: "Mon profil", icon: UserCircle },
+      { href: "/parametres", label: "Paramètres", icon: Settings },
+      { href: "/parametres/profil", label: "Mon profil", icon: UserCircle },
       { href: "/mon-espace", label: "Espace membre", icon: IdCard, requiresMember: true },
       { href: "/ma-carte", label: "Ma carte", icon: CreditCard, requiresMember: true },
     ],
@@ -151,8 +152,8 @@ export const NAV_SECTIONS: NavSection[] = [
         permissions: [PERMISSIONS.auditView],
       },
       {
-        href: "/parametres",
-        label: "Paramètres",
+        href: "/parametres/administration/systeme",
+        label: "Configuration système",
         icon: Settings,
         permissions: [PERMISSIONS.settingsManage],
       },

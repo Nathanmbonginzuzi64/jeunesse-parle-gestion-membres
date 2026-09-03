@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\TerritoryManagementController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\UserPreferenceController;
 use App\Http\Controllers\Api\VerificationController;
 use Illuminate\Support\Facades\Route;
 
@@ -85,13 +86,15 @@ Route::prefix('territories')->group(function () {
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
+Route::middleware(['auth:sanctum', 'account.active', 'session.timeout', 'maintenance'])->group(function () {
 
     // ------------------------------------------------------------ Compte
     Route::prefix('auth')->group(function () {
         Route::get('me', [AuthController::class, 'me']);
         Route::post('logout', [AuthController::class, 'logout']);
         Route::post('logout-all', [AuthController::class, 'logoutAll']);
+        Route::get('sessions', [AuthController::class, 'sessions']);
+        Route::delete('sessions/{tokenId}', [AuthController::class, 'destroySession'])->whereNumber('tokenId');
         Route::post('change-password', [AuthController::class, 'changePassword'])->middleware('throttle:6,1');
         Route::post('profile', [AuthController::class, 'updateProfile'])->middleware('throttle:12,1');
     });
@@ -262,6 +265,11 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
     Route::prefix('notification-preferences')->group(function () {
         Route::get('/', [NotificationPreferenceController::class, 'show']);
         Route::put('/', [NotificationPreferenceController::class, 'update']);
+    });
+
+    Route::prefix('user-preferences')->group(function () {
+        Route::get('/', [UserPreferenceController::class, 'show']);
+        Route::put('/', [UserPreferenceController::class, 'update']);
     });
 
     // ------------------------------------------------------------ Administration

@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Middleware\EnsureAccountIsActive;
+use App\Http\Middleware\EnsureNotInMaintenance;
 use App\Http\Middleware\EnsurePermission;
+use App\Http\Middleware\EnforceSessionTimeout;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -29,6 +31,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'permission' => EnsurePermission::class,
             'account.active' => EnsureAccountIsActive::class,
+            'maintenance' => EnsureNotInMaintenance::class,
+            'session.timeout' => EnforceSessionTimeout::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

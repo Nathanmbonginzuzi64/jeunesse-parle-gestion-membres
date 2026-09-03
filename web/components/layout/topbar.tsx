@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Bell, ChevronDown, CircleHelp, Fingerprint, IdCard, KeyRound, LogOut, Menu, MessageSquare, UserRound } from "lucide-react";
+import { Bell, ChevronDown, CircleHelp, Fingerprint, IdCard, KeyRound, LogOut, Menu, MessageSquare, Settings, UserRound } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { NotificationsInboxPopover } from "@/components/notifications/notifications-inbox-popover";
 import { useNotificationFeed } from "@/lib/hooks/use-notification-feed";
@@ -146,13 +146,22 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
             className="animate-scale-in absolute right-0 mt-1.5 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-[var(--shadow-elevated)]"
           >
             <Link
-              href="/profil"
+              href="/parametres/profil"
               role="menuitem"
               onClick={() => setMenuOpen(false)}
               className="flex items-center gap-2.5 px-3.5 py-2 text-sm text-slate-700 hover:bg-slate-50"
             >
               <UserRound className="h-4 w-4 text-slate-400" />
               Mon profil
+            </Link>
+            <Link
+              href="/parametres"
+              role="menuitem"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-2.5 px-3.5 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            >
+              <Settings className="h-4 w-4 text-slate-400" />
+              Paramètres
             </Link>
             <Link
               href="/jp-message"
@@ -175,16 +184,16 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
               </Link>
             )}
             <Link
-              href="/compte/mot-de-passe"
+              href="/parametres/securite"
               role="menuitem"
               onClick={() => setMenuOpen(false)}
               className="flex items-center gap-2.5 px-3.5 py-2 text-sm text-slate-700 hover:bg-slate-50"
             >
               <KeyRound className="h-4 w-4 text-slate-400" />
-              Changer mon mot de passe
+              Sécurité
             </Link>
             <Link
-              href="/compte/biometrie"
+              href="/parametres/biometrie"
               role="menuitem"
               onClick={() => setMenuOpen(false)}
               className="flex items-center gap-2.5 px-3.5 py-2 text-sm text-slate-700 hover:bg-slate-50"

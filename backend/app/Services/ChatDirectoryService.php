@@ -26,18 +26,54 @@ class ChatDirectoryService
         }
 
         $actor->loadMissing(['role', 'member.structure.leader']);
-        $target->loadMissing(['role', 'member']);
+        $target->loadMissing(['role', 'member.structure.leader']);
 
         if ($actor->hasRole(RoleSlug::SuperAdmin)) {
             return true;
         }
 
-        if ($target->hasRole(RoleSlug::SuperAdmin)) {
+        $actorIsMember = $actor->scopeLevel() >= 4;
+        $targetIsMember = $target->scopeLevel() >= 4;
+
+        // Préférences du destinataire (qui peut me contacter ?)
+        $targetPrefs = \App\Models\UserPreference::defaultsFor($target);
+        $policy = $targetPrefs->who_can_contact;
+
+        if ($policy === 'nobody') {
             return $actor->scopeLevel() === 0;
         }
 
-        $actorIsMember = $actor->scopeLevel() >= 4;
-        $targetIsMember = $target->scopeLevel() >= 4;
+        if ($policy === 'admin') {
+            return $actor->scopeLevel() === 0;
+        }
+
+        if ($policy === 'leaders') {
+            $leaderUserId = $target->member?->structure?->leader?->user_id;
+            $isLeader = $leaderUserId && (int) $leaderUserId === (int) $actor->id;
+            $isStaffAbove = ! $actorIsMember && ($target->member?->isVisibleTo($actor) ?? false);
+
+            return $isLeader || $isStaffAbove || $actor->scopeLevel() === 0;
+        }
+
+        if ($policy === 'structure') {
+            if ($this->sameStructure($actor, $target)) {
+                return true;
+            }
+            if (! $actorIsMember && ($target->member?->isVisibleTo($actor) ?? false)) {
+                return true;
+            }
+            if ($actor->scopeLevel() === 0) {
+                return true;
+            }
+
+            return false;
+        }
+
+        // policy === authorized → graphe métier existant
+
+        if ($target->hasRole(RoleSlug::SuperAdmin)) {
+            return $actor->scopeLevel() === 0;
+        }
 
         $leaderUserId = $actor->member?->structure?->leader?->user_id;
         if ($actorIsMember && $leaderUserId && (int) $leaderUserId === (int) $target->id) {

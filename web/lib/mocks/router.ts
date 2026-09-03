@@ -1258,6 +1258,66 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     return { ...settingsMock } as T;
   }
 
+  if (method === "GET" && path === "/auth/sessions") {
+    return {
+      data: [
+        {
+          id: 1,
+          name: "web",
+          portal: "web",
+          is_current: true,
+          last_used_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        },
+      ],
+    } as T;
+  }
+
+  if (method === "DELETE" && path.startsWith("/auth/sessions/")) {
+    return { message: "Appareil déconnecté." } as T;
+  }
+
+  if (method === "GET" && path === "/user-preferences") {
+    return {
+      data: {
+        who_can_contact: "authorized",
+        read_receipts: true,
+        show_online: true,
+        show_last_seen: true,
+        photo_visibility: "contacts",
+        phone_visibility: "private",
+        email_visibility: "private",
+        theme: "system",
+        locale: "fr",
+        reduce_motion: false,
+        auto_download_media: true,
+        wifi_only_downloads: false,
+      },
+    } as T;
+  }
+
+  if (method === "PUT" && path === "/user-preferences") {
+    const input = jsonBody(body) as Record<string, unknown>;
+    return {
+      message: "Préférences enregistrées.",
+      data: {
+        who_can_contact: "authorized",
+        read_receipts: true,
+        show_online: true,
+        show_last_seen: true,
+        photo_visibility: "contacts",
+        phone_visibility: "private",
+        email_visibility: "private",
+        theme: "system",
+        locale: "fr",
+        reduce_motion: false,
+        auto_download_media: true,
+        wifi_only_downloads: false,
+        ...input,
+      },
+    } as T;
+  }
+
   if ((method === "POST" || method === "PUT" || method === "PATCH") && path === "/settings") {
     const input = jsonBody(body) as Partial<typeof settingsMock>;
     Object.assign(settingsMock, input);

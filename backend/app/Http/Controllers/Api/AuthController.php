@@ -232,6 +232,60 @@ class AuthController extends Controller
         return response()->json(['message' => 'Toutes les sessions ont été fermées.']);
     }
 
+    /** Liste des sessions Sanctum de l'utilisateur connecté (web + mobile). */
+    public function sessions(Request $request): JsonResponse
+    {
+        $current = $request->user()->currentAccessToken();
+        $currentId = $current?->id;
+
+        $sessions = $request->user()->tokens()
+            ->orderByDesc('last_used_at')
+            ->orderByDesc('id')
+            ->get()
+            ->map(function ($token) use ($currentId) {
+                $name = (string) ($token->name ?: 'session');
+                $portal = match (true) {
+                    str_contains(strtolower($name), 'mobile') => 'mobile',
+                    str_contains(strtolower($name), 'web') => 'web',
+                    default => 'api',
+                };
+
+                return [
+                    'id' => $token->id,
+                    'name' => $name,
+                    'portal' => $portal,
+                    'is_current' => $currentId !== null && (int) $token->id === (int) $currentId,
+                    'last_used_at' => $token->last_used_at?->toIso8601String(),
+                    'created_at' => $token->created_at?->toIso8601String(),
+                ];
+            })
+            ->values();
+
+        return response()->json(['data' => $sessions]);
+    }
+
+    public function destroySession(Request $request, int $tokenId): JsonResponse
+    {
+        $token = $request->user()->tokens()->whereKey($tokenId)->first();
+
+        if (! $token) {
+            abort(404, 'Session introuvable.');
+        }
+
+        $current = $request->user()->currentAccessToken();
+        if ($current && (int) $current->id === (int) $token->id) {
+            return response()->json([
+                'message' => 'Utilisez la déconnexion pour fermer la session courante.',
+            ], 422);
+        }
+
+        $token->delete();
+
+        $this->audit->log('auth.session-revoked', $request->user(), "Révocation session #{$tokenId}");
+
+        return response()->json(['message' => 'Appareil déconnecté.']);
+    }
+
     public function me(Request $request): JsonResponse
     {
         $user = $request->user()->load([
