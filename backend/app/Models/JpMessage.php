@@ -12,7 +12,8 @@ class JpMessage extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'reference', 'member_id', 'subject', 'category', 'body',
+        'reference', 'member_id', 'guest_name', 'guest_email', 'source',
+        'subject', 'category', 'body',
         'attachment_path', 'status', 'assigned_to', 'read_by_admin_at',
     ];
 

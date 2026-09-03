@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Send } from "lucide-react";
+import { Mail, Send } from "lucide-react";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,10 @@ interface MessageDetail {
   body: string;
   status: string;
   created_at: string;
+  source?: "member" | "contact";
+  guest_name?: string | null;
+  guest_email?: string | null;
+  author_label?: string;
   member?: {
     member_code: string;
     full_name: string;
@@ -101,7 +105,7 @@ function MessageThread({ isAdmin }: { isAdmin: boolean }) {
       </DashboardAnimate>
 
       {msg.member && isAdmin ? (
-        <Card>
+        <Card className="border-slate-200/80 shadow-sm">
           <CardBody className="flex items-center gap-4">
             <Avatar src={msg.member.photo_url} name={msg.member.full_name} size="lg" />
             <div>
@@ -115,7 +119,22 @@ function MessageThread({ isAdmin }: { isAdmin: boolean }) {
         </Card>
       ) : null}
 
-      <Card>
+      {!msg.member && isAdmin ? (
+        <Card className="border-amber-200/80 bg-amber-50/40 shadow-sm">
+          <CardBody className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-amber-700 shadow-sm ring-1 ring-amber-200">
+              <Mail className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-slate-900">{msg.author_label ?? "Visiteur"}</p>
+              {msg.guest_email ? <p className="text-sm text-slate-600">{msg.guest_email}</p> : null}
+              <p className="mt-1 text-xs font-medium uppercase tracking-wide text-amber-800">Message reçu depuis la page Contact</p>
+            </div>
+          </CardBody>
+        </Card>
+      ) : null}
+
+      <Card className="border-slate-200/80 shadow-sm">
         <CardBody>
           <p className="whitespace-pre-wrap text-sm text-slate-700">{msg.body}</p>
         </CardBody>
@@ -140,6 +159,7 @@ function MessageThread({ isAdmin }: { isAdmin: boolean }) {
           <form onSubmit={sendReply} className="space-y-3">
             <Textarea
               label={isAdmin ? "Réponse administration" : "Votre message"}
+              hint={isAdmin && msg.source === "contact" ? "Réponse interne dans JP Message. Si vous voulez écrire au visiteur, utilisez son e-mail." : undefined}
               value={reply}
               onChange={(e) => setReply(e.target.value)}
               rows={4}

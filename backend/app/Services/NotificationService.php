@@ -310,9 +310,7 @@ class NotificationService
     public function jpMessageCreatedForAdmins(JpMessage $message): void
     {
         $member = $message->member;
-        if (! $member) {
-            return;
-        }
+        $isContact = ($message->source ?? 'member') === 'contact';
 
         $categoryLabel = match ($message->category) {
             'plainte' => 'Plainte',
@@ -322,16 +320,29 @@ class NotificationService
             default => 'Suggestion',
         };
 
+        $authorName = $member?->full_name;
+        if (! $authorName) {
+            $authorName = $message->guest_name
+                ? ($message->guest_name.($message->guest_email ? " ({$message->guest_email})" : ''))
+                : 'Visiteur';
+        }
+
+        $title = $isContact ? '📩 Message Contact (site)' : '📩 Nouvelle préoccupation';
+        $body = $isContact
+            ? "Un visiteur a envoyé un message via le formulaire Contact.\n\nDe :\n{$authorName}\n\nSujet :\n{$message->subject}"
+            : "Un membre vient d'envoyer une nouvelle demande.\n\nMembre :\n{$authorName}\n\nCatégorie :\n{$categoryLabel}";
+
         foreach ($this->adminUsers(Permission::UsersView) as $admin) {
             $this->pushToUser(
                 $admin,
                 NotificationType::JpMessageCreated,
-                '📩 Nouvelle préoccupation',
-                "Un membre vient d'envoyer une nouvelle demande.\n\nMembre :\n{$member->full_name}\n\nCatégorie :\n{$categoryLabel}",
+                $title,
+                $body,
                 [
                     'jp_message_id' => $message->id,
                     'reference' => $message->reference,
-                    'member_code' => $member->member_code,
+                    'member_code' => $member?->member_code,
+                    'source' => $message->source ?? 'member',
                     'action' => 'view_jp_message',
                 ],
                 'info',
@@ -358,7 +369,7 @@ class NotificationService
     {
         $province = $member->province?->name ?? '—';
 
-        foreach ($this->adminUsers(Permission::MembersManage) as $admin) {
+        foreach ($this->adminUsers(Permission::MembersCreate) as $admin) {
             $this->pushToUser(
                 $admin,
                 NotificationType::AdminNewMember,

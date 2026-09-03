@@ -56,6 +56,7 @@ class JpMessageController extends Controller
             ...$validated,
             'reference' => 'JP-MSG-'.str_pad((string) (JpMessage::count() + 1), 6, '0', STR_PAD_LEFT),
             'member_id' => $member->id,
+            'source' => 'member',
             'status' => 'open',
         ]);
 
@@ -132,6 +133,12 @@ class JpMessageController extends Controller
             'body' => $message->body,
             'status' => $message->status,
             'created_at' => $message->created_at?->toIso8601String(),
+            'source' => $message->source ?? 'member',
+            'guest_name' => $message->guest_name,
+            'guest_email' => $message->guest_email,
+            'author_label' => $message->member?->full_name
+                ?? $message->guest_name
+                ?? 'Visiteur',
             'member' => $message->member ? [
                 'member_code' => $message->member->member_code,
                 'full_name' => $message->member->full_name,

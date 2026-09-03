@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\MemberCardController;
 use App\Http\Controllers\Api\MemberController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationPreferenceController;
+use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\JpMessageController;
 use App\Http\Controllers\Api\NewsController;
 use App\Http\Controllers\Api\ReferenceController;
@@ -57,6 +58,8 @@ Route::middleware('throttle:30,1')->group(function () {
         ->where('token', '[A-Za-z0-9]{16,64}')
         ->name('media.verification-photo');
 });
+
+Route::post('contact', [ContactController::class, 'store'])->middleware('throttle:8,1');
 
 Route::get('references', [ReferenceController::class, 'index']);
 

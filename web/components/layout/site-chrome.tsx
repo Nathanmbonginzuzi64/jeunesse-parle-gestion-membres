@@ -45,7 +45,8 @@ export function SiteHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
+    <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/85 shadow-[0_8px_24px_rgba(16,24,40,0.05)] backdrop-blur-xl">
+      <div className="h-0.5 bg-gradient-to-r from-flag-blue via-gold-500 to-flag-red" />
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-2 px-3 sm:px-4 lg:h-16">
         <Link href="/" onClick={() => setOpen(false)} className="min-w-0 shrink">
           <BrandMark subtitle="République Démocratique du Congo" />
@@ -57,9 +58,9 @@ export function SiteHeader() {
               key={link.href}
               href={link.href}
               className={cn(
-                "whitespace-nowrap rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors lg:px-2.5 lg:text-[13px]",
+                "whitespace-nowrap rounded-full px-2.5 py-1.5 text-[12px] font-medium transition-all lg:px-3 lg:text-[13px]",
                 isActive(pathname, link.href)
-                  ? "bg-brand-50 text-brand-800"
+                  ? "bg-brand-50 text-brand-800 shadow-sm ring-1 ring-brand-100"
                   : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
               )}
             >
@@ -85,7 +86,7 @@ export function SiteHeader() {
           )}
           <button
             type="button"
-            className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 2xl:hidden"
+            className="rounded-xl p-2 text-slate-600 transition hover:bg-slate-100 2xl:hidden"
             aria-label="Menu"
             aria-expanded={open}
             onClick={() => setOpen((value) => !value)}
@@ -96,16 +97,16 @@ export function SiteHeader() {
       </div>
 
       {open ? (
-        <nav className="max-h-[70vh] overflow-y-auto border-t border-slate-100 bg-white px-4 py-3 2xl:hidden">
+        <nav className="max-h-[70vh] overflow-y-auto border-t border-slate-100 bg-white/95 px-4 py-3 backdrop-blur 2xl:hidden">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               onClick={() => setOpen(false)}
               className={cn(
-                "block rounded-lg px-3 py-2 text-sm",
+                "block rounded-xl px-3 py-2 text-sm transition",
                 isActive(pathname, link.href)
-                  ? "bg-brand-50 font-medium text-brand-800"
+                  ? "bg-brand-50 font-medium text-brand-800 ring-1 ring-brand-100"
                   : "text-slate-700 hover:bg-slate-50",
               )}
             >
@@ -146,13 +147,18 @@ export function SiteHeader() {
 
 export function SiteFooter() {
   return (
-    <footer className="mt-auto border-t border-slate-200 bg-white">
-      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-4">
+    <footer className="mt-auto border-t border-slate-200 bg-gradient-to-b from-white to-slate-50">
+      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <BrandMark subtitle="Gestion des membres" />
           <p className="mt-3 text-sm leading-relaxed text-slate-500">
             Plateforme nationale d’inscription, d’identification et de mobilisation de la jeunesse congolaise.
           </p>
+          <div className="mt-4 flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-flag-blue" />
+            <span className="h-2.5 w-2.5 rounded-full bg-gold-500" />
+            <span className="h-2.5 w-2.5 rounded-full bg-flag-red" />
+          </div>
         </div>
         <div>
           <p className="text-xs font-semibold tracking-wider text-slate-400 uppercase">Découvrir</p>
