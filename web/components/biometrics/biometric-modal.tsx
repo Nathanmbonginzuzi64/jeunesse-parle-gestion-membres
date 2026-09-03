@@ -33,7 +33,16 @@ export type BiometricResult = {
     photo_url?: string | null;
     structure?: string | null;
     province?: string | null;
-    card?: { status: string; status_label: string; card_number?: string } | null;
+    city?: string | null;
+    position?: string | null;
+    phone?: string | null;
+    card?: {
+      status: string;
+      status_label: string;
+      card_number?: string;
+      issued_at?: string | null;
+      expires_at?: string | null;
+    } | null;
   };
   attendance?: { id: number; recorded_at: string | null; method: string };
 };

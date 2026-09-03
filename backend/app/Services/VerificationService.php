@@ -23,7 +23,7 @@ class VerificationService
     public function verify(string $token, Request $request, ?User $actor = null, string $context = 'public'): array
     {
         /** @var QrToken|null $qrToken */
-        $qrToken = QrToken::with(['member.province', 'member.structure', 'card'])
+        $qrToken = QrToken::with(['member.province', 'member.city', 'member.structure', 'card'])
             ->where('token', $token)
             ->first();
 
@@ -90,7 +90,10 @@ class VerificationService
         $member = $qrToken->member;
         $card = $qrToken->card;
 
+        $enrolled = $member->webAuthnCredentials()->exists();
+
         $payload = [
+            'member_id' => $member->id,
             'member_code' => $member->member_code,
             'full_name' => $member->full_name,
             // La photo n'est servie qu'à qui détient un jeton valide, jamais par code membre.
@@ -99,6 +102,7 @@ class VerificationService
                 : null,
             'gender' => $member->gender?->label(),
             'province' => $member->province?->name,
+            'city' => $member->city?->name,
             'structure' => $member->structure?->name,
             'position' => $member->position,
             'status' => $member->status->label(),
@@ -106,12 +110,13 @@ class VerificationService
             'card_status' => $card->status->label(),
             'issued_at' => $card->issued_at?->toDateString(),
             'expires_at' => $card->expires_at?->toDateString(),
+            'joined_at' => $member->joined_at?->toDateString(),
+            'fingerprint_enrolled' => $enrolled,
+            'fingerprints_count' => $enrolled ? $member->webAuthnCredentials()->count() : 0,
         ];
 
         if ($actor?->hasPermission(\App\Enums\Permission::MembersViewSensitive)) {
             $payload['phone'] = $member->phone;
-            $payload['joined_at'] = $member->joined_at?->toDateString();
-            $payload['city'] = $member->city?->name;
         }
 
         return $payload;

@@ -470,7 +470,14 @@ class ContextualBiometricService
 
         $credentialId = $this->b64urlEncode($this->binaryFromClient($assertion->id ?? $assertion->rawId ?? null));
         $credential = WebAuthnCredential::query()
-            ->with(['user.role.permissions', 'user.member', 'member.activeCard', 'member.structure', 'member.province'])
+            ->with([
+                'user.role.permissions',
+                'user.member',
+                'member.activeCard',
+                'member.structure',
+                'member.province',
+                'member.city',
+            ])
             ->where('credential_id', $credentialId)
             ->first();
 
@@ -653,10 +660,15 @@ class ContextualBiometricService
                     : null,
                 'structure' => $member->structure?->name,
                 'province' => $member->province?->name,
+                'city' => $member->city?->name,
+                'position' => $member->position,
+                'phone' => $member->phone,
                 'card' => $member->activeCard ? [
                     'status' => $member->activeCard->status->value,
                     'status_label' => $member->activeCard->status->label(),
                     'card_number' => $member->activeCard->card_number,
+                    'issued_at' => $member->activeCard->issued_at?->toDateString(),
+                    'expires_at' => $member->activeCard->expires_at?->toDateString(),
                 ] : null,
             ],
         ];

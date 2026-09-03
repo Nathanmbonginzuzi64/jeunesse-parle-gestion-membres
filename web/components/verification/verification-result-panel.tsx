@@ -150,9 +150,12 @@ export function VerificationResultPanel({
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-lg font-semibold text-slate-900">{member.full_name}</p>
                     <p className="font-mono text-xs text-brand-700">{member.member_code}</p>
+                    {member.position ? (
+                      <p className="mt-1 truncate text-sm text-slate-600">{member.position}</p>
+                    ) : null}
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       <Badge tone={result.valid ? "success" : "warning"}>{member.status}</Badge>
-                      <Badge tone={result.valid ? "success" : "danger"}>{member.card_status || "—"}</Badge>
+                      <Badge tone={result.valid ? "success" : "danger"}>{member.card_status || "Sans carte"}</Badge>
                       {member.fingerprint_enrolled && (
                         <Badge tone="info" className="gap-1">
                           <Fingerprint className="h-3 w-3" />
@@ -180,25 +183,30 @@ export function VerificationResultPanel({
                   )}
                 </div>
 
-                <DefinitionList
-                  columns={2}
-                  items={[
-                    { label: "Structure", value: member.structure ?? "—" },
-                    { label: "Province", value: member.province ?? "—" },
-                    { label: "Fonction", value: member.position ?? "—" },
-                    { label: "N° carte", value: member.card_number ?? "—" },
-                    { label: "Émission", value: formatShortDate(member.issued_at) },
-                    { label: "Expiration", value: formatShortDate(member.expires_at) },
-                    { label: "Téléphone", value: member.phone ?? "—" },
-                    { label: "Ville", value: member.city ?? "—" },
-                    {
-                      label: "Empreintes",
-                      value: member.fingerprint_enrolled
-                        ? `${member.fingerprints_count ?? 6} doigt(s) enregistré(s)`
-                        : "Non enregistrées",
-                    },
-                  ]}
-                />
+                <div className="rounded-xl border border-white/80 bg-white/90 p-4 shadow-sm">
+                  <p className="mb-3 text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
+                    Profil membre
+                  </p>
+                  <DefinitionList
+                    columns={2}
+                    items={[
+                      { label: "Structure", value: member.structure || "Non renseignée" },
+                      { label: "Province", value: member.province || "Non renseignée" },
+                      { label: "Ville", value: member.city || "Non renseignée" },
+                      { label: "Fonction", value: member.position || "Non renseignée" },
+                      { label: "N° carte", value: member.card_number || "Aucune carte" },
+                      { label: "Émission", value: member.issued_at ? formatShortDate(member.issued_at) : "Non renseignée" },
+                      { label: "Expiration", value: member.expires_at ? formatShortDate(member.expires_at) : "Non renseignée" },
+                      { label: "Téléphone", value: member.phone || "Masqué" },
+                      {
+                        label: "Empreintes",
+                        value: member.fingerprint_enrolled
+                          ? `${member.fingerprints_count ?? 1} empreinte(s) enregistrée(s)`
+                          : "Non enregistrées",
+                      },
+                    ]}
+                  />
+                </div>
 
                 {member.member_id && (
                   <div className="flex flex-wrap gap-2 border-t border-slate-200/60 pt-4">
