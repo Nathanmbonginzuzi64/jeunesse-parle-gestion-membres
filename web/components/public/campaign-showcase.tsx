@@ -18,12 +18,12 @@ export function CampaignShowcase() {
   return (
     <div className="mt-16 bg-white sm:mt-20 lg:mt-24">
       <section className="relative isolate overflow-hidden border-b border-slate-200 bg-slate-950">
-        <div className="absolute inset-0">
+        <div className="absolute inset-0 overflow-hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={CAMPAIGN_INTRO.heroImage}
             alt="Lancement Jeunesse Parle — Kinshasa"
-            className="h-full w-full object-contain object-center"
+            className="h-full w-full scale-125 object-cover object-center"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-brand-950/75 via-brand-950/35 to-brand-950/15" />
         </div>
