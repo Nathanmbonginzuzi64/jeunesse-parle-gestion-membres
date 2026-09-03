@@ -1,26 +1,53 @@
-import { useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { SplashBrand } from '@/components/splash-brand';
 import { useAuth } from '@/lib/auth';
-import { JP } from '@/constants/theme';
+import { getWelcomeState } from '@/lib/onboarding';
 
-/** Redirection initiale selon session / rôle. */
+const SPLASH_MS = 2800;
+
+/** Chargement d’ouverture, puis onboarding, documents légaux, connexion ou app. */
 export default function Index() {
   const { user, loading, postLoginPath } = useAuth();
   const router = useRouter();
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+  const navigated = useRef(false);
 
   useEffect(() => {
-    if (loading) return;
-    if (!user) {
+    const timer = setTimeout(() => setMinTimeElapsed(true), SPLASH_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (loading || !minTimeElapsed || navigated.current) return;
+
+    void (async () => {
+      if (user) {
+        navigated.current = true;
+        router.replace(postLoginPath(user) as never);
+        return;
+      }
+
+      const { seenOnboarding, acceptedLegal } = await getWelcomeState();
+      navigated.current = true;
+      if (!seenOnboarding) {
+        router.replace('/(auth)/bienvenue');
+        return;
+      }
+      if (!acceptedLegal) {
+        router.replace('/(auth)/confidentialite');
+        return;
+      }
       router.replace('/(auth)/connexion');
-      return;
-    }
-    router.replace(postLoginPath(user) as never);
-  }, [loading, user, router, postLoginPath]);
+    })();
+  }, [loading, minTimeElapsed, user, router, postLoginPath]);
 
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: JP.bg }}>
-      <ActivityIndicator size="large" color={JP.brand} />
-    </View>
+    <SplashBrand
+      onReady={() => {
+        void SplashScreen.hideAsync();
+      }}
+    />
   );
 }

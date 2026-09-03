@@ -14,12 +14,12 @@ export function Screen({ children, style }: { children: React.ReactNode; style?:
   return <View style={[styles.screen, style]}>{children}</View>;
 }
 
-export function Title({ children }: { children: React.ReactNode }) {
-  return <Text style={styles.title}>{children}</Text>;
+export function Title({ children, center }: { children: React.ReactNode; center?: boolean }) {
+  return <Text style={[styles.title, center && { textAlign: 'center' }]}>{children}</Text>;
 }
 
-export function Subtitle({ children }: { children: React.ReactNode }) {
-  return <Text style={styles.subtitle}>{children}</Text>;
+export function Subtitle({ children, center }: { children: React.ReactNode; center?: boolean }) {
+  return <Text style={[styles.subtitle, center && { textAlign: 'center' }]}>{children}</Text>;
 }
 
 export function Field(props: TextInputProps & { label: string }) {
@@ -76,6 +76,16 @@ export function BigButton({
   );
 }
 
+export function TextLink({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} hitSlop={8}>
+      {({ pressed }) => (
+        <Text style={[styles.textLink, pressed && { opacity: 0.6 }]}>{label}</Text>
+      )}
+    </Pressable>
+  );
+}
+
 export function Card({ children }: { children: React.ReactNode }) {
   return <View style={styles.card}>{children}</View>;
 }
@@ -97,7 +107,7 @@ export function Badge({ label, tone = 'neutral' }: { label: string; tone?: 'succ
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: JP.bg,
+    backgroundColor: JP.white,
     paddingHorizontal: 16,
     paddingTop: 12,
   },
@@ -131,7 +141,7 @@ const styles = StyleSheet.create({
   },
   bigButton: {
     minHeight: 56,
-    borderRadius: 16,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
@@ -139,6 +149,11 @@ const styles = StyleSheet.create({
   bigButtonText: {
     color: JP.white,
     fontSize: 16,
+    fontWeight: '700',
+  },
+  textLink: {
+    color: JP.brand,
+    fontSize: 13,
     fontWeight: '700',
   },
   card: {

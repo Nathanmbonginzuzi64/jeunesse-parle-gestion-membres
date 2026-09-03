@@ -1,19 +1,19 @@
 /**
- * Couleurs Jeunesse Parle — mobile-first, contraste terrain.
+ * Couleurs Jeunesse Parle — maquette mobile (bleu officiel + blanc).
  */
 export const JP = {
-  brand: '#0B5F4B',
-  brandDark: '#084536',
-  brandLight: '#E8F5F1',
-  gold: '#C9A227',
-  danger: '#B42318',
-  success: '#027A48',
+  brand: '#0087D1',
+  brandDark: '#00649C',
+  brandLight: '#E7F4FB',
+  gold: '#F4C430',
+  danger: '#DC3545',
+  success: '#28A745',
   warning: '#B54708',
-  bg: '#F4F7F6',
+  bg: '#F8F9FA',
   card: '#FFFFFF',
-  text: '#0F172A',
+  text: '#102A43',
   muted: '#64748B',
-  border: '#E2E8F0',
+  border: '#E8EEF4',
   white: '#FFFFFF',
 };
 
