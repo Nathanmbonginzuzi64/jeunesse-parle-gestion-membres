@@ -13,14 +13,19 @@ export function MemberQrCode({
   size = 220,
   caption,
   svgDataUri,
+  compact = false,
 }: {
   value?: string | null;
   size?: number;
   caption?: string;
   /** Optionnel : SVG Laravel (data:image/svg+xml;base64,...) */
   svgDataUri?: string | null;
+  /** Moins de padding / bordure — pour intégration dans la carte. */
+  compact?: boolean;
 }) {
   const payload = (value ?? '').trim();
+  const pad = compact ? 2 : 12;
+  const inner = Math.max(size - pad * 2, 12);
   const [xml, setXml] = useState<string | null>(() => decodeSvgDataUri(svgDataUri));
   const [failed, setFailed] = useState(false);
 
@@ -42,7 +47,7 @@ export function MemberQrCode({
     void QRCode.toString(payload, {
       type: 'svg',
       margin: 1,
-      width: size - 24,
+      width: inner,
       color: { dark: JP.text, light: '#FFFFFF' },
       errorCorrectionLevel: 'M',
     })
@@ -59,26 +64,38 @@ export function MemberQrCode({
     return () => {
       cancelled = true;
     };
-  }, [payload, size, svgDataUri]);
+  }, [payload, inner, svgDataUri]);
 
   if (!payload && !xml) {
     return (
-      <View style={[styles.box, { width: size, height: size }]}>
-        <Text style={styles.empty}>QR indisponible</Text>
-        <Text style={styles.hint}>Carte ou jeton manquant</Text>
+      <View style={[styles.box, compact && styles.boxCompact, { width: size, height: size }]}>
+        {!compact ? (
+          <>
+            <Text style={styles.empty}>QR indisponible</Text>
+            <Text style={styles.hint}>Carte ou jeton manquant</Text>
+          </>
+        ) : (
+          <Text style={styles.emptyCompact}>—</Text>
+        )}
       </View>
     );
   }
 
   return (
     <View style={styles.wrap}>
-      <View style={[styles.box, styles.qrPad, { width: size, minHeight: size }]}>
+      <View
+        style={[
+          styles.box,
+          compact ? styles.boxCompact : styles.qrPad,
+          { width: size, minHeight: size, padding: pad },
+        ]}
+      >
         {xml ? (
-          <SvgXml xml={xml} width={size - 24} height={size - 24} />
+          <SvgXml xml={xml} width={inner} height={inner} />
         ) : failed ? (
-          <Text style={styles.empty}>QR illisible</Text>
+          <Text style={compact ? styles.emptyCompact : styles.empty}>QR illisible</Text>
         ) : (
-          <ActivityIndicator color={JP.brand} />
+          <ActivityIndicator color={JP.brand} size={compact ? 'small' : 'large'} />
         )}
       </View>
       {caption ? <Text style={styles.caption}>{caption}</Text> : null}
@@ -119,8 +136,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: JP.border,
   },
+  boxCompact: {
+    borderRadius: 6,
+    borderWidth: 0,
+  },
   qrPad: { padding: 12 },
   empty: { fontSize: 13, fontWeight: '800', color: JP.muted, textAlign: 'center' },
+  emptyCompact: { fontSize: 9, fontWeight: '700', color: JP.muted },
   hint: { marginTop: 4, fontSize: 11, color: JP.muted, textAlign: 'center' },
   caption: { marginTop: 10, fontSize: 12, fontWeight: '800', color: JP.brand },
 });
