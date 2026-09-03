@@ -37,6 +37,9 @@ export function resolveNotificationAction(notification: AppNotification): { href
   if (action === "view_news" && data.news_post_id) {
     return { href: `/actualites/${data.news_post_id}`, label: "Voir l'actualité" };
   }
+  if (action === "view_chat" && data.conversation_id) {
+    return { href: `/jp-message?chat=${data.conversation_id}`, label: "Ouvrir la conversation" };
+  }
   if (action === "view_jp_message" && data.jp_message_id) {
     return { href: `/jp-message/${data.jp_message_id}`, label: "Voir le message" };
   }

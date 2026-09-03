@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { ChevronDown, X } from "lucide-react";
 import { BrandMark } from "@/components/brand/logo";
 import { useAuth } from "@/lib/auth";
+import { useJpUnread } from "@/lib/hooks/use-jp-unread";
 import { cn } from "@/lib/utils";
 import { NAV_SECTIONS, type NavItem } from "./navigation";
 
@@ -22,10 +23,12 @@ function NavLink({
   item,
   onClose,
   nested = false,
+  badge,
 }: {
   item: NavItem;
   onClose: () => void;
   nested?: boolean;
+  badge?: number;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -78,7 +81,12 @@ function NavLink({
       >
         {!nested && <Icon className="h-4 w-4 shrink-0" aria-hidden />}
         {nested && <span className="h-1 w-1 rounded-full bg-current opacity-50" />}
-        <span className="truncate">{item.label}</span>
+        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+        {badge && badge > 0 ? (
+          <span className="rounded-full bg-gold-400 px-1.5 py-0.5 text-[10px] font-semibold text-brand-950">
+            {badge > 99 ? "99+" : badge}
+          </span>
+        ) : null}
       </Link>
     </li>
   );
@@ -86,6 +94,7 @@ function NavLink({
 
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { user, can } = useAuth();
+  const { count: jpUnread } = useJpUnread();
 
   const sections = NAV_SECTIONS.map((section) => ({
     ...section,
@@ -135,7 +144,12 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
               </p>
               <ul className="space-y-0.5">
                 {section.items.map((item) => (
-                  <NavLink key={item.href + item.label} item={item} onClose={onClose} />
+                  <NavLink
+                    key={item.href + item.label}
+                    item={item}
+                    onClose={onClose}
+                    badge={item.href === "/jp-message" ? jpUnread : undefined}
+                  />
                 ))}
               </ul>
             </div>

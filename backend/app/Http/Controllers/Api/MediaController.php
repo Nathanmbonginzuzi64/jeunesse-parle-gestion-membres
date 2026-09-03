@@ -4,10 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Activity;
+use App\Models\ChatAttachment;
 use App\Models\Member;
 use App\Models\QrToken;
 use App\Models\User;
 use App\Services\ActivityImageStorageService;
+use App\Services\ChatDirectoryService;
+use App\Services\ChatMediaStorageService;
 use App\Services\NewsMediaStorageService;
 use App\Services\PhotoStorageService;
 use App\Models\NewsPost;
@@ -21,6 +24,8 @@ class MediaController extends Controller
         private readonly PhotoStorageService $photos,
         private readonly ActivityImageStorageService $activityImages,
         private readonly NewsMediaStorageService $newsMedia,
+        private readonly ChatMediaStorageService $chatMedia,
+        private readonly ChatDirectoryService $chatDirectory,
     ) {}
 
     /**
@@ -45,7 +50,12 @@ class MediaController extends Controller
      */
     public function userPhoto(Request $request, User $user): Response
     {
-        $this->authorize('view', $user);
+        $actor = $request->user();
+        abort_unless(
+            $actor && ($actor->can('view', $user) || $this->chatDirectory->canSeeUserPhoto($actor, $user)),
+            403,
+            "Vous n'avez pas l'autorisation d'effectuer cette action.",
+        );
 
         $user->loadMissing('member:id,photo_path,member_code');
 
@@ -54,6 +64,26 @@ class MediaController extends Controller
         abort_unless($path, 404, 'Ressource introuvable.');
 
         return $this->stream($path, 'user-'.$user->id);
+    }
+
+    public function chatAttachment(Request $request, ChatAttachment $attachment): Response
+    {
+        $attachment->loadMissing('message.conversation');
+        $conversation = $attachment->message?->conversation;
+        abort_unless($conversation, 404, 'Ressource introuvable.');
+        $this->authorize('view', $conversation);
+
+        $contents = $this->chatMedia->get($attachment->path);
+        abort_unless($contents !== null, 404, 'Ressource introuvable.');
+
+        $inline = str_starts_with($attachment->mime, 'image/') || str_starts_with($attachment->mime, 'audio/');
+
+        return response($contents, 200, [
+            'Content-Type' => $this->chatMedia->mimeFor($attachment->path, $attachment->mime),
+            'Cache-Control' => 'private, max-age=600',
+            'Content-Disposition' => ($inline ? 'inline' : 'attachment')
+                .'; filename="'.$attachment->original_name.'"',
+        ]);
     }
 
     /**

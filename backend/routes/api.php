@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\MapController;
 use App\Http\Controllers\Api\MediaController;
 use App\Http\Controllers\Api\MemberCardController;
 use App\Http\Controllers\Api\MemberController;
+use App\Http\Controllers\Api\MessagingController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationPreferenceController;
 use App\Http\Controllers\Api\ContactController;
@@ -204,6 +205,14 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
     Route::prefix('jp-messages')->group(function () {
         Route::get('/', [JpMessageController::class, 'index']);
         Route::post('/', [JpMessageController::class, 'store']);
+        Route::get('directory', [MessagingController::class, 'directory']);
+        Route::get('unread-count', [MessagingController::class, 'unreadCount']);
+        Route::get('chats', [MessagingController::class, 'index']);
+        Route::post('chats', [MessagingController::class, 'store'])->middleware('throttle:30,1');
+        Route::get('chats/{conversation}', [MessagingController::class, 'show']);
+        Route::get('chats/{conversation}/messages', [MessagingController::class, 'messages']);
+        Route::post('chats/{conversation}/messages', [MessagingController::class, 'send'])->middleware('throttle:40,1');
+        Route::post('chats/{conversation}/read', [MessagingController::class, 'read']);
         Route::get('{jpMessage}', [JpMessageController::class, 'show']);
         Route::post('{jpMessage}/replies', [JpMessageController::class, 'reply']);
     });
@@ -279,6 +288,8 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
         ->name('media.member-photo');
     Route::get('media/users/{user}/photo', [MediaController::class, 'userPhoto'])
         ->name('media.user-photo');
+    Route::get('media/chats/{attachment}', [MediaController::class, 'chatAttachment'])
+        ->name('media.chat-attachment');
     Route::get('media/activities/{activity}/image', [MediaController::class, 'activityImage'])
         ->name('media.activity-image');
     Route::get('media/news/{newsPost}/file', [MediaController::class, 'newsFile'])

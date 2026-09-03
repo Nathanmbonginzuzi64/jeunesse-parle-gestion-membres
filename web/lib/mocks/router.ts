@@ -1422,6 +1422,146 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     jpMocks.messages.unshift(msg);
     return { message: "Message envoyé.", data: msg } as T;
   }
+
+  const chatMocks = getChatMocks();
+  if (method === "GET" && path === "/jp-messages/directory") {
+    const me = requireUser();
+    return {
+      data: [
+        {
+          id: "national",
+          label: "Administration nationale",
+          contacts: db.users
+            .filter((item) => {
+              if (item.id === me.id || item.role?.scope_level !== 0) return false;
+              if (item.role?.slug === "super-admin" && me.role?.scope_level !== 0) return false;
+              return true;
+            })
+            .map((item) => ({
+              id: item.id,
+              name: item.name,
+              role: item.role?.name,
+              photo_url: item.photo_url,
+              scope: "National",
+            })),
+        },
+        {
+          id: "members",
+          label: "Membres",
+          contacts: db.users
+            .filter((item) => item.id !== me.id && item.member_id)
+            .map((item) => ({
+              id: item.id,
+              name: item.name,
+              role: item.role?.name,
+              photo_url: item.photo_url,
+              member_code: item.member_code,
+            })),
+        },
+      ],
+    } as T;
+  }
+  if (method === "GET" && path === "/jp-messages/unread-count") {
+    const me = requireUser();
+    return { count: chatMocks.conversations.filter((c) => c.userIds.includes(me.id) && c.unreadFor === me.id).length } as T;
+  }
+  if (method === "GET" && path === "/jp-messages/chats") {
+    const me = requireUser();
+    return paginate(
+      chatMocks.conversations
+        .filter((item) => item.userIds.includes(me.id))
+        .map((item) => presentChatConversation(item, me)),
+      query,
+    ) as T;
+  }
+  if (method === "POST" && path === "/jp-messages/chats") {
+    const me = requireUser();
+    const input = jsonBody(body);
+    const target = db.users.find((item) => item.id === Number(input.user_id));
+    if (!target) throw new ApiError(404, "Utilisateur introuvable.");
+    if (target.id === me.id) throw new ApiError(403, "Vous ne pouvez pas vous écrire.");
+    let conversation = chatMocks.conversations.find(
+      (c) => c.userIds.includes(me.id) && c.userIds.includes(target.id),
+    );
+    if (!conversation) {
+      conversation = {
+        id: chatMocks.nextId++,
+        userIds: [me.id, target.id],
+        last_message_at: new Date().toISOString(),
+        last_message_preview: "Conversation ouverte",
+        unreadFor: null,
+        created_at: new Date().toISOString(),
+      };
+      chatMocks.conversations.unshift(conversation);
+      chatMocks.messages[conversation.id] = [];
+    }
+    return { message: "Conversation ouverte.", data: presentChatConversation(conversation, me) } as T;
+  }
+  if (method === "GET" && segments[0] === "jp-messages" && segments[1] === "chats" && segments[2] && segments[3] === "messages") {
+    const me = requireUser();
+    const id = Number(segments[2]);
+    const conversation = chatMocks.conversations.find((c) => c.id === id && c.userIds.includes(me.id));
+    if (!conversation) throw new ApiError(404, "Conversation introuvable.");
+    if (conversation.unreadFor === me.id) conversation.unreadFor = null;
+    return { data: chatMocks.messages[id] ?? [] } as T;
+  }
+  if (method === "POST" && segments[0] === "jp-messages" && segments[1] === "chats" && segments[2] && segments[3] === "messages") {
+    const me = requireUser();
+    const id = Number(segments[2]);
+    const conversation = chatMocks.conversations.find((c) => c.id === id && c.userIds.includes(me.id));
+    if (!conversation) throw new ApiError(404, "Conversation introuvable.");
+    const input = jsonBody(body);
+    const attachment = input.file instanceof File ? input.file : null;
+    const text = String(input.body ?? "").trim();
+    if (!text && !attachment) throw new ApiError(422, "Écrivez un message ou joignez un fichier.");
+    let type = "text";
+    let attachments: Array<{ id: number; kind: "image" | "file" | "audio"; name: string; mime: string; size: number; url: string }> = [];
+    if (attachment) {
+      type = attachment.type.startsWith("image/") ? "image" : attachment.type.startsWith("audio/") ? "audio" : "file";
+      let url = "";
+      try {
+        url = URL.createObjectURL(attachment);
+      } catch {
+        url = "";
+      }
+      attachments = [{
+        id: chatMocks.nextAttachmentId++,
+        kind: type === "image" || type === "audio" ? type : "file",
+        name: attachment.name,
+        mime: attachment.type || "application/octet-stream",
+        size: attachment.size,
+        url,
+      }];
+    }
+    const preview = text || (type === "image" ? "📷 Photo" : type === "audio" ? "🎤 Message vocal" : "📎 Pièce jointe");
+    const row = {
+      id: chatMocks.nextMessageId++,
+      type,
+      body: text || null,
+      author: me.name,
+      author_id: me.id,
+      created_at: new Date().toISOString(),
+      attachments,
+    };
+    chatMocks.messages[id] = [...(chatMocks.messages[id] ?? []), row];
+    conversation.last_message_preview = preview;
+    conversation.last_message_at = row.created_at;
+    conversation.unreadFor = conversation.userIds.find((uid) => uid !== me.id) ?? null;
+    return { message: "Message envoyé.", data: row } as T;
+  }
+  if (method === "POST" && segments[0] === "jp-messages" && segments[1] === "chats" && segments[2] && segments[3] === "read") {
+    const me = requireUser();
+    const conversation = chatMocks.conversations.find((c) => String(c.id) === segments[2] && c.userIds.includes(me.id));
+    if (conversation && conversation.unreadFor === me.id) conversation.unreadFor = null;
+    return { message: "Lu." } as T;
+  }
+  if (method === "GET" && segments[0] === "jp-messages" && segments[1] === "chats" && segments[2] && segments.length === 3) {
+    const me = requireUser();
+    const conversation = chatMocks.conversations.find((c) => String(c.id) === segments[2] && c.userIds.includes(me.id));
+    if (!conversation) throw new ApiError(404, "Conversation introuvable.");
+    return { data: presentChatConversation(conversation, me) } as T;
+  }
+
   if (method === "GET" && segments[0] === "jp-messages" && segments[1] && segments.length === 2) {
     const msg = jpMocks.messages.find((m) => String(m.id) === segments[1]);
     if (!msg) throw new ApiError(404, "Message introuvable.");
@@ -1537,6 +1677,104 @@ function getNewsMocks() {
     };
   }
   return newsMockState;
+}
+
+type ChatMockConversation = {
+  id: number;
+  userIds: number[];
+  last_message_at: string;
+  last_message_preview: string;
+  unreadFor: number | null;
+  created_at: string;
+};
+
+type ChatMockMessage = {
+  id: number;
+  type: string;
+  body: string | null;
+  author: string;
+  author_id: number;
+  created_at: string;
+  attachments: Array<{
+    id: number;
+    kind: "image" | "file" | "audio";
+    name: string;
+    mime: string;
+    size: number;
+    url: string;
+  }>;
+};
+
+let chatMockState: {
+  nextId: number;
+  nextMessageId: number;
+  nextAttachmentId: number;
+  conversations: ChatMockConversation[];
+  messages: Record<number, ChatMockMessage[]>;
+} | null = null;
+
+function presentChatConversation(row: ChatMockConversation, me: { id: number }) {
+  const otherId = row.userIds.find((id) => id !== me.id) ?? row.userIds[0];
+  const other = db.users.find((item) => item.id === otherId);
+  return {
+    id: row.id,
+    channel: "chat" as const,
+    type: "direct",
+    peer: other
+      ? { id: other.id, name: other.name, role: other.role?.name, photo_url: other.photo_url }
+      : null,
+    last_message_at: row.last_message_at,
+    last_message_preview: row.last_message_preview,
+    unread: row.unreadFor === me.id,
+    created_at: row.created_at,
+  };
+}
+
+function getChatMocks() {
+  if (!chatMockState) {
+    const admin = db.users.find((item) => item.id === 2) ?? db.users[1];
+    const member = db.users.find((item) => item.id === 8) ?? db.users[db.users.length - 1];
+    const started = new Date(Date.now() - 86400000).toISOString();
+    const lastAt = new Date(Date.now() - 1800000).toISOString();
+    chatMockState = {
+      nextId: 2,
+      nextMessageId: 3,
+      nextAttachmentId: 1,
+      conversations: [
+        {
+          id: 1,
+          userIds: [admin.id, member.id],
+          last_message_at: lastAt,
+          last_message_preview: "Bienvenue sur JP Message.",
+          unreadFor: member.id,
+          created_at: started,
+        },
+      ],
+      messages: {
+        1: [
+          {
+            id: 1,
+            type: "text",
+            body: "Bonjour, bienvenue sur JP Message.",
+            author: admin.name,
+            author_id: admin.id,
+            created_at: started,
+            attachments: [],
+          },
+          {
+            id: 2,
+            type: "text",
+            body: "Les conversations et les dossiers officiels sont dans le même espace.",
+            author: admin.name,
+            author_id: admin.id,
+            created_at: lastAt,
+            attachments: [],
+          },
+        ],
+      },
+    };
+  }
+  return chatMockState;
 }
 
 let jpMessageMockState: {

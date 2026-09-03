@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Bell, ChevronDown, CircleHelp, Fingerprint, IdCard, KeyRound, LogOut, Menu, UserRound } from "lucide-react";
+import { Bell, ChevronDown, CircleHelp, Fingerprint, IdCard, KeyRound, LogOut, Menu, MessageSquare, UserRound } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { NotificationsInboxPopover } from "@/components/notifications/notifications-inbox-popover";
 import { useNotificationFeed } from "@/lib/hooks/use-notification-feed";
+import { useJpUnread } from "@/lib/hooks/use-jp-unread";
 import { USE_MOCKS } from "@/lib/config";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -14,6 +15,7 @@ import { CommandSearch } from "./command-search";
 export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const { user, logout } = useAuth();
   const { unreadCount: unread, setUnreadCount, refreshCount } = useNotificationFeed();
+  const { count: jpUnread } = useJpUnread();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -69,6 +71,19 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
         aria-label="Aide"
       >
         <CircleHelp className="h-5 w-5" />
+      </Link>
+
+      <Link
+        href="/jp-message"
+        className="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100"
+        aria-label={`JP Message${jpUnread > 0 ? ` (${jpUnread} non lus)` : ""}`}
+      >
+        <MessageSquare className="h-5 w-5" />
+        {jpUnread > 0 && (
+          <span className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-700 px-1 text-[10px] font-semibold text-white">
+            {jpUnread > 99 ? "99+" : jpUnread}
+          </span>
+        )}
       </Link>
 
       <div className="relative">
@@ -138,6 +153,15 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
             >
               <UserRound className="h-4 w-4 text-slate-400" />
               Mon profil
+            </Link>
+            <Link
+              href="/jp-message"
+              role="menuitem"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-2.5 px-3.5 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            >
+              <MessageSquare className="h-4 w-4 text-slate-400" />
+              JP Message
             </Link>
             {user?.member_id && (
               <Link

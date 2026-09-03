@@ -9,6 +9,7 @@ import {
   Ban,
   CheckCircle2,
   CreditCard,
+  MessageSquare,
   Pencil,
   RefreshCw,
   ShieldAlert,
@@ -29,6 +30,7 @@ import { DefinitionList } from "@/components/ui/table";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Tabs, TabPanel } from "@/components/ui/tabs";
 import { api, ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useApi } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useToast } from "@/components/ui/toast";
@@ -53,6 +55,7 @@ function MemberShowContent() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const toast = useToast();
+  const { user } = useAuth();
   const { data, loading, error, reload } = useApi<MemberShow>(`/members/${params.id}`);
   const timeline = useApi<{ data: TimelineEvent[] }>(`/members/${params.id}/timeline`);
   const card = useApi<{ data: MemberCard; render: CardRender }>(`/members/${params.id}/card`);
@@ -152,6 +155,14 @@ function MemberShowContent() {
         description={member.member_code}
         actions={
           <div className="flex flex-wrap gap-2">
+            {member.has_portal_account && member.user_id && member.user_id !== user?.id && (
+              <Link href={`/jp-message?user=${member.user_id}`}>
+                <Button variant="outline">
+                  <MessageSquare className="h-4 w-4" />
+                  Envoyer un message
+                </Button>
+              </Link>
+            )}
             <Can permission={PERMISSIONS.membersUpdate}>
               <Button variant="outline" onClick={() => setEditOpen(true)}>
                 <Pencil className="h-4 w-4" />

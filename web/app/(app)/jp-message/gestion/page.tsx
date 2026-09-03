@@ -1,8 +1,10 @@
 "use client";
 
+import { Suspense } from "react";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { JpInbox } from "@/components/jp-message/jp-inbox";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { PageLoader } from "@/components/ui/feedback";
 import { PERMISSIONS } from "@/lib/permissions";
 
 export default function JpMessageAdminPage() {
@@ -10,7 +12,9 @@ export default function JpMessageAdminPage() {
     <RequirePermission permission={PERMISSIONS.usersView}>
       <div className="space-y-4">
         <Breadcrumb items={[{ href: "/jp-message", label: "JP Message" }, { label: "Administration" }]} />
-        <JpInbox admin />
+        <Suspense fallback={<PageLoader />}>
+          <JpInbox admin />
+        </Suspense>
       </div>
     </RequirePermission>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, CalendarDays, CreditCard, IdCard, Pencil, ShieldCheck } from "lucide-react";
+import { Bell, CreditCard, IdCard, MessageSquare, Pencil, ShieldCheck } from "lucide-react";
 import { PageHeader } from "@/components/layout/topbar";
 import { Avatar } from "@/components/ui/avatar";
 import { MemberStatusBadge } from "@/components/ui/badge";
@@ -69,11 +69,11 @@ export default function MemberSpacePage() {
           <Bell className="h-5 w-5 text-brand-600" />
           <p className="mt-2 text-sm font-medium">Mes notifications</p>
         </Link>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <CalendarDays className="h-5 w-5 text-brand-600" />
-          <p className="mt-2 text-sm font-medium">Mes activités</p>
-          <p className="text-xs text-slate-500">Invitations et participations à venir.</p>
-        </div>
+        <Link href="/jp-message" className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-brand-300 hover:shadow-sm">
+          <MessageSquare className="h-5 w-5 text-brand-600" />
+          <p className="mt-2 text-sm font-medium">JP Message</p>
+          <p className="text-xs text-slate-500">Messagerie et dossiers officiels</p>
+        </Link>
       </div>
 
       <Card>

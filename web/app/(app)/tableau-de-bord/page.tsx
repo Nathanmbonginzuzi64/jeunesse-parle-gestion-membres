@@ -8,6 +8,7 @@ import {
   CreditCard,
   IdCard,
   MapPin,
+  MessageSquare,
   Printer,
   QrCode,
   ScanLine,
@@ -181,7 +182,7 @@ export default function DashboardPage() {
         <DashboardAnimate delay={200} className="mt-6">
           <div className={cn(dashboardCardGrid, "sm:grid-cols-2")}>
             <QuickLinkCard href="/ma-carte" icon={CreditCard} title="Ma carte" description="QR code et impression" tone="brand" />
-            <QuickLinkCard href="/profil" icon={Users} title="Mon profil" description="Photo et informations du compte" tone="emerald" />
+            <QuickLinkCard href="/jp-message" icon={MessageSquare} title="JP Message" description="Messagerie et dossiers officiels" tone="emerald" />
           </div>
         </DashboardAnimate>
       </div>
@@ -392,6 +393,13 @@ export default function DashboardPage() {
               tone="slate"
             />
           )}
+          <QuickLinkCard
+            href="/jp-message"
+            icon={MessageSquare}
+            title="JP Message"
+            description="Conversations et dossiers officiels"
+            tone="emerald"
+          />
         </div>
       </DashboardSection>
       </DashboardAnimate>

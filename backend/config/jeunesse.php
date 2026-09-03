@@ -50,6 +50,10 @@ return [
         'mimes' => ['jpeg', 'jpg', 'png', 'webp'],
     ],
 
+    'chat' => [
+        'max_kilobytes' => (int) env('JP_CHAT_MAX_KB', 10240),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Médias actualités (image / vidéo)

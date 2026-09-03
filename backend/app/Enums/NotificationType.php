@@ -22,6 +22,7 @@ enum NotificationType: string
     case NewsShare = 'news_share';
     case JpMessageCreated = 'jp_message_created';
     case JpMessageReply = 'jp_message_reply';
+    case ChatMessage = 'chat_message';
     case AdminNewMember = 'admin_new_member';
     case AdminNewActivity = 'admin_new_activity';
     case AdminSystemAlert = 'admin_system_alert';
@@ -36,7 +37,7 @@ enum NotificationType: string
             self::ActivityReminder, self::ActivityLiveLocation => NotificationCategory::Activity,
             self::AttendanceRecorded, self::AttendanceFailed => NotificationCategory::Presence,
             self::NewsPublished, self::NewsComment, self::NewsReaction, self::NewsShare => NotificationCategory::News,
-            self::JpMessageCreated, self::JpMessageReply => NotificationCategory::Message,
+            self::JpMessageCreated, self::JpMessageReply, self::ChatMessage => NotificationCategory::Message,
             self::AdminNewMember, self::AdminNewActivity, self::AdminSystemAlert => NotificationCategory::Admin,
             self::Manual => NotificationCategory::Admin,
         };

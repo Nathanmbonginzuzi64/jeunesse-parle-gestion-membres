@@ -1,12 +1,22 @@
 "use client";
 
+import { Suspense } from "react";
 import { useParams } from "next/navigation";
 import { JpInbox } from "@/components/jp-message/jp-inbox";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { PageLoader } from "@/components/ui/feedback";
 import { useAuth } from "@/lib/auth";
 import { PERMISSIONS } from "@/lib/permissions";
 
 export default function JpMessageDetailPage() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <JpMessageDetailInner />
+    </Suspense>
+  );
+}
+
+function JpMessageDetailInner() {
   const params = useParams<{ id: string }>();
   const { can } = useAuth();
   const admin = can(PERMISSIONS.usersView);
@@ -16,7 +26,7 @@ export default function JpMessageDetailPage() {
       <Breadcrumb
         items={[
           { href: admin ? "/jp-message/gestion" : "/jp-message", label: "JP Message" },
-          { label: `Conversation #${params.id}` },
+          { label: `Dossier #${params.id}` },
         ]}
       />
       <JpInbox admin={admin} initialId={params.id} />

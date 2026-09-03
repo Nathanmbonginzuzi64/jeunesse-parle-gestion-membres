@@ -124,6 +124,7 @@ export interface Member {
   fingerprints?: MemberFingerprint[];
   fingerprint_enrolled?: boolean;
   has_portal_account?: boolean;
+  user_id?: number | null;
 
   card?: MemberCard | null;
 }
@@ -537,6 +538,53 @@ export interface JpMessageItem {
     author: string;
     is_admin: boolean;
     created_at: string;
+  }>;
+}
+
+export interface ChatContact {
+  id: number;
+  name: string;
+  role?: string | null;
+  role_slug?: string | null;
+  photo_url?: string | null;
+  member_code?: string | null;
+  scope?: string | null;
+}
+
+export interface ChatDirectoryGroup {
+  id: string;
+  label: string;
+  contacts: ChatContact[];
+}
+
+export interface ChatConversationItem {
+  id: number;
+  channel: "chat";
+  type: string;
+  subject?: string | null;
+  peer: ChatContact | null;
+  last_message_at: string | null;
+  last_message_preview: string | null;
+  unread: boolean;
+  created_at: string | null;
+}
+
+export interface ChatMessageItem {
+  id: number;
+  type: string;
+  body: string | null;
+  author: string | null;
+  author_id: number;
+  photo_url?: string | null;
+  created_at: string;
+  edited_at?: string | null;
+  attachments: Array<{
+    id: number;
+    kind: "image" | "file" | "audio";
+    name: string;
+    mime: string;
+    size: number;
+    url: string;
   }>;
 }
 

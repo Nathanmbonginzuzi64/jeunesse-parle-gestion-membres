@@ -50,6 +50,7 @@ class MemberResource extends JsonResource
                     ->where('status', 'enrolled')
                     ->exists(),
             'has_portal_account' => (bool) $this->user_id,
+            'user_id' => $this->user_id,
             'fingerprints_count' => $this->webAuthnCredentials()->exists()
                 ? 1
                 : $this->biometricTemplates()
