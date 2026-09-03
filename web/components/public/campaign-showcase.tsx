@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Quote } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowLeft, ArrowRight, Quote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RevealOnScroll } from "@/components/ui/reveal-on-scroll";
 import {
@@ -13,6 +14,7 @@ import {
   CAMPAIGN_WHY,
   INITIATOR,
 } from "@/lib/content/jeunesse-parle-archive";
+import { cn } from "@/lib/utils";
 
 export function CampaignShowcase() {
   return (
@@ -155,16 +157,91 @@ export function CampaignShowcase() {
         <div className="mx-auto max-w-6xl px-4">
           <h3 className="text-xl font-semibold text-slate-900">Galerie campagne</h3>
           <p className="mt-1 text-sm text-slate-500">Images locales — disponibles hors ligne.</p>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {INITIATOR.gallery.map((src, i) => (
-              <div key={src} className="overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={src} alt={`Campagne Jeunesse Parle ${i + 1}`} className="aspect-[4/3] w-full object-cover" />
-              </div>
-            ))}
-          </div>
+          <CampaignGalleryCarousel images={[...INITIATOR.gallery]} />
         </div>
       </section>
+    </div>
+  );
+}
+
+function CampaignGalleryCarousel({ images }: { images: string[] }) {
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const total = images.length;
+
+  useEffect(() => {
+    if (paused || total <= 1) return;
+    const timer = window.setInterval(() => {
+      setIndex((current) => (current + 1) % total);
+    }, 4200);
+    return () => window.clearInterval(timer);
+  }, [paused, total]);
+
+  function go(delta: number) {
+    setIndex((current) => (current + delta + total) % total);
+  }
+
+  return (
+    <div
+      className="relative mt-6 overflow-hidden rounded-2xl bg-slate-950 ring-1 ring-slate-200 shadow-lg"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
+      <div
+        className="flex transition-transform duration-500 ease-out"
+        style={{ transform: `translateX(-${index * 100}%)` }}
+      >
+        {images.map((src, i) => (
+          <div key={src} className="min-w-full shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src}
+              alt={`Campagne Jeunesse Parle ${i + 1}`}
+              className="aspect-[16/9] w-full object-cover sm:aspect-[21/9]"
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 to-transparent" />
+
+      <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 p-4">
+        <p className="text-xs font-medium text-white/90">
+          {index + 1} / {total}
+        </p>
+        <div className="flex items-center gap-2">
+          {images.map((src, i) => (
+            <button
+              key={src}
+              type="button"
+              aria-label={`Image ${i + 1}`}
+              onClick={() => setIndex(i)}
+              className={cn(
+                "h-2 rounded-full transition-all",
+                i === index ? "w-6 bg-white" : "w-2 bg-white/40 hover:bg-white/70",
+              )}
+            />
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => go(-1)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur transition hover:bg-white/30"
+            aria-label="Image précédente"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => go(1)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur transition hover:bg-white/30"
+            aria-label="Image suivante"
+          >
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
