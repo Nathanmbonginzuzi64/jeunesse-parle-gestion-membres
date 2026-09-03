@@ -25,7 +25,7 @@ export function CampaignShowcase() {
           <img
             src={CAMPAIGN_INTRO.heroImage}
             alt="Lancement Jeunesse Parle — Kinshasa"
-            className="h-full w-full scale-110 object-cover object-[center_30%]"
+            className="h-full w-full scale-105 object-cover object-center"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-brand-950/75 via-brand-950/35 to-brand-950/15" />
         </div>
@@ -75,7 +75,11 @@ export function CampaignShowcase() {
           <RevealOnScroll animation="slide-up">
             <div className="overflow-hidden rounded-2xl bg-slate-100 shadow-lg ring-1 ring-slate-200">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={INITIATOR.portrait} alt={INITIATOR.name} className="aspect-[4/5] w-full object-cover" />
+              <img
+                src={INITIATOR.portrait}
+                alt={INITIATOR.name}
+                className="mx-auto max-h-[28rem] w-full object-contain object-center"
+              />
             </div>
           </RevealOnScroll>
           <RevealOnScroll animation="slide-up" delay={100}>
@@ -195,12 +199,14 @@ function CampaignGalleryCarousel({ images }: { images: string[] }) {
           {images.map((src, i) => (
             <div key={src} className="min-w-full shrink-0 px-1">
               <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[var(--shadow-card)] ring-1 ring-slate-100">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={src}
-                  alt={`Campagne Jeunesse Parle ${i + 1}`}
-                  className="aspect-[16/10] max-h-56 w-full object-cover sm:max-h-64 md:max-h-72"
-                />
+                <div className="flex h-56 items-center justify-center bg-slate-100 sm:h-64 md:h-72">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={src}
+                    alt={`Campagne Jeunesse Parle ${i + 1}`}
+                    className="max-h-full max-w-full object-contain"
+                  />
+                </div>
                 <div className="flex items-center justify-between gap-2 border-t border-slate-100 px-4 py-3">
                   <div>
                     <p className="text-sm font-semibold text-slate-900">Photo campagne</p>

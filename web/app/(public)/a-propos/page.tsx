@@ -35,14 +35,20 @@ export default function AboutPage() {
 
       <section className="mx-auto grid max-w-6xl gap-10 px-4 py-14 lg:grid-cols-[0.95fr_1.05fr]">
         <div className="space-y-4">
-          <div className="overflow-hidden rounded-2xl ring-1 ring-slate-200 shadow-lg">
+          <div className="overflow-hidden rounded-2xl bg-slate-100 ring-1 ring-slate-200 shadow-lg">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={INITIATOR.portrait} alt={INITIATOR.name} className="aspect-[4/5] w-full object-cover" />
+            <img
+              src={INITIATOR.portrait}
+              alt={INITIATOR.name}
+              className="mx-auto max-h-[32rem] w-full object-contain object-center"
+            />
           </div>
           <div className="grid grid-cols-3 gap-2">
             {INITIATOR.gallery.slice(1).map((src) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={src} src={src} alt="" className="aspect-square rounded-xl object-cover ring-1 ring-slate-200" />
+              <div key={src} className="flex aspect-square items-center justify-center overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={src} alt="" className="max-h-full max-w-full object-contain" />
+              </div>
             ))}
           </div>
         </div>
