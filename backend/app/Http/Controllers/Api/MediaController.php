@@ -95,11 +95,13 @@ class MediaController extends Controller
         abort_unless($absolute !== null, 404, 'Ressource introuvable.');
 
         $extension = pathinfo($path, PATHINFO_EXTENSION);
+        $asAttachment = request()->boolean('download');
 
         return response()->file($absolute, [
             'Content-Type' => $this->newsMedia->mimeFor($path),
             'Cache-Control' => 'private, max-age=600',
-            'Content-Disposition' => 'inline; filename="'.$reference.'.'.$extension.'"',
+            'Content-Disposition' => ($asAttachment ? 'attachment' : 'inline')
+                .'; filename="'.$reference.'.'.$extension.'"',
         ]);
     }
 

@@ -308,3 +308,51 @@ export async function fetchProtectedImage(url: string): Promise<string | null> {
     return null;
   }
 }
+
+/** Télécharge un média protégé (image, vidéo, PDF) via le jeton courant. */
+export async function downloadProtectedUrl(url: string, fallbackName: string): Promise<void> {
+  if (!url) throw new ApiError(0, "Fichier introuvable.");
+
+  if (url.startsWith("blob:") || url.startsWith("data:")) {
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = fallbackName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    return;
+  }
+
+  if (USE_MOCKS || url.startsWith("/")) {
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = fallbackName;
+    anchor.target = "_blank";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    return;
+  }
+
+  const token = getToken();
+  const response = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (!response.ok) {
+    throw new ApiError(response.status, "Le téléchargement a échoué.");
+  }
+
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const match = /filename="?([^"]+)"?/i.exec(disposition);
+  const filename = match?.[1] ?? fallbackName;
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
+}
