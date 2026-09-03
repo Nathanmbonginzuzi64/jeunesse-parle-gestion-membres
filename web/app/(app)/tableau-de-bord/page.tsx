@@ -181,7 +181,7 @@ export default function DashboardPage() {
         <DashboardAnimate delay={200} className="mt-6">
           <div className={cn(dashboardCardGrid, "sm:grid-cols-2")}>
             <QuickLinkCard href="/ma-carte" icon={CreditCard} title="Ma carte" description="QR code et impression" tone="brand" />
-            <QuickLinkCard href="/mon-espace" icon={Users} title="Mon profil" description="Informations personnelles" tone="emerald" />
+            <QuickLinkCard href="/profil" icon={Users} title="Mon profil" description="Photo et informations du compte" tone="emerald" />
           </div>
         </DashboardAnimate>
       </div>

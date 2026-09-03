@@ -90,6 +90,7 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
         Route::post('logout', [AuthController::class, 'logout']);
         Route::post('logout-all', [AuthController::class, 'logoutAll']);
         Route::post('change-password', [AuthController::class, 'changePassword'])->middleware('throttle:6,1');
+        Route::post('profile', [AuthController::class, 'updateProfile'])->middleware('throttle:12,1');
     });
 
     // ------------------------------------------------------------ Biométrie WebAuthn (configuration)
@@ -264,6 +265,8 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
     // ------------------------------------------------------------ Médias protégés
     Route::get('media/members/{member}/photo', [MediaController::class, 'memberPhoto'])
         ->name('media.member-photo');
+    Route::get('media/users/{user}/photo', [MediaController::class, 'userPhoto'])
+        ->name('media.user-photo');
     Route::get('media/activities/{activity}/image', [MediaController::class, 'activityImage'])
         ->name('media.activity-image');
     Route::get('media/news/{newsPost}/file', [MediaController::class, 'newsFile'])

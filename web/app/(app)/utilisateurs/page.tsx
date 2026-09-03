@@ -162,7 +162,7 @@ function UsersList() {
                       <Tr key={user.id}>
                         <Td>
                           <div className="flex items-center gap-3">
-                            <Avatar src={user.photo_url} name={user.name} size="sm" />
+                            <Avatar src={user.photo_url} name={user.name} size="md" className="ring-2 ring-white shadow-sm" />
                             <span>
                               <span className="block font-medium">{user.name}</span>
                               <span className="text-xs text-slate-500">{user.email ?? user.phone}</span>

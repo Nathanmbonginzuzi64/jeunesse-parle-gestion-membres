@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Activity;
 use App\Models\Member;
 use App\Models\QrToken;
+use App\Models\User;
 use App\Services\ActivityImageStorageService;
 use App\Services\NewsMediaStorageService;
 use App\Services\PhotoStorageService;
@@ -37,6 +38,22 @@ class MediaController extends Controller
         abort_unless($record->photo_path, 404, 'Ressource introuvable.');
 
         return $this->stream($record->photo_path, $record->member_code);
+    }
+
+    /**
+     * Photo du compte utilisateur (photo de profil, sinon photo du dossier membre lié).
+     */
+    public function userPhoto(Request $request, User $user): Response
+    {
+        $this->authorize('view', $user);
+
+        $user->loadMissing('member:id,photo_path,member_code');
+
+        $path = $user->photo_path ?: $user->member?->photo_path;
+
+        abort_unless($path, 404, 'Ressource introuvable.');
+
+        return $this->stream($path, 'user-'.$user->id);
     }
 
     /**

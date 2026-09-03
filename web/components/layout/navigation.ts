@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   ShieldOff,
   UserCog,
+  UserCircle,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -124,7 +125,8 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     title: "Mon espace",
     items: [
-      { href: "/mon-espace", label: "Mon profil", icon: IdCard, requiresMember: true },
+      { href: "/profil", label: "Mon profil", icon: UserCircle },
+      { href: "/mon-espace", label: "Espace membre", icon: IdCard, requiresMember: true },
       { href: "/ma-carte", label: "Ma carte", icon: CreditCard, requiresMember: true },
     ],
   },

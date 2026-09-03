@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Bell, ChevronDown, CircleHelp, Fingerprint, KeyRound, LogOut, Menu, UserRound } from "lucide-react";
+import { Bell, ChevronDown, CircleHelp, Fingerprint, IdCard, KeyRound, LogOut, Menu, UserRound } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { NotificationsInboxPopover } from "@/components/notifications/notifications-inbox-popover";
 import { useNotificationFeed } from "@/lib/hooks/use-notification-feed";
@@ -130,6 +130,15 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
             role="menu"
             className="animate-scale-in absolute right-0 mt-1.5 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-[var(--shadow-elevated)]"
           >
+            <Link
+              href="/profil"
+              role="menuitem"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-2.5 px-3.5 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            >
+              <UserRound className="h-4 w-4 text-slate-400" />
+              Mon profil
+            </Link>
             {user?.member_id && (
               <Link
                 href="/mon-espace"
@@ -137,7 +146,7 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
                 onClick={() => setMenuOpen(false)}
                 className="flex items-center gap-2.5 px-3.5 py-2 text-sm text-slate-700 hover:bg-slate-50"
               >
-                <UserRound className="h-4 w-4 text-slate-400" />
+                <IdCard className="h-4 w-4 text-slate-400" />
                 Mon espace membre
               </Link>
             )}

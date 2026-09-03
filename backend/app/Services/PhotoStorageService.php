@@ -19,6 +19,8 @@ class PhotoStorageService
     private const DISK = 'local';
     private const DIRECTORY = 'members/photos';
 
+    public const USER_DIRECTORY = 'users/photos';
+
     /** Signatures binaires acceptées, indexées par extension canonique. */
     private const SIGNATURES = [
         'jpg' => ["\xFF\xD8\xFF"],
@@ -26,11 +28,11 @@ class PhotoStorageService
         'webp' => ['RIFF'],
     ];
 
-    public function store(UploadedFile $file, string $memberCode, ?string $previousPath = null): string
+    public function store(UploadedFile $file, string $memberCode, ?string $previousPath = null, string $directory = self::DIRECTORY): string
     {
         $extension = $this->resolveExtension($file);
 
-        $path = self::DIRECTORY.'/'.$memberCode.'-'.Str::random(24).'.'.$extension;
+        $path = $directory.'/'.$memberCode.'-'.Str::random(24).'.'.$extension;
 
         Storage::disk(self::DISK)->put($path, file_get_contents($file->getRealPath()));
 

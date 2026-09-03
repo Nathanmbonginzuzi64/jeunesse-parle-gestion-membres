@@ -13,11 +13,13 @@ export function PhotoField({
   previewUrl,
   onChange,
   error,
+  label = "Photo d'identité",
 }: {
   name?: string | null;
   previewUrl?: string | null;
   onChange: (file: File | null) => void;
   error?: string | null;
+  label?: string;
 }) {
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -59,7 +61,7 @@ export function PhotoField({
 
   return (
     <Field
-      label="Photo d'identité"
+      label={label}
       hint="JPEG, PNG ou WebP — 4 Mo maximum. Le type réel du fichier est contrôlé côté serveur."
       error={error ?? localError}
     >

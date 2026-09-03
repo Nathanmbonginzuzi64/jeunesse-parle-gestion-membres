@@ -11,10 +11,12 @@ use App\Services\AuditLogger;
 use App\Services\BiometricService;
 use App\Services\DuplicateDetector;
 use App\Services\MemberService;
+use App\Services\PhotoStorageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password as PasswordBroker;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 
@@ -25,6 +27,7 @@ class AuthController extends Controller
         private readonly DuplicateDetector $duplicates,
         private readonly AuditLogger $audit,
         private readonly BiometricService $biometrics,
+        private readonly PhotoStorageService $photos,
     ) {}
 
     /**
@@ -239,6 +242,49 @@ class AuthController extends Controller
         return response()->json([
             'user' => new UserResource($user),
             'member' => $user->member ? new \App\Http\Resources\MemberResource($user->member) : null,
+        ]);
+    }
+
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'email' => ['required', 'email:rfc', 'max:160', Rule::unique('users', 'email')->ignore($user->id)],
+            'phone' => ['nullable', 'string', 'max:30', Rule::unique('users', 'phone')->ignore($user->id)],
+            'photo' => [
+                'nullable',
+                'file',
+                'max:'.(int) config('jeunesse.photo.max_kilobytes'),
+                'mimes:'.implode(',', config('jeunesse.photo.mimes')),
+            ],
+        ]);
+
+        $user->fill([
+            'name' => $validated['name'],
+            'email' => mb_strtolower($validated['email']),
+            'phone' => $validated['phone'] ?? null,
+        ]);
+
+        if ($photo = $request->file('photo')) {
+            $user->photo_path = $this->photos->store(
+                $photo,
+                'user-'.$user->id,
+                $user->photo_path,
+                PhotoStorageService::USER_DIRECTORY,
+            );
+        }
+
+        $user->save();
+
+        $this->audit->log('auth.profile-updated', $user, 'Mise à jour du profil');
+
+        return response()->json([
+            'message' => 'Profil mis à jour.',
+            'user' => new UserResource($user->fresh()->load([
+                'role.permissions', 'province', 'city', 'structure', 'member',
+            ])),
         ]);
     }
 

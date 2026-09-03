@@ -306,6 +306,17 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     return { message: "Mot de passe mis à jour." } as T;
   }
 
+  if (method === "POST" && path === "/auth/profile") {
+    const user = requireUser();
+    const input = jsonBody(body);
+    if (input.name) user.name = String(input.name);
+    if (input.email) user.email = String(input.email);
+    if (input.phone !== undefined) user.phone = (input.phone as string) || null;
+    const photoUrl = await resolveUserPhoto(input);
+    if (photoUrl) user.photo_url = photoUrl;
+    return { message: "Profil mis à jour.", user } as T;
+  }
+
   if (method === "GET" && path === "/members") {
     let list = [...db.members];
     const q = String(query?.q ?? "").toLowerCase();

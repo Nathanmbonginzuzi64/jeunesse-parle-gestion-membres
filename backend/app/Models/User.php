@@ -18,7 +18,7 @@ class User extends Authenticatable
     use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 
     protected $fillable = [
-        'name', 'email', 'phone', 'password', 'role_id',
+        'name', 'email', 'phone', 'photo_path', 'password', 'role_id',
         'province_id', 'city_id', 'commune_id', 'structure_id',
         'member_id', 'is_active', 'must_change_password', 'must_confirm_biometric',
     ];
@@ -49,6 +49,21 @@ class User extends Authenticatable
     public function member(): BelongsTo
     {
         return $this->belongsTo(Member::class);
+    }
+
+    public function photoUrl(): ?string
+    {
+        $hasOwnPhoto = filled($this->photo_path);
+        $hasMemberPhoto = $this->relationLoaded('member')
+            ? filled($this->member?->photo_path)
+            : filled($this->member_id);
+
+        if (! $hasOwnPhoto && ! $hasMemberPhoto) {
+            return null;
+        }
+
+        return route('media.user-photo', ['user' => $this->id])
+            .'?v='.($this->updated_at?->timestamp ?? $this->id);
     }
 
     public function province(): BelongsTo

@@ -32,7 +32,7 @@ class UserController extends Controller
         $actor = $request->user();
 
         $users = User::query()
-            ->with(['role', 'province:id,name', 'city:id,name', 'structure:id,name'])
+            ->with(['role', 'province:id,name', 'city:id,name', 'structure:id,name', 'member:id,photo_path,member_code'])
             ->when(! $actor->isNationalScope(), function (Builder $q) use ($actor) {
                 match ($actor->scopeLevel()) {
                     1 => $q->where('province_id', $actor->province_id ?? 0),
