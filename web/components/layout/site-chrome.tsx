@@ -9,20 +9,16 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
-/** Navigation principale — courte et ordonnée. */
-const PRIMARY_LINKS = [
+/** Tous les liens publics, dans un ordre logique. */
+const NAV_LINKS = [
   { href: "/", label: "Accueil" },
   { href: "/a-propos", label: "À propos" },
   { href: "/infos", label: "Actualités" },
   { href: "/open-data", label: "Open Data" },
-  { href: "/verifier", label: "Vérifier" },
-  { href: "/contact", label: "Contact" },
-] as const;
-
-/** Liens secondaires (menu mobile + pied de page). */
-const SECONDARY_LINKS = [
   { href: "/fonctionnement", label: "Fonctionnement" },
   { href: "/opportunites", label: "Opportunités" },
+  { href: "/verifier", label: "Vérifier un membre" },
+  { href: "/contact", label: "Contact" },
 ] as const;
 
 function isActive(pathname: string, href: string) {
@@ -32,23 +28,36 @@ function isActive(pathname: string, href: string) {
 
 export function SiteHeader() {
   const pathname = usePathname();
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function goToInternalSpace() {
+    if (busy) return;
+    setBusy(true);
+    setOpen(false);
+    try {
+      // Invalide le jeton pour forcer une nouvelle connexion.
+      await logout();
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 lg:h-16">
+      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-2 px-3 sm:px-4 lg:h-16">
         <Link href="/" onClick={() => setOpen(false)} className="min-w-0 shrink">
           <BrandMark subtitle="République Démocratique du Congo" />
         </Link>
 
-        <nav className="hidden items-center gap-0.5 xl:flex">
-          {PRIMARY_LINKS.map((link) => (
+        <nav className="hidden items-center gap-0.5 2xl:flex">
+          {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               className={cn(
-                "rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors",
+                "whitespace-nowrap rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors lg:px-2.5 lg:text-[13px]",
                 isActive(pathname, link.href)
                   ? "bg-brand-50 text-brand-800"
                   : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
@@ -60,25 +69,23 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <Link href="/connexion">
+            <Button variant="ghost" size="sm">
+              Connexion
+            </Button>
+          </Link>
           {!loading && user ? (
-            <Link href="/tableau-de-bord">
-              <Button size="sm">Espace</Button>
-            </Link>
+            <Button size="sm" loading={busy} onClick={() => void goToInternalSpace()}>
+              Espace interne
+            </Button>
           ) : (
-            <>
-              <Link href="/connexion" className="hidden sm:block">
-                <Button variant="ghost" size="sm">
-                  Connexion
-                </Button>
-              </Link>
-              <Link href="/inscription">
-                <Button size="sm">Rejoindre</Button>
-              </Link>
-            </>
+            <Link href="/inscription">
+              <Button size="sm">Rejoindre</Button>
+            </Link>
           )}
           <button
             type="button"
-            className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 xl:hidden"
+            className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 2xl:hidden"
             aria-label="Menu"
             aria-expanded={open}
             onClick={() => setOpen((value) => !value)}
@@ -89,11 +96,8 @@ export function SiteHeader() {
       </div>
 
       {open ? (
-        <nav className="border-t border-slate-100 bg-white px-4 py-3 xl:hidden">
-          <p className="px-3 pb-1 text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
-            Menu
-          </p>
-          {PRIMARY_LINKS.map((link) => (
+        <nav className="max-h-[70vh] overflow-y-auto border-t border-slate-100 bg-white px-4 py-3 2xl:hidden">
+          {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}
@@ -109,19 +113,31 @@ export function SiteHeader() {
             </Link>
           ))}
           <div className="my-2 border-t border-slate-100" />
-          <p className="px-3 pb-1 text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
-            Plus
-          </p>
-          {SECONDARY_LINKS.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              onClick={() => setOpen(false)}
-              className="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
+          <Link
+            href="/connexion"
+            onClick={() => setOpen(false)}
+            className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+          >
+            Connexion
+          </Link>
+          {!loading && user ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void goToInternalSpace()}
+              className="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-brand-800 hover:bg-brand-50 disabled:opacity-60"
             >
-              {link.label}
+              Espace interne
+            </button>
+          ) : (
+            <Link
+              href="/inscription"
+              onClick={() => setOpen(false)}
+              className="block rounded-lg px-3 py-2 text-sm font-medium text-brand-800 hover:bg-brand-50"
+            >
+              Rejoindre
             </Link>
-          ))}
+          )}
         </nav>
       ) : null}
     </header>
