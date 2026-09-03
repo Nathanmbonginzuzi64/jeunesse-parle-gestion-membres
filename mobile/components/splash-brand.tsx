@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
@@ -7,7 +7,6 @@ import Animated, {
   useSharedValue,
   withDelay,
   withRepeat,
-  withSequence,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
@@ -15,6 +14,9 @@ import { StatusBar } from 'expo-status-bar';
 import { BrandLogo } from '@/components/brand-logo';
 import { JP } from '@/constants/theme';
 import { APP_TAGLINE } from '@/lib/legal-content';
+
+/** Compte 1 % → 100 % en environ 10 secondes. */
+const TICK_MS = 101;
 
 function PulseRing({ delay, size }: { delay: number; size: number }) {
   const progress = useSharedValue(0);
@@ -43,26 +45,45 @@ function PulseRing({ delay, size }: { delay: number; size: number }) {
   );
 }
 
-export function SplashBrand({ onReady }: { onReady?: () => void }) {
+export function SplashBrand({
+  onReady,
+  onComplete,
+}: {
+  onReady?: () => void;
+  onComplete?: () => void;
+}) {
+  const [progress, setProgress] = useState(1);
+  const completed = useRef(false);
   const logoScale = useSharedValue(0.55);
   const logoOpacity = useSharedValue(0);
   const textY = useSharedValue(22);
   const textOpacity = useSharedValue(0);
-  const bar = useSharedValue(0.06);
 
   useEffect(() => {
     logoOpacity.value = withTiming(1, { duration: 420 });
     logoScale.value = withSpring(1, { damping: 12, stiffness: 140, mass: 0.8 });
     textOpacity.value = withDelay(380, withTiming(1, { duration: 500 }));
     textY.value = withDelay(380, withSpring(0, { damping: 16, stiffness: 160 }));
-    bar.value = withDelay(
-      280,
-      withSequence(
-        withTiming(0.55, { duration: 900, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1, { duration: 1100, easing: Easing.out(Easing.cubic) }),
-      ),
-    );
-  }, [bar, logoOpacity, logoScale, textOpacity, textY]);
+  }, [logoOpacity, logoScale, textOpacity, textY]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setProgress((current) => {
+        if (current >= 99) {
+          clearInterval(interval);
+          return 100;
+        }
+        return current + 1;
+      });
+    }, TICK_MS);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (progress < 100 || completed.current) return;
+    completed.current = true;
+    onComplete?.();
+  }, [progress, onComplete]);
 
   const logoStyle = useAnimatedStyle(() => ({
     opacity: logoOpacity.value,
@@ -73,8 +94,6 @@ export function SplashBrand({ onReady }: { onReady?: () => void }) {
     opacity: textOpacity.value,
     transform: [{ translateY: textY.value }],
   }));
-
-  const barStyle = useAnimatedStyle(() => ({ width: `${bar.value * 100}%` }));
 
   return (
     <View style={styles.root} onLayout={() => onReady?.()}>
@@ -95,9 +114,14 @@ export function SplashBrand({ onReady }: { onReady?: () => void }) {
       </View>
       <View style={styles.bottom}>
         <Text style={styles.loading}>Chargement</Text>
-        <View style={styles.track}>
-          <Animated.View style={[styles.fill, barStyle]} />
+        <View
+          style={styles.track}
+          accessibilityRole="progressbar"
+          accessibilityValue={{ min: 1, max: 100, now: progress }}
+        >
+          <View style={[styles.fill, { width: `${progress}%` }]} />
         </View>
+        <Text style={styles.percent}>{progress}%</Text>
       </View>
     </View>
   );
@@ -182,5 +206,13 @@ const styles = StyleSheet.create({
     height: 4,
     backgroundColor: JP.white,
     borderRadius: 99,
+  },
+  percent: {
+    marginTop: 4,
+    color: JP.white,
+    fontSize: 16,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+    textAlign: 'center',
   },
 });

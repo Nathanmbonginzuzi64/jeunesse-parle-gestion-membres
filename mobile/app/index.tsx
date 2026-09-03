@@ -5,22 +5,15 @@ import { SplashBrand } from '@/components/splash-brand';
 import { useAuth } from '@/lib/auth';
 import { getWelcomeState } from '@/lib/onboarding';
 
-const SPLASH_MS = 2800;
-
 /** Chargement d’ouverture, puis onboarding, documents légaux, connexion ou app. */
 export default function Index() {
   const { user, loading, postLoginPath } = useAuth();
   const router = useRouter();
-  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+  const [progressDone, setProgressDone] = useState(false);
   const navigated = useRef(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setMinTimeElapsed(true), SPLASH_MS);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (loading || !minTimeElapsed || navigated.current) return;
+    if (loading || !progressDone || navigated.current) return;
 
     void (async () => {
       if (user) {
@@ -41,13 +34,14 @@ export default function Index() {
       }
       router.replace('/(auth)/connexion');
     })();
-  }, [loading, minTimeElapsed, user, router, postLoginPath]);
+  }, [loading, progressDone, user, router, postLoginPath]);
 
   return (
     <SplashBrand
       onReady={() => {
         void SplashScreen.hideAsync();
       }}
+      onComplete={() => setProgressDone(true)}
     />
   );
 }
