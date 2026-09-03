@@ -320,6 +320,8 @@ export interface AppNotification {
   created_at: string | null;
 }
 
+export type AuditPortal = "web" | "mobile" | "api" | "system";
+
 export interface AuditLog {
   id: number;
   action: string;
@@ -329,8 +331,30 @@ export interface AuditLog {
   old_values: Record<string, unknown> | null;
   new_values: Record<string, unknown> | null;
   ip_address: string | null;
-  user: { id: number; name: string } | null;
+  user_agent?: string | null;
+  portal?: AuditPortal | string | null;
+  request_path?: string | null;
+  user: {
+    id: number;
+    name: string;
+    email?: string | null;
+    role?: { name: string; slug: string } | null;
+  } | null;
   created_at: string | null;
+}
+
+export interface AuditStats {
+  total: number;
+  today: number;
+  last_24h: number;
+  latest_id: number;
+  by_portal: {
+    web: number;
+    mobile: number;
+    api: number;
+    system: number;
+    unknown: number;
+  };
 }
 
 export interface VerificationLogRow {

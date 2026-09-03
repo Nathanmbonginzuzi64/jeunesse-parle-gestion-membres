@@ -85,6 +85,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const headers: Record<string, string> = {
     Accept: "application/json",
     "X-Requested-With": "XMLHttpRequest",
+    "X-Client-Portal": "web",
   };
 
   const token = anonymous ? null : getToken();
@@ -176,6 +177,7 @@ export function uploadFormData<T>(
     xhr.open("POST", url);
     xhr.setRequestHeader("Accept", "application/json");
     xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+    xhr.setRequestHeader("X-Client-Portal", "web");
     if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
 
     xhr.upload.onprogress = (event) => {

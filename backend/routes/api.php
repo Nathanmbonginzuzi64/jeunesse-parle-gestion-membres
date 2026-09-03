@@ -280,6 +280,7 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
 
     Route::prefix('audit')->middleware('permission:audit.view')->group(function () {
         Route::get('/', [AuditLogController::class, 'index']);
+        Route::get('stats', [AuditLogController::class, 'stats']);
         Route::get('verifications', [AuditLogController::class, 'verifications']);
     });
 

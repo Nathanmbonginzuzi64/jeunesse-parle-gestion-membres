@@ -1092,12 +1092,14 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
 
   if (method === "GET" && path === "/audit") {
     const action = String(query?.action ?? "").toLowerCase();
+    const portal = String(query?.portal ?? "").toLowerCase();
     const q = String(query?.q ?? "").toLowerCase();
     let logs = [...db.auditLogs];
     if (action) logs = logs.filter((log) => log.action.toLowerCase().startsWith(action));
+    if (portal) logs = logs.filter((log) => String(log.portal ?? "").toLowerCase() === portal);
     if (q) {
       logs = logs.filter((log) =>
-        [log.action, log.description, log.user?.name, log.subject_type, log.ip_address]
+        [log.action, log.description, log.user?.name, log.subject_type, log.ip_address, log.portal]
           .filter(Boolean)
           .join(" ")
           .toLowerCase()
@@ -1105,6 +1107,25 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
       );
     }
     return paginate(logs, query) as T;
+  }
+
+  if (method === "GET" && path === "/audit/stats") {
+    const logs = db.auditLogs;
+    const byPortal = { web: 0, mobile: 0, api: 0, system: 0, unknown: 0 };
+    for (const log of logs) {
+      const key = (log.portal as keyof typeof byPortal) || "unknown";
+      if (key in byPortal) byPortal[key] += 1;
+      else byPortal.unknown += 1;
+    }
+    return {
+      data: {
+        total: logs.length,
+        today: logs.length,
+        last_24h: logs.length,
+        latest_id: logs[0]?.id ?? 0,
+        by_portal: byPortal,
+      },
+    } as T;
   }
 
   if (method === "GET" && path === "/search") {
