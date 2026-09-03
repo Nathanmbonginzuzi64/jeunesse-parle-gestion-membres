@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Fingerprint, LogIn } from "lucide-react";
+import { Fingerprint, Home, LogIn } from "lucide-react";
 import { BiometricModal, type BiometricResult } from "@/components/biometrics/biometric-modal";
 import { ApiError } from "@/lib/api";
 import { USE_MOCKS } from "@/lib/config";
@@ -78,6 +78,14 @@ export default function LoginPage() {
 
   return (
     <div>
+      <Link
+        href="/"
+        className="mb-5 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-800"
+      >
+        <Home className="h-4 w-4" />
+        Retour à l&apos;accueil
+      </Link>
+
       <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Connexion</h1>
       <p className="mt-1.5 text-sm text-slate-500">
         Mot de passe ou empreinte digitale (compte actif avec biométrie enregistrée).
