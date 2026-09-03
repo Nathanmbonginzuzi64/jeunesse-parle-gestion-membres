@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Member;
 use App\Models\MemberCard;
+use App\Models\Setting;
 
 class CardPresentationService
 {
@@ -18,8 +19,8 @@ class CardPresentationService
         $token = $card->activeQrToken;
 
         return [
-            'organization' => config('jeunesse.organization.name'),
-            'country' => config('jeunesse.organization.country'),
+            'organization' => Setting::get('organization.name', config('jeunesse.organization.name')),
+            'country' => Setting::get('organization.country', config('jeunesse.organization.country')),
             'member_code' => $member->member_code,
             'full_name' => $member->full_name,
             'last_name' => $member->last_name,

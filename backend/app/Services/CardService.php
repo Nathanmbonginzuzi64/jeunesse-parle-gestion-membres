@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\CardStatus;
 use App\Models\Member;
 use App\Models\MemberCard;
+use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -38,7 +39,11 @@ class CardService
             }
 
             $sequence = ((int) $member->cards()->max('sequence')) + 1;
-            $validityYears = (int) config('jeunesse.card_validity_years');
+            $months = (int) Setting::get('card.validity_months', 0);
+            $years = (int) Setting::get('card.validity_years', config('jeunesse.card_validity_years'));
+            $expiresAt = $months > 0
+                ? now()->addMonths($months)->toDateString()
+                : ($years > 0 ? now()->addYears($years)->toDateString() : null);
 
             $card = MemberCard::create([
                 'member_id' => $member->id,
@@ -46,9 +51,9 @@ class CardService
                 'sequence' => $sequence,
                 'status' => CardStatus::Active,
                 'issued_at' => now()->toDateString(),
-                'expires_at' => $validityYears > 0 ? now()->addYears($validityYears)->toDateString() : null,
+                'expires_at' => $expiresAt,
                 'issued_by' => $issuer?->id,
-                'template_version' => config('jeunesse.card_template_version'),
+                'template_version' => Setting::get('card.template_version', config('jeunesse.card_template_version')),
             ]);
 
             foreach ($previous as $card_) {

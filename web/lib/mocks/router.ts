@@ -18,6 +18,15 @@ interface MockRequest {
 
 const delay = (ms = 180) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const settingsMock = {
+  organization: { name: "Jeunesse Parle", country: "République Démocratique du Congo" },
+  membership: { minimum_age: 15, maximum_age: 40 },
+  security: { two_factor: false, session_timeout_minutes: 120 },
+  notifications: { email: true, sms: false, push: true },
+  cards: { duration_months: 24, template: "v1" },
+  maintenance: false,
+};
+
 function paginate<T>(items: T[], query?: Query): Paginated<T> {
   const page = Number(query?.page ?? 1);
   const perPage = Number(query?.per_page ?? 20);
@@ -857,6 +866,31 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     }
   }
   if (method === "GET" && path === "/roles") return { data: db.roles } as T;
+  if (method === "GET" && path === "/permissions") {
+    return {
+      data: db.ALL_PERMISSIONS.map((slug) => ({
+        slug,
+        name: slug,
+        group: slug.split(".")[0],
+      })),
+    } as T;
+  }
+  if (segments[0] === "roles" && segments[1] && segments[2] === "permissions") {
+    const role = db.roles.find((item) => String(item.id) === segments[1]);
+    if (!role) throw new ApiError(404, "Rôle introuvable.");
+    if (role.slug === "super-admin") {
+      throw new ApiError(422, "Les droits du super administrateur ne peuvent pas être modifiés.");
+    }
+    if (method === "PUT") {
+      const input = jsonBody(body);
+      role.permissions = Array.isArray(input.permissions) ? (input.permissions as string[]) : role.permissions;
+      return { message: "Permissions mises à jour.", data: role } as T;
+    }
+    if (method === "DELETE" && segments[3]) {
+      role.permissions = role.permissions.filter((item) => item !== segments[3]);
+      return { message: "Permission retirée.", data: role } as T;
+    }
+  }
 
   if (method === "GET" && path === "/reports") {
     return {
@@ -1200,18 +1234,18 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
   }
 
   if (method === "GET" && path === "/settings") {
-    return {
-      organization: db.references.organization,
-      membership: db.references.membership,
-      security: { two_factor: false, session_timeout_minutes: 120 },
-      notifications: { email: true, sms: false, push: true },
-      cards: { duration_months: 24, template: "jp-2026" },
-      maintenance: false,
-    } as T;
+    return { ...settingsMock } as T;
   }
 
-  if (method === "POST" && path === "/settings") {
-    return { message: "Paramètres enregistrés." } as T;
+  if ((method === "POST" || method === "PUT" || method === "PATCH") && path === "/settings") {
+    const input = jsonBody(body) as Partial<typeof settingsMock>;
+    Object.assign(settingsMock, input);
+    if (input.organization) settingsMock.organization = { ...settingsMock.organization, ...input.organization };
+    if (input.membership) settingsMock.membership = { ...settingsMock.membership, ...input.membership };
+    if (input.security) settingsMock.security = { ...settingsMock.security, ...input.security };
+    if (input.notifications) settingsMock.notifications = { ...settingsMock.notifications, ...input.notifications };
+    if (input.cards) settingsMock.cards = { ...settingsMock.cards, ...input.cards };
+    return { message: "Paramètres enregistrés.", ...settingsMock } as T;
   }
 
   const newsMocks = getNewsMocks();
@@ -1371,14 +1405,18 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
       id: jpMocks.nextId++,
       reference: `JP-MSG-${String(jpMocks.nextId).padStart(4, "0")}`,
       subject: String(input.subject ?? ""),
-      category: String(input.category ?? "general"),
+      category: String(input.category ?? "demande"),
       body: String(input.body ?? ""),
       status: "open",
+      source: currentUser()?.member_id ? "member" : "staff",
       created_at: new Date().toISOString(),
-      member: {
-        member_code: "JP-RDC-000001",
-        full_name: currentUser()?.name ?? "Membre",
-      },
+      author_label: currentUser()?.name ?? "Utilisateur",
+      member: currentUser()?.member_id
+        ? {
+            member_code: currentUser()?.member_code ?? "JP-RDC-000001",
+            full_name: currentUser()?.name ?? "Membre",
+          }
+        : null,
       replies: [],
     };
     jpMocks.messages.unshift(msg);

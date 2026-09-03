@@ -21,6 +21,8 @@ use App\Http\Controllers\Api\StatisticsController;
 use App\Http\Controllers\Api\StructureController;
 use App\Http\Controllers\Api\TerritoryController;
 use App\Http\Controllers\Api\TerritoryManagementController;
+use App\Http\Controllers\Api\RoleController;
+use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\VerificationController;
 use Illuminate\Support\Facades\Route;
@@ -254,7 +256,17 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
     });
 
     // ------------------------------------------------------------ Administration
-    Route::middleware('permission:users.view')->get('roles', [UserController::class, 'roles']);
+    Route::middleware('permission:users.view,roles.manage')->get('roles', [UserController::class, 'roles']);
+    Route::middleware('permission:users.view,roles.manage')->get('permissions', [RoleController::class, 'catalog']);
+    Route::middleware('permission:roles.manage')->group(function () {
+        Route::put('roles/{role}/permissions', [RoleController::class, 'updatePermissions']);
+        Route::delete('roles/{role}/permissions/{permission}', [RoleController::class, 'detachPermission'])
+            ->where('permission', '[A-Za-z0-9._-]+');
+    });
+    Route::middleware('permission:settings.manage')->group(function () {
+        Route::get('settings', [SettingsController::class, 'show']);
+        Route::match(['put', 'post', 'patch'], 'settings', [SettingsController::class, 'update']);
+    });
     Route::apiResource('users', UserController::class);
 
     Route::prefix('audit')->middleware('permission:audit.view')->group(function () {

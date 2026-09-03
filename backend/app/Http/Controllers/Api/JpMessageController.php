@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\Permission as PermissionEnum;
+use App\Enums\RoleSlug;
 use App\Http\Controllers\Controller;
 use App\Models\JpMessage;
 use App\Models\JpMessageReply;
+use App\Models\User;
 use App\Services\AuditLogger;
-use App\Services\IdentifierGenerator;
 use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,7 +16,6 @@ use Illuminate\Http\Request;
 class JpMessageController extends Controller
 {
     public function __construct(
-        private readonly IdentifierGenerator $identifiers,
         private readonly NotificationService $notifications,
         private readonly AuditLogger $audit,
     ) {}
@@ -22,13 +23,22 @@ class JpMessageController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        $query = JpMessage::query()->with(['member:id,member_code,last_name,first_name,photo_path', 'assignee:id,name']);
+        $query = JpMessage::query()->with([
+            'member:id,member_code,last_name,first_name,photo_path',
+            'author:id,name,photo_path',
+            'assignee:id,name',
+        ]);
 
-        if ($user->member_id && ! $user->hasPermission(\App\Enums\Permission::UsersView)) {
-            $query->where('member_id', $user->member_id);
+        if (! $user->hasPermission(PermissionEnum::UsersView) || $request->boolean('mine')) {
+            $query->where(function ($inner) use ($user) {
+                $inner->where('user_id', $user->id);
+                if ($user->member_id) {
+                    $inner->orWhere('member_id', $user->member_id);
+                }
+            });
         }
 
-        $messages = $query->latest()->paginate(min($request->integer('per_page', 20), 50));
+        $messages = $query->latest()->paginate(min($request->integer('per_page', 30), 80));
 
         return response()->json([
             'data' => $messages->getCollection()->map(fn (JpMessage $m) => $this->formatMessage($m)),
@@ -43,8 +53,7 @@ class JpMessageController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $member = $request->user()->member;
-        abort_unless($member, 403, 'Seuls les membres peuvent envoyer un message.');
+        $user = $request->user();
 
         $validated = $request->validate([
             'subject' => ['required', 'string', 'max:200'],
@@ -52,31 +61,36 @@ class JpMessageController extends Controller
             'body' => ['required', 'string', 'max:5000'],
         ]);
 
+        $source = $user->member_id ? 'member' : 'staff';
+
         $message = JpMessage::create([
             ...$validated,
-            'reference' => 'JP-MSG-'.str_pad((string) (JpMessage::count() + 1), 6, '0', STR_PAD_LEFT),
-            'member_id' => $member->id,
-            'source' => 'member',
+            'reference' => 'JP-MSG-'.str_pad((string) (JpMessage::withTrashed()->count() + 1), 6, '0', STR_PAD_LEFT),
+            'user_id' => $user->id,
+            'member_id' => $user->member_id,
+            'source' => $source,
             'status' => 'open',
         ]);
 
-        $this->audit->log('jp_message.created', $message, "Message {$message->reference} — {$member->member_code}");
-
+        $this->audit->log('jp_message.created', $message, "Message {$message->reference} — {$user->name}");
         $this->notifications->jpMessageCreatedForAdmins($message);
 
         return response()->json([
-            'message' => 'Votre message a été envoyé.',
-            'data' => $this->formatMessage($message->load('member')),
+            'message' => 'Conversation ouverte.',
+            'data' => $this->formatMessage($message->load(['member', 'author'])),
         ], 201);
     }
 
     public function show(Request $request, JpMessage $jpMessage): JsonResponse
     {
-        $this->authorizeMessage($request, $jpMessage);
+        $this->authorizeMessage($request->user(), $jpMessage);
 
-        $jpMessage->load(['member.province', 'member.commune', 'member.structure', 'replies.user', 'replies.member', 'assignee']);
+        $jpMessage->load([
+            'member.province', 'member.commune', 'member.structure',
+            'author', 'replies.user', 'replies.member', 'assignee',
+        ]);
 
-        if ($request->user()->hasPermission(\App\Enums\Permission::UsersView) && ! $jpMessage->read_by_admin_at) {
+        if ($request->user()->hasPermission(PermissionEnum::UsersView) && ! $jpMessage->read_by_admin_at) {
             $jpMessage->update(['read_by_admin_at' => now()]);
         }
 
@@ -85,42 +99,58 @@ class JpMessageController extends Controller
 
     public function reply(Request $request, JpMessage $jpMessage): JsonResponse
     {
-        $this->authorizeMessage($request, $jpMessage);
+        $user = $request->user();
+        $this->authorizeMessage($user, $jpMessage);
 
         $validated = $request->validate([
             'body' => ['required', 'string', 'max:5000'],
         ]);
 
+        $isAdmin = $user->hasPermission(PermissionEnum::UsersView);
+
         $reply = JpMessageReply::create([
             'jp_message_id' => $jpMessage->id,
-            'user_id' => $request->user()->member_id ? null : $request->user()->id,
-            'member_id' => $request->user()->member_id,
+            'user_id' => $user->id,
+            'member_id' => $user->member_id,
             'body' => $validated['body'],
         ]);
 
-        if ($request->user()->hasPermission(\App\Enums\Permission::UsersView)) {
+        if ($isAdmin) {
             $jpMessage->update(['status' => 'in_progress']);
-        }
-
-        $this->audit->log('jp_message.replied', $jpMessage, "Réponse sur {$jpMessage->reference}");
-
-        if ($request->user()->hasPermission(\App\Enums\Permission::UsersView)) {
             $jpMessage->load('member');
             if ($jpMessage->member) {
                 $this->notifications->jpMessageReplyReceived($jpMessage->member, $jpMessage);
             }
         }
 
-        return response()->json(['message' => 'Réponse envoyée.', 'data' => $reply], 201);
+        $this->audit->log('jp_message.replied', $jpMessage, "Réponse sur {$jpMessage->reference}");
+
+        return response()->json([
+            'message' => 'Réponse envoyée.',
+            'data' => [
+                'id' => $reply->id,
+                'body' => $reply->body,
+                'author' => $user->name,
+                'is_admin' => $isAdmin,
+                'created_at' => $reply->created_at?->toIso8601String(),
+            ],
+        ], 201);
     }
 
-    private function authorizeMessage(Request $request, JpMessage $message): void
+    private function authorizeMessage(User $user, JpMessage $message): void
     {
-        $user = $request->user();
-        if ($user->hasPermission(\App\Enums\Permission::UsersView)) {
+        if ($user->hasPermission(PermissionEnum::UsersView)) {
             return;
         }
-        abort_unless($user->member_id === $message->member_id, 403);
+
+        if ((int) $message->user_id === (int) $user->id) {
+            return;
+        }
+
+        abort_unless(
+            $user->member_id && (int) $message->member_id === (int) $user->member_id,
+            403,
+        );
     }
 
     private function formatMessage(JpMessage $message, bool $detailed = false): array
@@ -137,8 +167,9 @@ class JpMessageController extends Controller
             'guest_name' => $message->guest_name,
             'guest_email' => $message->guest_email,
             'author_label' => $message->member?->full_name
+                ?? $message->author?->name
                 ?? $message->guest_name
-                ?? 'Visiteur',
+                ?? 'Utilisateur',
             'member' => $message->member ? [
                 'member_code' => $message->member->member_code,
                 'full_name' => $message->member->full_name,
@@ -156,8 +187,8 @@ class JpMessageController extends Controller
             $data['replies'] = $message->replies->map(fn (JpMessageReply $r) => [
                 'id' => $r->id,
                 'body' => $r->body,
-                'author' => $r->user?->name ?? $r->member?->full_name,
-                'is_admin' => $r->user_id !== null,
+                'author' => $r->user?->name ?? $r->member?->full_name ?? 'Utilisateur',
+                'is_admin' => $r->user?->hasPermission(PermissionEnum::UsersView) ?? false,
                 'created_at' => $r->created_at?->toIso8601String(),
                 'read_at' => $r->read_at?->toIso8601String(),
             ])->values();

@@ -506,6 +506,46 @@ export interface RoleDetail {
   name: string;
   description: string | null;
   scope_level: number;
+  is_system?: boolean;
   users_count: number;
   permissions: string[];
+}
+
+export interface JpMessageItem {
+  id: number;
+  reference: string;
+  subject: string;
+  category: string;
+  body: string;
+  status: string;
+  created_at: string;
+  source?: "member" | "contact" | "staff";
+  guest_name?: string | null;
+  guest_email?: string | null;
+  author_label?: string;
+  member?: {
+    member_code: string;
+    full_name: string;
+    photo_url?: string | null;
+    province?: string;
+    commune?: string;
+    structure?: string;
+  } | null;
+  replies?: Array<{
+    id: number;
+    body: string;
+    author: string;
+    is_admin: boolean;
+    created_at: string;
+  }>;
+}
+
+export interface SettingsPayload {
+  organization: { name: string; country: string };
+  membership: { minimum_age: number; maximum_age: number };
+  security: { two_factor: boolean; session_timeout_minutes: number };
+  notifications: { email: boolean; sms: boolean; push: boolean };
+  cards: { duration_months: number; template: string };
+  maintenance: boolean;
+  message?: string;
 }

@@ -29,6 +29,25 @@ class Setting extends Model
         return $setting ? $setting->typedValue() : $default;
     }
 
+    public static function put(string $key, mixed $value, string $type = 'string', ?string $group = null, ?string $label = null): self
+    {
+        $stored = match ($type) {
+            'boolean' => filter_var($value, FILTER_VALIDATE_BOOL) ? '1' : '0',
+            'integer' => (string) (int) $value,
+            'json' => json_encode($value, JSON_UNESCAPED_UNICODE),
+            default => (string) $value,
+        };
+
+        $setting = static::query()->firstOrNew(['key' => $key]);
+        $setting->value = $stored;
+        $setting->type = $type;
+        $setting->group = $group ?? $setting->group ?? 'general';
+        $setting->label = $label ?? $setting->label ?? $key;
+        $setting->save();
+
+        return $setting;
+    }
+
     public function typedValue(): mixed
     {
         return match ($this->type) {

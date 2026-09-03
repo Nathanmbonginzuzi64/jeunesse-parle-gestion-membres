@@ -1,21 +1,31 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Check, KeyRound, Shield, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Check, KeyRound, Shield, Trash2, Users } from "lucide-react";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
 import { RolesHero } from "@/components/roles/roles-hero";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Input } from "@/components/ui/field";
+import { Input, Switch } from "@/components/ui/field";
 import { Alert, EmptyState, PageLoader } from "@/components/ui/feedback";
 import { KpiCard, dashboardCardGrid } from "@/components/ui/kpi";
+import { api, ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useApi } from "@/lib/hooks";
-import { permissionLabel, scopeLevelLabel } from "@/lib/permission-labels";
+import { PERMISSION_GROUPS, permissionLabel, scopeLevelLabel } from "@/lib/permission-labels";
 import { PERMISSIONS } from "@/lib/permissions";
+import { useToast } from "@/components/ui/toast";
 import type { RoleDetail } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+interface CatalogItem {
+  slug: string;
+  name: string;
+  group: string;
+}
 
 export default function RolesPage() {
   return (
@@ -27,10 +37,14 @@ export default function RolesPage() {
 
 function RolesContent() {
   const { data, loading, error } = useApi<{ data: RoleDetail[] }>("/roles");
+  const catalog = useApi<{ data: CatalogItem[] }>("/permissions");
   const [q, setQ] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [roles, setRoles] = useState<RoleDetail[]>([]);
 
-  const roles = data?.data ?? [];
+  useEffect(() => {
+    if (data?.data) setRoles(data.data);
+  }, [data]);
 
   const kpis = useMemo(() => {
     const allPermissions = new Set(roles.flatMap((role) => role.permissions));
@@ -78,7 +92,9 @@ function RolesContent() {
 
       <DashboardAnimate delay={100}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-slate-500">Consultation des droits — la modification fine reste côté serveur.</p>
+          <p className="text-sm text-slate-500">
+            Cochez ou retirez une permission : l’enregistrement est immédiat.
+          </p>
           <div className="w-full sm:w-72">
             <Input
               placeholder="Rechercher un rôle ou une permission…"
@@ -123,7 +139,15 @@ function RolesContent() {
           </DashboardAnimate>
 
           <DashboardAnimate delay={160}>
-            {selected && <RoleDetailPanel role={selected} />}
+            {selected && (
+              <RoleDetailPanel
+                role={selected}
+                catalog={catalog.data?.data ?? []}
+                onUpdated={(updated) => {
+                  setRoles((current) => current.map((role) => (role.id === updated.id ? { ...role, ...updated } : role)));
+                }}
+              />
+            )}
           </DashboardAnimate>
         </div>
       )}
@@ -131,17 +155,78 @@ function RolesContent() {
   );
 }
 
-function RoleDetailPanel({ role }: { role: RoleDetail }) {
+function RoleDetailPanel({
+  role,
+  catalog,
+  onUpdated,
+}: {
+  role: RoleDetail;
+  catalog: CatalogItem[];
+  onUpdated: (role: RoleDetail) => void;
+}) {
+  const toast = useToast();
+  const { user, refresh } = useAuth();
+  const canEdit = Boolean(user?.permissions?.includes(PERMISSIONS.rolesManage));
+  const locked = role.slug === "super-admin";
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const catalogSlugs = catalog.length > 0 ? catalog.map((item) => item.slug) : role.permissions;
+  const granted = new Set(role.permissions);
+
   const grouped = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const permission of role.permissions) {
-      const group = permission.split(".")[0] ?? "autre";
-      const list = map.get(group) ?? [];
-      list.push(permission);
-      map.set(group, list);
+    const slugs = catalogSlugs.length > 0 ? catalogSlugs : role.permissions;
+    return PERMISSION_GROUPS.map((group) => ({
+      ...group,
+      items: slugs.filter((slug) => slug.startsWith(group.prefix) || slug === group.id),
+    })).filter((group) => group.items.length > 0);
+  }, [catalogSlugs, role.permissions]);
+
+  async function persist(next: string[]) {
+    const response = await api.put<{ message: string; data: RoleDetail }>(`/roles/${role.id}/permissions`, {
+      permissions: next,
+    });
+    onUpdated(response.data);
+    if (user?.role?.slug === role.slug) await refresh();
+    return response.message;
+  }
+
+  async function toggle(slug: string, enabled: boolean) {
+    if (!canEdit || locked) return;
+    const next = enabled
+      ? Array.from(new Set([...role.permissions, slug]))
+      : role.permissions.filter((item) => item !== slug);
+    onUpdated({ ...role, permissions: next });
+    setBusy(slug);
+    try {
+      const message = await persist(next);
+      toast.success(message);
+    } catch (caught) {
+      onUpdated(role);
+      toast.error(caught instanceof ApiError ? caught.message : "Mise à jour impossible.");
+    } finally {
+      setBusy(null);
     }
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [role.permissions]);
+  }
+
+  async function remove(slug: string) {
+    if (!canEdit || locked) return;
+    const previous = role.permissions;
+    onUpdated({ ...role, permissions: previous.filter((item) => item !== slug) });
+    setBusy(slug);
+    try {
+      const response = await api.delete<{ message: string; data: RoleDetail }>(
+        `/roles/${role.id}/permissions/${slug}`,
+      );
+      onUpdated(response.data);
+      if (user?.role?.slug === role.slug) await refresh();
+      toast.success(response.message);
+    } catch (caught) {
+      onUpdated({ ...role, permissions: previous });
+      toast.error(caught instanceof ApiError ? caught.message : "Suppression impossible.");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   return (
     <Card>
@@ -166,35 +251,67 @@ function RoleDetailPanel({ role }: { role: RoleDetail }) {
           </span>
         </div>
 
-        {role.permissions.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-6 text-center text-sm text-slate-500">
-            Aucune permission applicative — accès limité à l&apos;espace membre.
-          </p>
-        ) : (
-          <div className="space-y-4">
-            {grouped.map(([group, permissions]) => (
-              <div key={group}>
-                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  {group}
-                </h3>
-                <ul className="grid gap-1.5 sm:grid-cols-2">
-                  {permissions.map((permission) => (
+        {locked ? (
+          <Alert tone="info">Le super administrateur conserve tous les droits. Ce profil n’est pas modifiable.</Alert>
+        ) : null}
+
+        {!canEdit ? (
+          <p className="text-xs text-slate-500">Consultation uniquement — la modification demande la permission « gérer les rôles ».</p>
+        ) : null}
+
+        <div className="space-y-4">
+          {grouped.map((group) => (
+            <div key={group.id}>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">{group.label}</h3>
+              <ul className="grid gap-1.5 sm:grid-cols-2">
+                {group.items.map((permission) => {
+                  const on = granted.has(permission);
+                  return (
                     <li
                       key={permission}
-                      className="flex items-start gap-2 rounded-lg border border-slate-100 bg-white px-3 py-2 text-sm text-slate-700"
+                      className={cn(
+                        "flex items-start gap-2 rounded-lg border px-3 py-2 text-sm",
+                        on ? "border-emerald-100 bg-emerald-50/40" : "border-slate-100 bg-white",
+                      )}
                     >
-                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
-                      <span>
-                        <span className="block font-medium">{permissionLabel(permission)}</span>
-                        <span className="font-mono text-[10px] text-slate-400">{permission}</span>
-                      </span>
+                      {canEdit && !locked ? (
+                        <div className="flex min-w-0 flex-1 items-start justify-between gap-2">
+                          <Switch
+                            label={permissionLabel(permission)}
+                            description={permission}
+                            checked={on}
+                            onChange={(checked) => void toggle(permission, checked)}
+                            className="flex-1"
+                          />
+                          {on ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Retirer ${permission}`}
+                              disabled={busy === permission}
+                              onClick={() => void remove(permission)}
+                            >
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <>
+                          <Check className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", on ? "text-emerald-600" : "text-slate-300")} />
+                          <span>
+                            <span className="block font-medium">{permissionLabel(permission)}</span>
+                            <span className="font-mono text-[10px] text-slate-400">{permission}</span>
+                          </span>
+                        </>
+                      )}
                     </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        )}
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
       </CardBody>
     </Card>
   );

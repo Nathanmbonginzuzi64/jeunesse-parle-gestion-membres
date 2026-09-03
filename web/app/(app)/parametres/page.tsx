@@ -1,17 +1,18 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import {
   Bell,
   Building2,
   CreditCard,
-  Save,
   Shield,
   Wrench,
 } from "lucide-react";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
 import { SettingsHero } from "@/components/settings/settings-hero";
+import { Avatar } from "@/components/ui/avatar";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -21,18 +22,11 @@ import { KpiCard, dashboardCardGrid } from "@/components/ui/kpi";
 import { Tabs, TabPanel } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
 import { api, ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useApi } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
+import type { SettingsPayload } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-interface SettingsPayload {
-  organization: { name: string; country: string };
-  membership: { minimum_age: number; maximum_age: number };
-  security: { two_factor: boolean; session_timeout_minutes: number };
-  notifications: { email: boolean; sms: boolean; push: boolean };
-  cards: { duration_months: number; template: string };
-  maintenance: boolean;
-}
 
 export default function SettingsPage() {
   return (
@@ -44,26 +38,48 @@ export default function SettingsPage() {
 
 function SettingsContent() {
   const toast = useToast();
-  const { data, loading, error, reload } = useApi<SettingsPayload>("/settings");
+  const { user } = useAuth();
+  const { data, loading, error } = useApi<SettingsPayload>("/settings");
   const [tab, setTab] = useState("general");
-  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<SettingsPayload | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const skipFirst = useRef(true);
   const current = form ?? data;
 
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    if (!current) return;
+  useEffect(() => {
+    if (data && !form) setForm(data);
+  }, [data, form]);
+
+  useEffect(() => {
+    if (!form) return;
+    if (skipFirst.current) {
+      skipFirst.current = false;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void persist(form);
+    }, 500);
+    return () => window.clearTimeout(timer);
+    // persist is stable enough for debounce on form identity
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form]);
+
+  async function persist(payload: SettingsPayload) {
     setSaving(true);
     try {
-      const response = await api.post<{ message: string }>("/settings", current);
-      toast.success(response.message);
-      setForm(current);
-      reload();
+      const response = await api.put<SettingsPayload & { message: string }>("/settings", payload);
+      setSavedAt(new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }));
+      setForm((currentForm) => currentForm ?? response);
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : "Enregistrement impossible.");
     } finally {
       setSaving(false);
     }
+  }
+
+  function patch(next: SettingsPayload) {
+    setForm(next);
   }
 
   if (loading && !current) return <PageLoader />;
@@ -81,6 +97,24 @@ function SettingsContent() {
 
       <DashboardAnimate>
         <SettingsHero organization={current.organization.name} maintenance={current.maintenance} />
+      </DashboardAnimate>
+
+      <DashboardAnimate delay={40}>
+        <Card className="overflow-hidden">
+          <CardBody className="flex flex-wrap items-center gap-4 bg-gradient-to-r from-slate-50 to-white">
+            <Avatar src={user?.photo_url} name={user?.name} size="lg" rounded="lg" className="ring-2 ring-white shadow-sm" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Compte connecté</p>
+              <p className="truncate text-lg font-semibold text-slate-900">{user?.name}</p>
+              <p className="truncate text-sm text-slate-500">
+                {user?.role?.name} · {user?.email ?? user?.phone}
+              </p>
+            </div>
+            <Link href="/profil">
+              <Button variant="outline" size="sm">Voir / modifier mon profil</Button>
+            </Link>
+          </CardBody>
+        </Card>
       </DashboardAnimate>
 
       <DashboardAnimate delay={60}>
@@ -116,198 +150,194 @@ function SettingsContent() {
         </div>
       </DashboardAnimate>
 
-      <DashboardAnimate delay={100}>
-        <Tabs
-          tabs={[
-            { id: "general", label: "Général" },
-            { id: "security", label: "Sécurité" },
-            { id: "notifications", label: "Notifications" },
-            { id: "cards", label: "Carte membre" },
-            { id: "system", label: "Système" },
-          ]}
-          value={tab}
-          onChange={setTab}
-        />
-      </DashboardAnimate>
+      <div className="flex items-center justify-between gap-3">
+        <DashboardAnimate delay={80}>
+          <Tabs
+            tabs={[
+              { id: "general", label: "Général" },
+              { id: "security", label: "Sécurité" },
+              { id: "notifications", label: "Notifications" },
+              { id: "cards", label: "Carte membre" },
+              { id: "system", label: "Système" },
+            ]}
+            value={tab}
+            onChange={setTab}
+          />
+        </DashboardAnimate>
+        <p className="text-xs text-slate-400">
+          {saving ? "Enregistrement…" : savedAt ? `Enregistré à ${savedAt}` : "Enregistrement automatique"}
+        </p>
+      </div>
 
-      <form onSubmit={onSubmit} className="space-y-4">
-        <TabPanel when="general" active={tab}>
-          <DashboardAnimate delay={120}>
-            <Card>
-              <CardHeader
-                title="Identité de la plateforme"
-                description="Nom affiché et pays de déploiement"
-                action={<Building2 className="h-5 w-5 text-slate-400" />}
+      <TabPanel when="general" active={tab}>
+        <DashboardAnimate delay={120}>
+          <Card>
+            <CardHeader
+              title="Identité de la plateforme"
+              description="Les âges d’adhésion s’appliquent dès l’enregistrement."
+              action={<Building2 className="h-5 w-5 text-slate-400" />}
+            />
+            <CardBody className="grid gap-4 sm:grid-cols-2">
+              <Input
+                label="Nom"
+                value={current.organization.name}
+                onChange={(event) =>
+                  patch({ ...current, organization: { ...current.organization, name: event.target.value } })
+                }
               />
-              <CardBody className="grid gap-4 sm:grid-cols-2">
-                <Input
-                  label="Nom"
-                  value={current.organization.name}
-                  onChange={(event) =>
-                    setForm({ ...current, organization: { ...current.organization, name: event.target.value } })
-                  }
-                />
-                <Input
-                  label="Pays"
-                  value={current.organization.country}
-                  onChange={(event) =>
-                    setForm({ ...current, organization: { ...current.organization, country: event.target.value } })
-                  }
-                />
-                <Input
-                  label="Âge minimum d'adhésion"
-                  type="number"
-                  value={current.membership.minimum_age}
-                  onChange={(event) =>
-                    setForm({
-                      ...current,
-                      membership: { ...current.membership, minimum_age: Number(event.target.value) },
-                    })
-                  }
-                />
-                <Input
-                  label="Âge maximum d'adhésion"
-                  type="number"
-                  value={current.membership.maximum_age}
-                  onChange={(event) =>
-                    setForm({
-                      ...current,
-                      membership: { ...current.membership, maximum_age: Number(event.target.value) },
-                    })
-                  }
-                />
-              </CardBody>
-            </Card>
-          </DashboardAnimate>
-        </TabPanel>
-
-        <TabPanel when="security" active={tab}>
-          <DashboardAnimate delay={120}>
-            <Card>
-              <CardHeader
-                title="Sécurité des sessions"
-                description="Authentification renforcée pour les administrateurs"
-                action={<Shield className="h-5 w-5 text-slate-400" />}
+              <Input
+                label="Pays"
+                value={current.organization.country}
+                onChange={(event) =>
+                  patch({ ...current, organization: { ...current.organization, country: event.target.value } })
+                }
               />
-              <CardBody className="space-y-4">
-                <Switch
-                  label="Authentification à deux facteurs"
-                  description="Recommandée pour les administrateurs nationaux."
-                  checked={current.security.two_factor}
-                  onChange={(checked) =>
-                    setForm({ ...current, security: { ...current.security, two_factor: checked } })
-                  }
-                />
-                <Input
-                  label="Expiration de session (minutes)"
-                  type="number"
-                  value={current.security.session_timeout_minutes}
-                  onChange={(event) =>
-                    setForm({
-                      ...current,
-                      security: { ...current.security, session_timeout_minutes: Number(event.target.value) },
-                    })
-                  }
-                />
-              </CardBody>
-            </Card>
-          </DashboardAnimate>
-        </TabPanel>
-
-        <TabPanel when="notifications" active={tab}>
-          <DashboardAnimate delay={120}>
-            <Card>
-              <CardHeader
-                title="Canaux de notification"
-                description="Activez les canaux disponibles pour les alertes"
-                action={<Bell className="h-5 w-5 text-slate-400" />}
+              <Input
+                label="Âge minimum d'adhésion"
+                type="number"
+                value={current.membership.minimum_age}
+                onChange={(event) =>
+                  patch({
+                    ...current,
+                    membership: { ...current.membership, minimum_age: Number(event.target.value) },
+                  })
+                }
               />
-              <CardBody className="space-y-4">
-                <Switch
-                  label="E-mail"
-                  description="Validations, cartes et rappels d'activités."
-                  checked={current.notifications.email}
-                  onChange={(checked) =>
-                    setForm({ ...current, notifications: { ...current.notifications, email: checked } })
-                  }
-                />
-                <Switch
-                  label="SMS"
-                  description="Messages critiques uniquement (coût opérateur)."
-                  checked={current.notifications.sms}
-                  onChange={(checked) =>
-                    setForm({ ...current, notifications: { ...current.notifications, sms: checked } })
-                  }
-                />
-                <Switch
-                  label="Notifications internes"
-                  description="Centre d'alertes dans l'application."
-                  checked={current.notifications.push}
-                  onChange={(checked) =>
-                    setForm({ ...current, notifications: { ...current.notifications, push: checked } })
-                  }
-                />
-              </CardBody>
-            </Card>
-          </DashboardAnimate>
-        </TabPanel>
-
-        <TabPanel when="cards" active={tab}>
-          <DashboardAnimate delay={120}>
-            <Card>
-              <CardHeader
-                title="Modèle de carte membre"
-                description="Durée de validité et gabarit d'impression"
-                action={<CreditCard className="h-5 w-5 text-slate-400" />}
+              <Input
+                label="Âge maximum d'adhésion"
+                type="number"
+                value={current.membership.maximum_age}
+                onChange={(event) =>
+                  patch({
+                    ...current,
+                    membership: { ...current.membership, maximum_age: Number(event.target.value) },
+                  })
+                }
               />
-              <CardBody className="grid gap-4 sm:grid-cols-2">
-                <Input
-                  label="Durée de validité (mois)"
-                  type="number"
-                  value={current.cards.duration_months}
-                  onChange={(event) =>
-                    setForm({ ...current, cards: { ...current.cards, duration_months: Number(event.target.value) } })
-                  }
-                />
-                <Input
-                  label="Gabarit"
-                  value={current.cards.template}
-                  onChange={(event) =>
-                    setForm({ ...current, cards: { ...current.cards, template: event.target.value } })
-                  }
-                />
-              </CardBody>
-            </Card>
-          </DashboardAnimate>
-        </TabPanel>
+            </CardBody>
+          </Card>
+        </DashboardAnimate>
+      </TabPanel>
 
-        <TabPanel when="system" active={tab}>
-          <DashboardAnimate delay={120}>
-            <Card className={current.maintenance ? "ring-1 ring-amber-200" : undefined}>
-              <CardHeader
-                title="Système"
-                description="Mode maintenance et disponibilité de l'administration"
-                action={<Wrench className="h-5 w-5 text-slate-400" />}
+      <TabPanel when="security" active={tab}>
+        <DashboardAnimate delay={120}>
+          <Card>
+            <CardHeader
+              title="Sécurité des sessions"
+              description="Les interrupteurs sont pris en compte immédiatement."
+              action={<Shield className="h-5 w-5 text-slate-400" />}
+            />
+            <CardBody className="space-y-4">
+              <Switch
+                label="Authentification à deux facteurs"
+                description="Recommandée pour les administrateurs nationaux."
+                checked={current.security.two_factor}
+                onChange={(checked) =>
+                  patch({ ...current, security: { ...current.security, two_factor: checked } })
+                }
               />
-              <CardBody>
-                <Switch
-                  label="Mode maintenance"
-                  description="Les espaces publics restent accessibles, l'administration est restreinte."
-                  checked={current.maintenance}
-                  onChange={(checked) => setForm({ ...current, maintenance: checked })}
-                />
-              </CardBody>
-            </Card>
-          </DashboardAnimate>
-        </TabPanel>
+              <Input
+                label="Expiration de session (minutes)"
+                type="number"
+                value={current.security.session_timeout_minutes}
+                onChange={(event) =>
+                  patch({
+                    ...current,
+                    security: { ...current.security, session_timeout_minutes: Number(event.target.value) },
+                  })
+                }
+              />
+            </CardBody>
+          </Card>
+        </DashboardAnimate>
+      </TabPanel>
 
-        <div className="sticky bottom-4 z-10 flex justify-end">
-          <Button type="submit" loading={saving} size="lg" className="shadow-[var(--shadow-elevated)]">
-            <Save className="h-4 w-4" />
-            Enregistrer les paramètres
-          </Button>
-        </div>
-      </form>
+      <TabPanel when="notifications" active={tab}>
+        <DashboardAnimate delay={120}>
+          <Card>
+            <CardHeader
+              title="Canaux de notification"
+              description="Activez les canaux disponibles pour les alertes"
+              action={<Bell className="h-5 w-5 text-slate-400" />}
+            />
+            <CardBody className="space-y-4">
+              <Switch
+                label="E-mail"
+                description="Validations, cartes et rappels d'activités."
+                checked={current.notifications.email}
+                onChange={(checked) =>
+                  patch({ ...current, notifications: { ...current.notifications, email: checked } })
+                }
+              />
+              <Switch
+                label="SMS"
+                description="Messages critiques uniquement (coût opérateur)."
+                checked={current.notifications.sms}
+                onChange={(checked) =>
+                  patch({ ...current, notifications: { ...current.notifications, sms: checked } })
+                }
+              />
+              <Switch
+                label="Notifications internes"
+                description="Centre d'alertes dans l'application."
+                checked={current.notifications.push}
+                onChange={(checked) =>
+                  patch({ ...current, notifications: { ...current.notifications, push: checked } })
+                }
+              />
+            </CardBody>
+          </Card>
+        </DashboardAnimate>
+      </TabPanel>
+
+      <TabPanel when="cards" active={tab}>
+        <DashboardAnimate delay={120}>
+          <Card>
+            <CardHeader
+              title="Modèle de carte membre"
+              description="Durée de validité appliquée aux nouvelles cartes émises."
+              action={<CreditCard className="h-5 w-5 text-slate-400" />}
+            />
+            <CardBody className="grid gap-4 sm:grid-cols-2">
+              <Input
+                label="Durée de validité (mois)"
+                type="number"
+                value={current.cards.duration_months}
+                onChange={(event) =>
+                  patch({ ...current, cards: { ...current.cards, duration_months: Number(event.target.value) } })
+                }
+              />
+              <Input
+                label="Gabarit"
+                value={current.cards.template}
+                onChange={(event) =>
+                  patch({ ...current, cards: { ...current.cards, template: event.target.value } })
+                }
+              />
+            </CardBody>
+          </Card>
+        </DashboardAnimate>
+      </TabPanel>
+
+      <TabPanel when="system" active={tab}>
+        <DashboardAnimate delay={120}>
+          <Card className={current.maintenance ? "ring-1 ring-amber-200" : undefined}>
+            <CardHeader
+              title="Système"
+              description="Mode maintenance et disponibilité de l'administration"
+              action={<Wrench className="h-5 w-5 text-slate-400" />}
+            />
+            <CardBody>
+              <Switch
+                label="Mode maintenance"
+                description="Les espaces publics restent accessibles, l'administration est restreinte."
+                checked={current.maintenance}
+                onChange={(checked) => patch({ ...current, maintenance: checked })}
+              />
+            </CardBody>
+          </Card>
+        </DashboardAnimate>
+      </TabPanel>
     </div>
   );
 }

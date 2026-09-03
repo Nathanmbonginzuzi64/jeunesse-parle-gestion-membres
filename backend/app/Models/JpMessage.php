@@ -12,7 +12,7 @@ class JpMessage extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'reference', 'member_id', 'guest_name', 'guest_email', 'source',
+        'reference', 'member_id', 'user_id', 'guest_name', 'guest_email', 'source',
         'subject', 'category', 'body',
         'attachment_path', 'status', 'assigned_to', 'read_by_admin_at',
     ];
@@ -27,6 +27,11 @@ class JpMessage extends Model
     public function member(): BelongsTo
     {
         return $this->belongsTo(Member::class);
+    }
+
+    public function author(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function assignee(): BelongsTo

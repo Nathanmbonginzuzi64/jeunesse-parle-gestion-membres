@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Enums\Gender;
 use App\Http\Requests\Concerns\ValidatesTerritorialScope;
 use App\Http\Requests\Concerns\ValidatesWebAuthnEnrollment;
+use App\Models\Setting;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -33,8 +34,8 @@ class UpdateMemberRequest extends FormRequest
 
     public function rules(): array
     {
-        $minAge = (int) config('jeunesse.minimum_age');
-        $maxAge = (int) config('jeunesse.maximum_age');
+        $minAge = (int) Setting::get('membership.minimum_age', config('jeunesse.minimum_age'));
+        $maxAge = (int) Setting::get('membership.maximum_age', config('jeunesse.maximum_age'));
 
         return [
             'last_name' => ['sometimes', 'string', 'max:80'],

@@ -9,6 +9,7 @@ use App\Enums\CardStatus;
 use App\Enums\Gender;
 use App\Enums\MemberStatus;
 use App\Http\Controllers\Controller;
+use App\Models\Setting;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -42,12 +43,12 @@ class ReferenceController extends Controller
                 'Entrepreneur', 'Stagiaire', 'Fonctionnaire', 'Bénévole',
             ],
             'organization' => [
-                'name' => config('jeunesse.organization.name'),
-                'country' => config('jeunesse.organization.country'),
+                'name' => Setting::get('organization.name', config('jeunesse.organization.name')),
+                'country' => Setting::get('organization.country', config('jeunesse.organization.country')),
             ],
             'membership' => [
-                'minimum_age' => config('jeunesse.minimum_age'),
-                'maximum_age' => config('jeunesse.maximum_age'),
+                'minimum_age' => (int) Setting::get('membership.minimum_age', config('jeunesse.minimum_age')),
+                'maximum_age' => (int) Setting::get('membership.maximum_age', config('jeunesse.maximum_age')),
             ],
         ]);
     }

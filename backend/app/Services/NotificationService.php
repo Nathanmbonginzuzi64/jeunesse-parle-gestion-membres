@@ -309,8 +309,10 @@ class NotificationService
 
     public function jpMessageCreatedForAdmins(JpMessage $message): void
     {
+        $message->loadMissing(['author', 'member']);
         $member = $message->member;
         $isContact = ($message->source ?? 'member') === 'contact';
+        $isStaff = ($message->source ?? '') === 'staff';
 
         $categoryLabel = match ($message->category) {
             'plainte' => 'Plainte',
@@ -320,17 +322,18 @@ class NotificationService
             default => 'Suggestion',
         };
 
-        $authorName = $member?->full_name;
-        if (! $authorName) {
-            $authorName = $message->guest_name
+        $authorName = $member?->full_name
+            ?? $message->author?->name
+            ?? ($message->guest_name
                 ? ($message->guest_name.($message->guest_email ? " ({$message->guest_email})" : ''))
-                : 'Visiteur';
-        }
+                : 'Utilisateur');
 
-        $title = $isContact ? '📩 Message Contact (site)' : '📩 Nouvelle préoccupation';
+        $title = $isContact ? '📩 Message Contact (site)' : '📩 Nouvelle conversation JP Message';
         $body = $isContact
             ? "Un visiteur a envoyé un message via le formulaire Contact.\n\nDe :\n{$authorName}\n\nSujet :\n{$message->subject}"
-            : "Un membre vient d'envoyer une nouvelle demande.\n\nMembre :\n{$authorName}\n\nCatégorie :\n{$categoryLabel}";
+            : ($isStaff
+                ? "Un utilisateur du portail a ouvert une conversation.\n\nDe :\n{$authorName}\n\nCatégorie :\n{$categoryLabel}"
+                : "Un membre vient d'envoyer une nouvelle demande.\n\nMembre :\n{$authorName}\n\nCatégorie :\n{$categoryLabel}");
 
         foreach ($this->adminUsers(Permission::UsersView) as $admin) {
             $this->pushToUser(

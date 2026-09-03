@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Enums\Gender;
 use App\Http\Requests\Concerns\ValidatesWebAuthnEnrollment;
+use App\Models\Setting;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -38,8 +39,8 @@ class RegisterMemberRequest extends FormRequest
 
     public function rules(): array
     {
-        $minAge = (int) config('jeunesse.minimum_age');
-        $maxAge = (int) config('jeunesse.maximum_age');
+        $minAge = (int) Setting::get('membership.minimum_age', config('jeunesse.minimum_age'));
+        $maxAge = (int) Setting::get('membership.maximum_age', config('jeunesse.maximum_age'));
 
         return [
             'last_name' => ['required', 'string', 'max:80'],
@@ -100,8 +101,8 @@ class RegisterMemberRequest extends FormRequest
             'phone.regex' => 'Le numéro de téléphone doit contenir entre 9 et 15 chiffres.',
             'consent_given.accepted' => 'Vous devez accepter le traitement de vos données pour adhérer.',
             'password.confirmed' => 'La confirmation du mot de passe ne correspond pas.',
-            'birth_date.before_or_equal' => 'L\'âge minimum d\'adhésion est de '.config('jeunesse.minimum_age').' ans.',
-            'birth_date.after_or_equal' => 'L\'âge maximum d\'adhésion est de '.config('jeunesse.maximum_age').' ans.',
+            'birth_date.before_or_equal' => 'L\'âge minimum d\'adhésion est de '.$minAge.' ans.',
+            'birth_date.after_or_equal' => 'L\'âge maximum d\'adhésion est de '.$maxAge.' ans.',
         ];
     }
 }

@@ -152,6 +152,7 @@ class UserController extends Controller
                     'name' => $role->name,
                     'description' => $role->description,
                     'scope_level' => $role->scope_level,
+                    'is_system' => $role->is_system,
                     'users_count' => $role->users_count,
                     'permissions' => $role->permissions()->pluck('slug'),
                 ]),
