@@ -33,19 +33,23 @@ export default function InfosPage() {
             className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
           >
             <div className="grid lg:grid-cols-[320px_1fr]">
-              <div className="relative min-h-[220px] bg-slate-900">
+              <div className="relative flex min-h-[220px] items-center justify-center bg-slate-100">
                 {item.video ? (
                   <video
                     controls
                     preload="metadata"
                     poster={item.image}
-                    className="h-full max-h-[320px] w-full object-cover lg:absolute lg:inset-0 lg:max-h-none"
+                    className="max-h-[320px] w-full object-contain lg:absolute lg:inset-0 lg:h-full lg:max-h-none"
                   >
                     <source src={item.video} type="video/mp4" />
                   </video>
                 ) : item.image ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={item.image} alt="" className="h-full max-h-[320px] w-full object-cover lg:absolute lg:inset-0 lg:max-h-none" />
+                  <img
+                    src={item.image}
+                    alt=""
+                    className="max-h-[320px] w-full object-contain lg:absolute lg:inset-0 lg:h-full lg:max-h-none lg:object-contain"
+                  />
                 ) : null}
               </div>
               <div className="p-6 sm:p-8">
