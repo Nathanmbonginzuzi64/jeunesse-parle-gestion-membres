@@ -25,7 +25,7 @@ function JpMessageDetailInner() {
     <div className="space-y-4">
       <Breadcrumb
         items={[
-          { href: admin ? "/jp-message/gestion" : "/jp-message", label: "JP Message" },
+          { href: "/jp-message", label: "JP Message" },
           { label: `Dossier #${params.id}` },
         ]}
       />

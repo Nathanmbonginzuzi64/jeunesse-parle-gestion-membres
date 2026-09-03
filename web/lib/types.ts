@@ -549,6 +549,9 @@ export interface ChatContact {
   photo_url?: string | null;
   member_code?: string | null;
   scope?: string | null;
+  scope_level?: number;
+  group_id?: string;
+  group_label?: string;
 }
 
 export interface ChatDirectoryGroup {
@@ -562,7 +565,12 @@ export interface ChatConversationItem {
   channel: "chat";
   type: string;
   subject?: string | null;
+  title?: string | null;
+  kind?: "chef_membre" | "membre_membre" | "staff_staff" | string;
+  oversight?: boolean;
+  can_send?: boolean;
   peer: ChatContact | null;
+  participants?: ChatContact[];
   last_message_at: string | null;
   last_message_preview: string | null;
   unread: boolean;

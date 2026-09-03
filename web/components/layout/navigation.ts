@@ -119,7 +119,6 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/notifications", label: "Notifications", icon: Bell },
       { href: "/actualites", label: "Actualités", icon: Newspaper },
       { href: "/jp-message", label: "JP Message", icon: MessageSquare },
-      { href: "/jp-message/gestion", label: "JP Message (admin)", icon: MessageSquare, permissions: [PERMISSIONS.usersView] },
     ],
   },
   {

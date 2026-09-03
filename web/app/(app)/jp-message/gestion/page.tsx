@@ -1,21 +1,16 @@
 "use client";
 
-import { Suspense } from "react";
-import { RequirePermission } from "@/components/auth/require-permission";
-import { JpInbox } from "@/components/jp-message/jp-inbox";
-import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { PageLoader } from "@/components/ui/feedback";
-import { PERMISSIONS } from "@/lib/permissions";
 
-export default function JpMessageAdminPage() {
-  return (
-    <RequirePermission permission={PERMISSIONS.usersView}>
-      <div className="space-y-4">
-        <Breadcrumb items={[{ href: "/jp-message", label: "JP Message" }, { label: "Administration" }]} />
-        <Suspense fallback={<PageLoader />}>
-          <JpInbox admin />
-        </Suspense>
-      </div>
-    </RequirePermission>
-  );
+/** Ancienne URL admin → inbox unique JP Message. */
+export default function JpMessageAdminRedirectPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/jp-message");
+  }, [router]);
+
+  return <PageLoader label="Redirection vers JP Message…" />;
 }

@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
+use App\Enums\RoleSlug;
 use App\Models\ChatConversation;
 use App\Models\ChatMessage;
 use App\Models\User;
@@ -20,8 +20,22 @@ class MessagingController extends Controller
 
     public function directory(Request $request): JsonResponse
     {
+        $paginator = $this->directory->paginatedContacts(
+            $request->user(),
+            $request->string('q')->toString() ?: null,
+            $request->integer('per_page', 20),
+        );
+
         return response()->json([
-            'data' => $this->directory->groupsFor($request->user()),
+            'data' => $paginator->items(),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
+            ],
         ]);
     }
 
@@ -35,21 +49,33 @@ class MessagingController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
+        $oversee = $user->hasRole(RoleSlug::SuperAdmin);
+        $kind = $request->string('kind')->toString();
 
-        $conversations = ChatConversation::query()
-            ->whereHas('participants', fn ($q) => $q->where('user_id', $user->id))
+        $query = ChatConversation::query()
             ->with(['participants.user.role', 'participants.user.member', 'participants.user.province', 'participants.user.structure'])
             ->orderByDesc('last_message_at')
-            ->orderByDesc('id')
-            ->paginate(min($request->integer('per_page', 40), 80));
+            ->orderByDesc('id');
+
+        if (! $oversee) {
+            $query->whereHas('participants', fn ($q) => $q->where('user_id', $user->id));
+        } elseif ($kind === 'chef_membre') {
+            $query->whereHas('participants.user.role', fn ($q) => $q->where('scope_level', '>=', 4))
+                ->whereHas('participants.user.role', fn ($q) => $q->where('scope_level', '<', 4));
+        } elseif ($kind === 'mine') {
+            $query->whereHas('participants', fn ($q) => $q->where('user_id', $user->id));
+        }
+
+        $conversations = $query->paginate(min($request->integer('per_page', 40), 80));
 
         return response()->json([
-            'data' => $conversations->getCollection()->map(fn (ChatConversation $c) => $this->formatConversation($c, $user)),
+            'data' => $conversations->getCollection()->map(fn (ChatConversation $c) => $this->formatConversation($c, $user, $oversee)),
             'meta' => [
                 'current_page' => $conversations->currentPage(),
                 'last_page' => $conversations->lastPage(),
                 'per_page' => $conversations->perPage(),
                 'total' => $conversations->total(),
+                'oversight' => $oversee,
             ],
         ]);
     }
@@ -65,7 +91,7 @@ class MessagingController extends Controller
 
         return response()->json([
             'message' => 'Conversation ouverte.',
-            'data' => $this->formatConversation($conversation, $request->user()),
+            'data' => $this->formatConversation($conversation, $request->user(), $request->user()->hasRole(RoleSlug::SuperAdmin)),
         ], 201);
     }
 
@@ -76,7 +102,7 @@ class MessagingController extends Controller
         $conversation->load(['participants.user.role', 'participants.user.member', 'participants.user.province', 'participants.user.structure']);
 
         return response()->json([
-            'data' => $this->formatConversation($conversation, $request->user()),
+            'data' => $this->formatConversation($conversation, $request->user(), $request->user()->hasRole(RoleSlug::SuperAdmin)),
         ]);
     }
 
@@ -95,10 +121,17 @@ class MessagingController extends Controller
 
         $messages = $query->limit(40)->get()->reverse()->values();
 
-        $this->messaging->markRead($conversation, $request->user());
+        if ($conversation->hasParticipant((int) $request->user()->id)) {
+            $this->messaging->markRead($conversation, $request->user());
+        }
 
         return response()->json([
             'data' => $messages->map(fn (ChatMessage $m) => $this->formatMessage($m)),
+            'meta' => [
+                'can_send' => $conversation->hasParticipant((int) $request->user()->id),
+                'oversight' => $request->user()->hasRole(RoleSlug::SuperAdmin)
+                    && ! $conversation->hasParticipant((int) $request->user()->id),
+            ],
         ]);
     }
 
@@ -131,24 +164,46 @@ class MessagingController extends Controller
     public function read(Request $request, ChatConversation $conversation): JsonResponse
     {
         $this->authorize('view', $conversation);
-        $this->messaging->markRead($conversation, $request->user());
+        if ($conversation->hasParticipant((int) $request->user()->id)) {
+            $this->messaging->markRead($conversation, $request->user());
+        }
 
         return response()->json(['message' => 'Lu.']);
     }
 
-    private function formatConversation(ChatConversation $conversation, User $viewer): array
+    private function formatConversation(ChatConversation $conversation, User $viewer, bool $oversee = false): array
     {
-        $peer = $conversation->otherParticipant($viewer);
+        $isParticipant = $conversation->hasParticipant((int) $viewer->id);
+        $participants = $conversation->participants
+            ->map(fn ($row) => $row->user ? $this->directory->serializeContact($row->user) : null)
+            ->filter()
+            ->values();
+
+        $peer = $isParticipant
+            ? $conversation->otherParticipant($viewer)
+            : null;
+
+        $kind = $this->directory->classifyExchange($conversation->participants);
+
+        $title = null;
+        if (! $isParticipant && $participants->count() >= 2) {
+            $title = $participants->pluck('name')->take(2)->implode(' ↔ ');
+        }
 
         return [
             'id' => $conversation->id,
             'channel' => 'chat',
             'type' => $conversation->type,
             'subject' => $conversation->subject,
-            'peer' => $peer ? $this->directory->serializeContact($peer) : null,
+            'title' => $title,
+            'kind' => $kind,
+            'oversight' => $oversee && ! $isParticipant,
+            'can_send' => $isParticipant,
+            'peer' => $peer ? $this->directory->serializeContact($peer) : ($participants->first() ?? null),
+            'participants' => $participants,
             'last_message_at' => $conversation->last_message_at?->toIso8601String(),
             'last_message_preview' => $conversation->last_message_preview,
-            'unread' => $this->messaging->conversationIsUnread($conversation, $viewer),
+            'unread' => $isParticipant ? $this->messaging->conversationIsUnread($conversation, $viewer) : false,
             'created_at' => $conversation->created_at?->toIso8601String(),
         ];
     }

@@ -2,19 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, FileText, Mail, Mic, Paperclip, Plus, Send, Square } from "lucide-react";
+import { ArrowLeft, Eye, FileText, Mail, Mic, Paperclip, Plus, Send, Square } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/field";
 import { Alert, EmptyState, Skeleton } from "@/components/ui/feedback";
 import { api, ApiError, downloadProtectedUrl } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { useProtectedImage } from "@/lib/hooks";
+import { useDebounced, useProtectedImage } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useToast } from "@/components/ui/toast";
 import type {
+  ChatContact,
   ChatConversationItem,
-  ChatDirectoryGroup,
   ChatMessageItem,
   JpMessageItem,
   Paginated,
@@ -30,11 +30,16 @@ const CATEGORIES = [
 ];
 
 type Tab = "chats" | "tickets" | "new";
+type ChatFilter = "all" | "chef_membre" | "mine";
 
 function sourceLabel(source?: string) {
   if (source === "contact") return "Contact";
   if (source === "staff") return "Portail";
   return "Dossier";
+}
+
+function chatLabel(item: ChatConversationItem) {
+  return item.title || item.peer?.name || "Conversation";
 }
 
 export function JpInbox({
@@ -49,11 +54,13 @@ export function JpInbox({
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const isAdmin = admin || Boolean(user?.permissions?.includes(PERMISSIONS.usersView));
+  const isSuperAdmin = user?.role?.slug === "super-admin";
 
   const chatFromUrl = searchParams.get("chat");
   const userFromUrl = searchParams.get("user");
 
-  const [tab, setTab] = useState<Tab>(admin && !chatFromUrl ? "tickets" : "chats");
+  const [tab, setTab] = useState<Tab>(chatFromUrl ? "chats" : "chats");
+  const [chatFilter, setChatFilter] = useState<ChatFilter>(isSuperAdmin ? "all" : "mine");
   const [q, setQ] = useState("");
 
   const [chats, setChats] = useState<ChatConversationItem[]>([]);
@@ -68,9 +75,13 @@ export function JpInbox({
   const loadLists = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
+      const chatQuery: Record<string, string | number> = { per_page: 50 };
+      if (isSuperAdmin && chatFilter === "chef_membre") chatQuery.kind = "chef_membre";
+      if (isSuperAdmin && chatFilter === "mine") chatQuery.kind = "mine";
+
       const [chatRes, ticketRes] = await Promise.all([
-        api.get<Paginated<ChatConversationItem>>("/jp-messages/chats", { per_page: 50 }),
-        api.get<Paginated<JpMessageItem>>("/jp-messages", { per_page: 50, mine: admin ? 0 : 1 }),
+        api.get<Paginated<ChatConversationItem>>("/jp-messages/chats", chatQuery),
+        api.get<Paginated<JpMessageItem>>("/jp-messages", { per_page: 50, mine: isAdmin ? 0 : 1 }),
       ]);
       setChats(chatRes.data);
       setTickets(ticketRes.data);
@@ -80,7 +91,7 @@ export function JpInbox({
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [admin]);
+  }, [isAdmin, isSuperAdmin, chatFilter]);
 
   useEffect(() => {
     void loadLists();
@@ -123,7 +134,10 @@ export function JpInbox({
     const query = q.trim().toLowerCase();
     if (!query) return chats;
     return chats.filter((item) =>
-      [item.peer?.name, item.peer?.role, item.last_message_preview].join(" ").toLowerCase().includes(query),
+      [chatLabel(item), item.peer?.role, item.last_message_preview, item.kind]
+        .join(" ")
+        .toLowerCase()
+        .includes(query),
     );
   }, [chats, q]);
 
@@ -136,6 +150,7 @@ export function JpInbox({
   }, [tickets, q]);
 
   const showThread = Boolean(chatId || ticketId || tab === "new");
+  const activeChat = chats.find((c) => c.id === chatId) ?? null;
 
   return (
     <div className="flex min-h-[calc(100vh-8.5rem)] overflow-hidden rounded-card border border-slate-200 bg-white shadow-[var(--shadow-card)]">
@@ -144,7 +159,9 @@ export function JpInbox({
           <div className="mb-3 flex items-center justify-between gap-2">
             <div>
               <p className="text-sm font-semibold text-slate-900">JP Message</p>
-              <p className="text-[11px] text-slate-500">Conversations et dossiers officiels</p>
+              <p className="text-[11px] text-slate-500">
+                {isSuperAdmin ? "Supervision centrale et conversations" : "Conversations et dossiers officiels"}
+              </p>
             </div>
             <Button size="sm" onClick={() => { setTab("new"); setChatId(null); setTicketId(null); }}>
               <Plus className="h-4 w-4" />
@@ -155,7 +172,7 @@ export function JpInbox({
             <button
               type="button"
               onClick={() => setTab("chats")}
-              className={cn("rounded-md px-2 py-1.5 font-medium", tab === "chats" ? "bg-white text-brand-800 shadow-sm" : "text-slate-500")}
+              className={cn("rounded-md px-2 py-1.5 font-medium", tab === "chats" || tab === "new" ? "bg-white text-brand-800 shadow-sm" : "text-slate-500")}
             >
               Conversations
             </button>
@@ -167,6 +184,27 @@ export function JpInbox({
               Dossiers
             </button>
           </div>
+          {isSuperAdmin && tab !== "tickets" ? (
+            <div className="mb-2 flex flex-wrap gap-1">
+              {([
+                ["all", "Tout"],
+                ["chef_membre", "Chef ↔ membre"],
+                ["mine", "Mes échanges"],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setChatFilter(value)}
+                  className={cn(
+                    "rounded-md px-2 py-1 text-[11px] font-medium",
+                    chatFilter === value ? "bg-brand-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <Input placeholder="Rechercher…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
 
@@ -176,7 +214,7 @@ export function JpInbox({
 
           {tab !== "tickets" && !loading && (
             filteredChats.length === 0 ? (
-              <EmptyState title="Aucune conversation" description="Écrivez à un responsable ou un membre autorisé." />
+              <EmptyState title="Aucune conversation" description={isSuperAdmin ? "Aucun échange à superviser pour ce filtre." : "Écrivez à un responsable ou un membre autorisé."} />
             ) : (
               <ul>
                 {filteredChats.map((item) => (
@@ -186,13 +224,17 @@ export function JpInbox({
                       onClick={() => { setChatId(item.id); setTicketId(null); setTab("chats"); router.replace(`/jp-message?chat=${item.id}`); }}
                       className={cn("flex w-full gap-3 border-b border-slate-50 px-4 py-3 text-left", chatId === item.id ? "bg-brand-50" : "hover:bg-slate-50")}
                     >
-                      <Avatar src={item.peer?.photo_url} name={item.peer?.name} size="sm" />
+                      <Avatar src={item.peer?.photo_url} name={chatLabel(item)} size="sm" />
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center justify-between gap-2">
-                          <span className="truncate text-sm font-medium text-slate-900">{item.peer?.name ?? "Conversation"}</span>
+                          <span className="truncate text-sm font-medium text-slate-900">{chatLabel(item)}</span>
                           <span className="shrink-0 text-[10px] text-slate-400">{formatRelative(item.last_message_at)}</span>
                         </span>
-                        <span className="block truncate text-[11px] text-slate-500">{item.peer?.role}</span>
+                        <span className="flex items-center gap-1 truncate text-[11px] text-slate-500">
+                          {item.oversight ? <Eye className="h-3 w-3 shrink-0 text-amber-600" /> : null}
+                          {item.kind === "chef_membre" ? "Chef ↔ membre · " : null}
+                          {item.peer?.role}
+                        </span>
                         <span className={cn("mt-0.5 line-clamp-1 text-xs", item.unread ? "font-medium text-slate-800" : "text-slate-500")}>
                           {item.last_message_preview ?? "—"}
                         </span>
@@ -249,7 +291,10 @@ export function JpInbox({
           <ChatThread
             conversationId={chatId}
             currentUserId={user?.id ?? 0}
-            peer={chats.find((c) => c.id === chatId)?.peer ?? null}
+            peer={activeChat?.peer ?? null}
+            title={activeChat?.title}
+            oversight={Boolean(activeChat?.oversight)}
+            canSend={activeChat?.can_send !== false}
             onBack={() => { setChatId(null); router.replace("/jp-message"); }}
             onSent={() => void loadLists(true)}
           />
@@ -257,14 +302,18 @@ export function JpInbox({
           <TicketThread
             message={ticket}
             isAdmin={isAdmin}
-            onBack={() => { setTicketId(null); router.replace(admin ? "/jp-message/gestion" : "/jp-message"); }}
+            onBack={() => { setTicketId(null); router.replace("/jp-message"); }}
             onReply={(reply) => setTicket((current) => current ? { ...current, replies: [...(current.replies ?? []), reply] } : current)}
           />
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-slate-500">
             <Mail className="h-10 w-10 text-slate-300" />
             <p className="text-sm font-medium text-slate-700">JP Message</p>
-            <p className="max-w-sm text-xs">Écrivez à vos responsables, aux membres de votre structure, ou ouvrez un dossier officiel.</p>
+            <p className="max-w-sm text-xs">
+              {isSuperAdmin
+                ? "Supervisez les échanges chefs ↔ membres, contactez n’importe qui, et suivez les dossiers officiels."
+                : "Écrivez à vos responsables, aux membres de votre structure, ou ouvrez un dossier officiel."}
+            </p>
           </div>
         )}
       </section>
@@ -282,19 +331,55 @@ function ComposeHub({
   onTicketCreated: (ticket: JpMessageItem) => void;
 }) {
   const toast = useToast();
-  const [groups, setGroups] = useState<ChatDirectoryGroup[]>([]);
+  const [contacts, setContacts] = useState<ChatContact[]>([]);
+  const [page, setPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [loadingContacts, setLoadingContacts] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [mode, setMode] = useState<"directory" | "ticket">("directory");
   const [q, setQ] = useState("");
+  const debouncedQ = useDebounced(q, 350);
   const [subject, setSubject] = useState("");
   const [category, setCategory] = useState("demande");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
 
-  useEffect(() => {
-    void api.get<{ data: ChatDirectoryGroup[] }>("/jp-messages/directory").then((r) => setGroups(r.data)).catch(() => {
+  const loadContacts = useCallback(async (nextPage: number, append: boolean) => {
+    if (append) setLoadingMore(true);
+    else setLoadingContacts(true);
+    try {
+      const response = await api.get<Paginated<ChatContact>>("/jp-messages/directory", {
+        q: debouncedQ || undefined,
+        page: nextPage,
+        per_page: 20,
+      });
+      setContacts((current) => (append ? [...current, ...response.data] : response.data));
+      setPage(response.meta.current_page);
+      setLastPage(response.meta.last_page);
+      setTotal(response.meta.total);
+    } catch {
       toast.error("Annuaire indisponible.");
-    });
-  }, [toast]);
+    } finally {
+      setLoadingContacts(false);
+      setLoadingMore(false);
+    }
+  }, [debouncedQ, toast]);
+
+  useEffect(() => {
+    void loadContacts(1, false);
+  }, [loadContacts]);
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, { id: string; label: string; contacts: ChatContact[] }>();
+    for (const contact of contacts) {
+      const id = contact.group_id ?? "all";
+      const label = contact.group_label ?? "Contacts";
+      if (!map.has(id)) map.set(id, { id, label, contacts: [] });
+      map.get(id)!.contacts.push(contact);
+    }
+    return Array.from(map.values());
+  }, [contacts]);
 
   async function openChat(userId: number) {
     try {
@@ -319,11 +404,6 @@ function ComposeHub({
     }
   }
 
-  const filtered = groups.map((group) => ({
-    ...group,
-    contacts: group.contacts.filter((c) => !q.trim() || `${c.name} ${c.role} ${c.member_code}`.toLowerCase().includes(q.toLowerCase())),
-  })).filter((g) => g.contacts.length > 0);
-
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex items-center gap-2 border-b border-slate-200 bg-white px-4 py-3">
@@ -343,10 +423,12 @@ function ComposeHub({
       {mode === "directory" ? (
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <Input placeholder="Nom, rôle, identifiant…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <p className="mt-2 text-[11px] text-slate-400">{total} contact{total > 1 ? "s" : ""}</p>
           <div className="mt-4 space-y-4">
-            {filtered.length === 0 ? (
+            {loadingContacts ? <Skeleton className="h-24 w-full" /> : null}
+            {!loadingContacts && grouped.length === 0 ? (
               <p className="text-sm text-slate-500">Aucun interlocuteur autorisé pour votre périmètre.</p>
-            ) : filtered.map((group) => (
+            ) : grouped.map((group) => (
               <div key={group.id}>
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{group.label}</p>
                 <ul className="space-y-1">
@@ -360,7 +442,7 @@ function ComposeHub({
                         <Avatar src={contact.photo_url} name={contact.name} size="sm" />
                         <span className="min-w-0">
                           <span className="block truncate text-sm font-medium text-slate-900">{contact.name}</span>
-                          <span className="block truncate text-[11px] text-slate-500">{[contact.role, contact.scope].filter(Boolean).join(" · ")}</span>
+                          <span className="block truncate text-[11px] text-slate-500">{[contact.role, contact.scope, contact.member_code].filter(Boolean).join(" · ")}</span>
                         </span>
                       </button>
                     </li>
@@ -368,6 +450,16 @@ function ComposeHub({
                 </ul>
               </div>
             ))}
+            {page < lastPage ? (
+              <Button
+                variant="outline"
+                className="w-full"
+                loading={loadingMore}
+                onClick={() => void loadContacts(page + 1, true)}
+              >
+                Charger plus
+              </Button>
+            ) : null}
           </div>
         </div>
       ) : (
@@ -387,17 +479,26 @@ function ChatThread({
   conversationId,
   currentUserId,
   peer,
+  title,
+  oversight = false,
+  canSend = true,
   onBack,
   onSent,
 }: {
   conversationId: number;
   currentUserId: number;
   peer: ChatConversationItem["peer"];
+  title?: string | null;
+  oversight?: boolean;
+  canSend?: boolean;
   onBack: () => void;
   onSent: () => void;
 }) {
   const toast = useToast();
   const [headerPeer, setHeaderPeer] = useState(peer);
+  const [headerTitle, setHeaderTitle] = useState(title);
+  const [allowSend, setAllowSend] = useState(canSend);
+  const [isOversight, setIsOversight] = useState(oversight);
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [body, setBody] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -410,20 +511,31 @@ function ChatThread({
 
   useEffect(() => {
     setHeaderPeer(peer);
-  }, [peer]);
+    setHeaderTitle(title);
+    setAllowSend(canSend);
+    setIsOversight(oversight);
+  }, [peer, title, canSend, oversight]);
 
   useEffect(() => {
-    if (peer) return;
     void api
       .get<{ data: ChatConversationItem }>(`/jp-messages/chats/${conversationId}`)
-      .then((response) => setHeaderPeer(response.data.peer))
+      .then((response) => {
+        setHeaderPeer(response.data.peer);
+        setHeaderTitle(response.data.title);
+        setAllowSend(response.data.can_send !== false);
+        setIsOversight(Boolean(response.data.oversight));
+      })
       .catch(() => undefined);
-  }, [conversationId, peer]);
+  }, [conversationId]);
 
   const load = useCallback(async (silent = false) => {
     try {
-      const response = await api.get<{ data: ChatMessageItem[] }>(`/jp-messages/chats/${conversationId}/messages`);
+      const response = await api.get<{ data: ChatMessageItem[]; meta?: { can_send?: boolean; oversight?: boolean } }>(
+        `/jp-messages/chats/${conversationId}/messages`,
+      );
       setMessages(response.data);
+      if (response.meta?.can_send !== undefined) setAllowSend(response.meta.can_send);
+      if (response.meta?.oversight !== undefined) setIsOversight(response.meta.oversight);
     } catch (caught) {
       if (!silent) toast.error(caught instanceof ApiError ? caught.message : "Fil introuvable.");
     }
@@ -440,6 +552,7 @@ function ChatThread({
   }, [messages.length]);
 
   async function send(payload?: File | null) {
+    if (!allowSend) return;
     const attachment = payload ?? file;
     if (!body.trim() && !attachment) return;
     setSending(true);
@@ -460,6 +573,7 @@ function ChatThread({
   }
 
   async function toggleRecord() {
+    if (!allowSend) return;
     if (recording) {
       recorder.current?.stop();
       setRecording(false);
@@ -486,18 +600,27 @@ function ChatThread({
     }
   }
 
+  const displayName = headerTitle || headerPeer?.name || "Conversation";
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3">
         <button type="button" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 md:hidden" onClick={onBack}>
           <ArrowLeft className="h-4 w-4" />
         </button>
-        <Avatar src={headerPeer?.photo_url} name={headerPeer?.name} size="md" />
+        <Avatar src={headerPeer?.photo_url} name={displayName} size="md" />
         <div className="min-w-0">
-          <p className="truncate font-semibold text-slate-900">{headerPeer?.name ?? "Conversation"}</p>
+          <p className="truncate font-semibold text-slate-900">{displayName}</p>
           <p className="truncate text-xs text-slate-500">{[headerPeer?.role, headerPeer?.scope].filter(Boolean).join(" · ")}</p>
         </div>
       </header>
+
+      {isOversight ? (
+        <div className="flex items-center gap-2 border-b border-amber-100 bg-amber-50 px-4 py-2 text-xs text-amber-900">
+          <Eye className="h-3.5 w-3.5 shrink-0" />
+          Mode supervision — vous consultez cet échange pour traçabilité (lecture seule).
+        </div>
+      ) : null}
 
       <div ref={scroller} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {messages.map((item) => {
@@ -518,31 +641,37 @@ function ChatThread({
         })}
       </div>
 
-      <form
-        onSubmit={(event) => { event.preventDefault(); void send(); }}
-        className="border-t border-slate-200 bg-white p-3"
-      >
-        {file ? <p className="mb-2 truncate text-xs text-slate-500">Pièce jointe : {file.name}</p> : null}
-        {recording ? <p className="mb-2 text-xs font-medium text-flag-red">Enregistrement vocal…</p> : null}
-        <div className="flex items-end gap-2">
-          <input ref={fileInput} type="file" className="sr-only" accept="image/jpeg,image/png,image/webp,application/pdf,audio/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-          <button type="button" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" onClick={() => fileInput.current?.click()} aria-label="Joindre">
-            <Paperclip className="h-5 w-5" />
-          </button>
-          <button type="button" className={cn("rounded-lg p-2 hover:bg-slate-100", recording ? "text-flag-red" : "text-slate-500")} onClick={() => void toggleRecord()} aria-label="Vocal">
-            {recording ? <Square className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-          </button>
-          <Textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={2}
-            placeholder="Écrire un message…"
-            className="min-h-[2.75rem] flex-1"
-            wrapperClassName="flex-1"
-          />
-          <Button type="submit" loading={sending} className="shrink-0"><Send className="h-4 w-4" /></Button>
+      {allowSend ? (
+        <form
+          onSubmit={(event) => { event.preventDefault(); void send(); }}
+          className="border-t border-slate-200 bg-white p-3"
+        >
+          {file ? <p className="mb-2 truncate text-xs text-slate-500">Pièce jointe : {file.name}</p> : null}
+          {recording ? <p className="mb-2 text-xs font-medium text-flag-red">Enregistrement vocal…</p> : null}
+          <div className="flex items-end gap-2">
+            <input ref={fileInput} type="file" className="sr-only" accept="image/jpeg,image/png,image/webp,application/pdf,audio/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            <button type="button" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" onClick={() => fileInput.current?.click()} aria-label="Joindre">
+              <Paperclip className="h-5 w-5" />
+            </button>
+            <button type="button" className={cn("rounded-lg p-2 hover:bg-slate-100", recording ? "text-flag-red" : "text-slate-500")} onClick={() => void toggleRecord()} aria-label="Vocal">
+              {recording ? <Square className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+            </button>
+            <Textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={2}
+              placeholder="Écrire un message…"
+              className="min-h-[2.75rem] flex-1"
+              wrapperClassName="flex-1"
+            />
+            <Button type="submit" loading={sending} className="shrink-0"><Send className="h-4 w-4" /></Button>
+          </div>
+        </form>
+      ) : (
+        <div className="border-t border-slate-200 bg-white px-4 py-3 text-center text-xs text-slate-500">
+          Lecture seule — pour répondre, ouvrez une conversation directe avec la personne.
         </div>
-      </form>
+      )}
     </div>
   );
 }

@@ -6,10 +6,12 @@ use App\Enums\RoleSlug;
 use App\Models\ChatParticipant;
 use App\Models\Member;
 use App\Models\User;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Graphe « qui peut écrire à qui » : périmètre territorial + rôle.
- * Jamais une liste nationale pour un membre.
+ * Super-admin : contacte tout le monde.
  */
 class ChatDirectoryService
 {
@@ -57,104 +59,157 @@ class ChatDirectoryService
         return $this->staffSharesScope($actor, $target);
     }
 
-    /** @return list<array{id: string, label: string, contacts: list<array<string, mixed>>}> */
-    public function groupsFor(User $actor): array
+    /**
+     * Annuaire paginé (recherche serveur) pour le panneau « Contacter ».
+     *
+     * @return LengthAwarePaginator<int, array<string, mixed>>
+     */
+    public function paginatedContacts(User $actor, ?string $search = null, int $perPage = 20): LengthAwarePaginator
     {
-        $actor->loadMissing(['role', 'member.structure.leader.user', 'member.province', 'member.city']);
+        $actor->loadMissing(['role', 'member.structure.leader', 'member.province', 'member.city']);
+        $perPage = max(5, min($perPage, 50));
+        $search = trim((string) $search);
 
-        $seen = [];
-        $push = function (array &$bucket, User $user) use ($actor, &$seen): void {
-            if (isset($seen[$user->id]) || ! $this->canContact($actor, $user)) {
-                return;
+        $query = User::query()
+            ->where('is_active', true)
+            ->where('id', '!=', $actor->id)
+            ->with(['role', 'member', 'province', 'city', 'structure']);
+
+        if (! $actor->hasRole(RoleSlug::SuperAdmin)) {
+            $ids = $this->contactableUserIds($actor);
+            if ($ids === []) {
+                return new \Illuminate\Pagination\LengthAwarePaginator([], 0, $perPage);
             }
-            $seen[$user->id] = true;
-            $bucket[] = $this->serializeContact($user);
-        };
+            $query->whereIn('id', $ids);
+        }
 
-        $national = $provincial = $city = $local = $peers = [];
+        if ($search !== '') {
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $search).'%';
+            $query->where(function (Builder $q) use ($like) {
+                $q->where('name', 'like', $like)
+                    ->orWhere('email', 'like', $like)
+                    ->orWhere('phone', 'like', $like)
+                    ->orWhereHas('member', function (Builder $m) use ($like) {
+                        $m->where('member_code', 'like', $like)
+                            ->orWhere('first_name', 'like', $like)
+                            ->orWhere('last_name', 'like', $like)
+                            ->orWhere('middle_name', 'like', $like);
+                    })
+                    ->orWhereHas('role', fn (Builder $r) => $r->where('name', 'like', $like));
+            });
+        }
+
+        $paginator = $query
+            ->orderByRaw('CASE WHEN EXISTS (SELECT 1 FROM members WHERE members.user_id = users.id) THEN 1 ELSE 0 END')
+            ->orderBy('name')
+            ->paginate($perPage);
+
+        $paginator->setCollection(
+            $paginator->getCollection()->map(function (User $user) use ($actor) {
+                $contact = $this->serializeContact($user);
+                $contact['group_id'] = $this->groupIdFor($actor, $user);
+                $contact['group_label'] = $this->groupLabelFor($contact['group_id'], $actor);
+
+                return $contact;
+            })
+        );
+
+        return $paginator;
+    }
+
+    /** @return list<int> */
+    private function contactableUserIds(User $actor): array
+    {
+        $seen = [];
 
         if ($actor->scopeLevel() >= 4) {
             $member = $actor->member;
-            $staff = $this->staffCoveringMember($member);
-
-            foreach ($staff as $user) {
-                $level = $user->scopeLevel();
-                if ($level === 0) {
-                    $push($national, $user);
-                } elseif ($level === 1) {
-                    $push($provincial, $user);
-                } elseif ($level === 2) {
-                    $push($city, $user);
-                } else {
-                    $push($local, $user);
+            foreach ($this->staffCoveringMember($member) as $user) {
+                if ($this->canContact($actor, $user)) {
+                    $seen[$user->id] = true;
                 }
             }
 
-            if ($member?->structure_id) {
-                $leader = $member->structure?->leader?->user;
-                if ($leader) {
-                    $push($local, $leader);
-                }
+            $leader = $member?->structure?->leader?->user;
+            if ($leader && $this->canContact($actor, $leader)) {
+                $seen[$leader->id] = true;
+            }
 
+            if ($member?->structure_id) {
                 Member::query()
                     ->where('structure_id', $member->structure_id)
                     ->whereNotNull('user_id')
                     ->where('user_id', '!=', $actor->id)
                     ->with(['user.role', 'user.member'])
-                    ->limit(40)
+                    ->limit(200)
                     ->get()
-                    ->each(function (Member $peer) use (&$peers, $push) {
-                        if ($peer->user) {
-                            $push($peers, $peer->user);
+                    ->each(function (Member $peer) use ($actor, &$seen) {
+                        if ($peer->user && $this->canContact($actor, $peer->user)) {
+                            $seen[$peer->user->id] = true;
                         }
                     });
             }
-        } else {
-            User::query()
-                ->where('is_active', true)
-                ->where('id', '!=', $actor->id)
-                ->whereHas('role', fn ($q) => $q->where('scope_level', '<', 4))
-                ->with(['role', 'member', 'province', 'city', 'structure'])
-                ->limit(80)
-                ->get()
-                ->each(function (User $user) use ($actor, &$national, &$provincial, &$city, &$local, $push) {
-                    if (! $this->staffSharesScope($actor, $user) && ! $actor->hasRole(RoleSlug::SuperAdmin)) {
-                        return;
-                    }
-                    $level = $user->scopeLevel();
-                    if ($level === 0) {
-                        $push($national, $user);
-                    } elseif ($level === 1) {
-                        $push($provincial, $user);
-                    } elseif ($level === 2) {
-                        $push($city, $user);
-                    } else {
-                        $push($local, $user);
-                    }
-                });
 
-            Member::query()
-                ->visibleTo($actor)
-                ->whereNotNull('user_id')
-                ->where('user_id', '!=', $actor->id)
-                ->with(['user.role', 'user.member', 'structure'])
-                ->orderBy('last_name')
-                ->limit(60)
-                ->get()
-                ->each(function (Member $row) use (&$peers, $push) {
-                    if ($row->user) {
-                        $push($peers, $row->user);
-                    }
-                });
+            return array_map('intval', array_keys($seen));
         }
 
-        return array_values(array_filter([
-            ['id' => 'national', 'label' => 'Administration nationale', 'contacts' => $national],
-            ['id' => 'province', 'label' => 'Administration provinciale', 'contacts' => $provincial],
-            ['id' => 'city', 'label' => 'Administration territoriale / ville', 'contacts' => $city],
-            ['id' => 'local', 'label' => 'Responsable local / structure', 'contacts' => $local],
-            ['id' => 'members', 'label' => $actor->scopeLevel() >= 4 ? 'Membres de ma structure' : 'Membres du périmètre', 'contacts' => $peers],
-        ], fn (array $group) => $group['contacts'] !== []));
+        User::query()
+            ->where('is_active', true)
+            ->where('id', '!=', $actor->id)
+            ->whereHas('role', fn ($q) => $q->where('scope_level', '<', 4))
+            ->with(['role', 'member', 'province', 'city', 'structure'])
+            ->limit(300)
+            ->get()
+            ->each(function (User $user) use ($actor, &$seen) {
+                if ($this->canContact($actor, $user)) {
+                    $seen[$user->id] = true;
+                }
+            });
+
+        Member::query()
+            ->visibleTo($actor)
+            ->whereNotNull('user_id')
+            ->where('user_id', '!=', $actor->id)
+            ->with(['user.role', 'user.member', 'structure'])
+            ->limit(300)
+            ->get()
+            ->each(function (Member $row) use ($actor, &$seen) {
+                if ($row->user && $this->canContact($actor, $row->user)) {
+                    $seen[$row->user->id] = true;
+                }
+            });
+
+        return array_map('intval', array_keys($seen));
+    }
+
+    private function groupIdFor(User $actor, User $user): string
+    {
+        $level = $user->scopeLevel();
+        if ($level >= 4 || $user->member_id) {
+            return 'members';
+        }
+        if ($level === 0) {
+            return 'national';
+        }
+        if ($level === 1) {
+            return 'province';
+        }
+        if ($level === 2) {
+            return 'city';
+        }
+
+        return 'local';
+    }
+
+    private function groupLabelFor(string $groupId, User $actor): string
+    {
+        return match ($groupId) {
+            'national' => 'Administration nationale',
+            'province' => 'Administration provinciale',
+            'city' => 'Administration territoriale / ville',
+            'local' => 'Responsable local / structure',
+            default => $actor->scopeLevel() >= 4 ? 'Membres de ma structure' : 'Membres',
+        };
     }
 
     /** @return \Illuminate\Support\Collection<int, User> */
@@ -192,7 +247,7 @@ class ChatDirectoryService
                     });
                 }
             })
-            ->limit(50)
+            ->limit(80)
             ->get();
     }
 
@@ -253,10 +308,42 @@ class ChatDirectoryService
             return true;
         }
 
+        if ($actor->hasRole(RoleSlug::SuperAdmin)) {
+            return true;
+        }
+
         return ChatParticipant::query()
             ->where('user_id', $actor->id)
             ->whereHas('conversation.participants', fn ($q) => $q->where('user_id', $target->id))
             ->exists();
+    }
+
+    /**
+     * @param  iterable<\App\Models\ChatParticipant|User>  $people
+     */
+    public function classifyExchange(iterable $people): string
+    {
+        $levels = [];
+        foreach ($people as $person) {
+            $user = $person instanceof User ? $person : $person->user;
+            if (! $user) {
+                continue;
+            }
+            $user->loadMissing('role');
+            $levels[] = $user->scopeLevel();
+        }
+
+        $hasMember = collect($levels)->contains(fn ($l) => $l >= 4);
+        $hasStaff = collect($levels)->contains(fn ($l) => $l < 4);
+
+        if ($hasMember && $hasStaff) {
+            return 'chef_membre';
+        }
+        if ($hasMember) {
+            return 'membre_membre';
+        }
+
+        return 'staff_staff';
     }
 
     /** @return array<string, mixed> */
@@ -276,6 +363,7 @@ class ChatDirectoryService
                 ?? $user->province?->name
                 ?? $user->member?->structure?->name
                 ?? null,
+            'scope_level' => $user->scopeLevel(),
         ];
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\NotificationType;
+use App\Enums\RoleSlug;
 use App\Models\ChatAttachment;
 use App\Models\ChatConversation;
 use App\Models\ChatMessage;
@@ -118,9 +119,47 @@ class MessagingService
             }
         }
 
+        $this->notifySuperAdmins($conversation, $actor, $previewText);
+
         $this->audit->log('chat.message-sent', $conversation, $previewText);
 
         return $message;
+    }
+
+    private function notifySuperAdmins(ChatConversation $conversation, User $actor, string $preview): void
+    {
+        $participantIds = $conversation->participants()->pluck('user_id')->all();
+        $kind = $this->directory->classifyExchange(
+            $conversation->participants()->with('user.role')->get()
+        );
+
+        $title = $kind === 'chef_membre'
+            ? '👁 Échange chef ↔ membre'
+            : '👁 Message (supervision)';
+
+        User::query()
+            ->where('is_active', true)
+            ->where('id', '!=', $actor->id)
+            ->whereHas('role', fn ($q) => $q->where('slug', RoleSlug::SuperAdmin->value))
+            ->whereNotIn('id', $participantIds)
+            ->get()
+            ->each(function (User $admin) use ($conversation, $actor, $preview, $title, $kind) {
+                $this->notifications->pushToUser(
+                    $admin,
+                    NotificationType::ChatMessage,
+                    $title,
+                    ($actor->member?->full_name ?? $actor->name).' — '.$preview,
+                    [
+                        'conversation_id' => $conversation->id,
+                        'action' => 'view_chat',
+                        'oversight' => true,
+                        'kind' => $kind,
+                    ],
+                    'info',
+                    $actor->member,
+                    $actor,
+                );
+            });
     }
 
     public function markRead(ChatConversation $conversation, User $user): void

@@ -1426,40 +1426,34 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
   const chatMocks = getChatMocks();
   if (method === "GET" && path === "/jp-messages/directory") {
     const me = requireUser();
-    return {
-      data: [
-        {
-          id: "national",
-          label: "Administration nationale",
-          contacts: db.users
-            .filter((item) => {
-              if (item.id === me.id || item.role?.scope_level !== 0) return false;
-              if (item.role?.slug === "super-admin" && me.role?.scope_level !== 0) return false;
-              return true;
-            })
-            .map((item) => ({
-              id: item.id,
-              name: item.name,
-              role: item.role?.name,
-              photo_url: item.photo_url,
-              scope: "National",
-            })),
-        },
-        {
-          id: "members",
-          label: "Membres",
-          contacts: db.users
-            .filter((item) => item.id !== me.id && item.member_id)
-            .map((item) => ({
-              id: item.id,
-              name: item.name,
-              role: item.role?.name,
-              photo_url: item.photo_url,
-              member_code: item.member_code,
-            })),
-        },
-      ],
-    } as T;
+    const q = String(query?.q ?? "").trim().toLowerCase();
+    const isSuper = me.role?.slug === "super-admin";
+    let contacts = db.users
+      .filter((item) => item.id !== me.id)
+      .filter((item) => {
+        if (isSuper) return true;
+        if (item.role?.slug === "super-admin" && me.role?.scope_level !== 0) return false;
+        if (me.role?.scope_level === 0) return true;
+        if (item.member_id && me.member_id) return true;
+        return (item.role?.scope_level ?? 4) === 0;
+      })
+      .map((item) => {
+        const group_id = (item.role?.scope_level ?? 4) >= 4 || item.member_id ? "members" : "national";
+        return {
+          id: item.id,
+          name: item.name,
+          role: item.role?.name,
+          role_slug: item.role?.slug,
+          photo_url: item.photo_url,
+          member_code: item.member_code,
+          scope: item.scope?.structure ?? item.scope?.province ?? null,
+          scope_level: item.role?.scope_level,
+          group_id,
+          group_label: group_id === "members" ? "Membres" : "Administration nationale",
+        };
+      })
+      .filter((item) => !q || `${item.name} ${item.role} ${item.member_code}`.toLowerCase().includes(q));
+    return paginate(contacts, query) as T;
   }
   if (method === "GET" && path === "/jp-messages/unread-count") {
     const me = requireUser();
@@ -1467,12 +1461,17 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
   }
   if (method === "GET" && path === "/jp-messages/chats") {
     const me = requireUser();
-    return paginate(
-      chatMocks.conversations
-        .filter((item) => item.userIds.includes(me.id))
-        .map((item) => presentChatConversation(item, me)),
-      query,
-    ) as T;
+    const isSuper = me.role?.slug === "super-admin";
+    const kind = String(query?.kind ?? "");
+    let rows = chatMocks.conversations.filter((item) => isSuper || item.userIds.includes(me.id));
+    if (kind === "mine") rows = rows.filter((item) => item.userIds.includes(me.id));
+    if (kind === "chef_membre") {
+      rows = rows.filter((item) => {
+        const levels = item.userIds.map((id) => db.users.find((u) => u.id === id)?.role?.scope_level ?? 4);
+        return levels.some((l) => l >= 4) && levels.some((l) => l < 4);
+      });
+    }
+    return paginate(rows.map((item) => presentChatConversation(item, me, isSuper)), query) as T;
   }
   if (method === "POST" && path === "/jp-messages/chats") {
     const me = requireUser();
@@ -1500,10 +1499,17 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
   if (method === "GET" && segments[0] === "jp-messages" && segments[1] === "chats" && segments[2] && segments[3] === "messages") {
     const me = requireUser();
     const id = Number(segments[2]);
-    const conversation = chatMocks.conversations.find((c) => c.id === id && c.userIds.includes(me.id));
+    const isSuper = me.role?.slug === "super-admin";
+    const conversation = chatMocks.conversations.find((c) => c.id === id && (isSuper || c.userIds.includes(me.id)));
     if (!conversation) throw new ApiError(404, "Conversation introuvable.");
     if (conversation.unreadFor === me.id) conversation.unreadFor = null;
-    return { data: chatMocks.messages[id] ?? [] } as T;
+    return {
+      data: chatMocks.messages[id] ?? [],
+      meta: {
+        can_send: conversation.userIds.includes(me.id),
+        oversight: isSuper && !conversation.userIds.includes(me.id),
+      },
+    } as T;
   }
   if (method === "POST" && segments[0] === "jp-messages" && segments[1] === "chats" && segments[2] && segments[3] === "messages") {
     const me = requireUser();
@@ -1557,9 +1563,10 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
   }
   if (method === "GET" && segments[0] === "jp-messages" && segments[1] === "chats" && segments[2] && segments.length === 3) {
     const me = requireUser();
-    const conversation = chatMocks.conversations.find((c) => String(c.id) === segments[2] && c.userIds.includes(me.id));
+    const isSuper = me.role?.slug === "super-admin";
+    const conversation = chatMocks.conversations.find((c) => String(c.id) === segments[2] && (isSuper || c.userIds.includes(me.id)));
     if (!conversation) throw new ApiError(404, "Conversation introuvable.");
-    return { data: presentChatConversation(conversation, me) } as T;
+    return { data: presentChatConversation(conversation, me, isSuper) } as T;
   }
 
   if (method === "GET" && segments[0] === "jp-messages" && segments[1] && segments.length === 2) {
@@ -1713,19 +1720,43 @@ let chatMockState: {
   messages: Record<number, ChatMockMessage[]>;
 } | null = null;
 
-function presentChatConversation(row: ChatMockConversation, me: { id: number }) {
+function presentChatConversation(row: ChatMockConversation, me: { id: number }, oversee = false) {
+  const isParticipant = row.userIds.includes(me.id);
+  const participants = row.userIds
+    .map((id) => db.users.find((item) => item.id === id))
+    .filter(Boolean)
+    .map((other) => ({
+      id: other!.id,
+      name: other!.name,
+      role: other!.role?.name,
+      photo_url: other!.photo_url,
+      scope_level: other!.role?.scope_level,
+    }));
   const otherId = row.userIds.find((id) => id !== me.id) ?? row.userIds[0];
   const other = db.users.find((item) => item.id === otherId);
+  const levels = participants.map((p) => p.scope_level ?? 4);
+  const kind =
+    levels.some((l) => l >= 4) && levels.some((l) => l < 4)
+      ? "chef_membre"
+      : levels.every((l) => l >= 4)
+        ? "membre_membre"
+        : "staff_staff";
+
   return {
     id: row.id,
     channel: "chat" as const,
     type: "direct",
+    title: !isParticipant && participants.length >= 2 ? participants.map((p) => p.name).slice(0, 2).join(" ↔ ") : null,
+    kind,
+    oversight: oversee && !isParticipant,
+    can_send: isParticipant,
     peer: other
       ? { id: other.id, name: other.name, role: other.role?.name, photo_url: other.photo_url }
-      : null,
+      : participants[0] ?? null,
+    participants,
     last_message_at: row.last_message_at,
     last_message_preview: row.last_message_preview,
-    unread: row.unreadFor === me.id,
+    unread: isParticipant && row.unreadFor === me.id,
     created_at: row.created_at,
   };
 }
