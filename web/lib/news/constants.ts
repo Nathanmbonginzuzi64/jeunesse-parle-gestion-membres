@@ -24,8 +24,12 @@ export interface NewsCommentItem {
   id: number;
   body: string;
   author: string;
+  user_id?: number | null;
   parent_id?: number | null;
+  likes_count: number;
+  liked?: boolean;
   created_at: string;
+  updated_at?: string;
   replies?: NewsCommentItem[];
 }
 

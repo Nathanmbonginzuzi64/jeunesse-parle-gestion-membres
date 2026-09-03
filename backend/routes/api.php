@@ -182,6 +182,8 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
         Route::get('stats', [NewsController::class, 'stats']);
         Route::get('categories', [NewsController::class, 'categories']);
         Route::delete('comments/{newsComment}', [NewsController::class, 'deleteComment']);
+        Route::patch('comments/{newsComment}', [NewsController::class, 'updateComment']);
+        Route::post('comments/{newsComment}/like', [NewsController::class, 'likeComment']);
         Route::get('/', [NewsController::class, 'index']);
         Route::post('/', [NewsController::class, 'store']);
         Route::post('{newsPost}/restore', [NewsController::class, 'restore']);

@@ -78,6 +78,16 @@ export function NewsAdminTable({ posts, onViewDetail, onArchive }: NewsAdminTabl
 
 function PublicationCell({ post }: { post: NewsPostItem }) {
   const preview = post.text_background && post.text_background !== "none" ? post.body.split("\n")[0] : post.title;
+  const mediaLabel =
+    post.media_type === "video"
+      ? "Vidéo"
+      : post.media_type === "image"
+        ? "Photo"
+        : post.media_type === "document"
+          ? "PDF"
+          : post.media_type === "link"
+            ? "Lien"
+            : null;
 
   return (
     <div className="flex items-start gap-3">
@@ -89,6 +99,7 @@ function PublicationCell({ post }: { post: NewsPostItem }) {
         <p className="line-clamp-1 text-xs text-slate-500">{preview}</p>
         <p className="mt-1 text-xs text-slate-400">
           {post.author ?? "Jeunesse Parle"} · {formatRelative(post.created_at)}
+          {mediaLabel ? ` · ${mediaLabel}` : null}
         </p>
       </div>
     </div>
@@ -97,17 +108,17 @@ function PublicationCell({ post }: { post: NewsPostItem }) {
 
 function EngagementBadges({ post }: { post: NewsPostItem }) {
   const items = [
-    { icon: Eye, value: post.views_count, color: "text-blue-600" },
-    { icon: Heart, value: post.likes_count, color: "text-red-500" },
-    { icon: MessageCircle, value: post.comments_count, color: "text-emerald-600" },
-    { icon: Share2, value: post.shares_count, color: "text-violet-600" },
+    { id: "views", icon: Eye, value: post.views_count, color: "text-blue-600" },
+    { id: "likes", icon: Heart, value: post.likes_count, color: "text-red-500" },
+    { id: "comments", icon: MessageCircle, value: post.comments_count, color: "text-emerald-600" },
+    { id: "shares", icon: Share2, value: post.shares_count, color: "text-violet-600" },
   ];
 
   return (
     <div className="flex flex-wrap gap-2">
-      {items.map(({ icon: Icon, value, color }) => (
+      {items.map(({ id, icon: Icon, value, color }) => (
         <span
-          key={Icon.name}
+          key={id}
           className="inline-flex items-center gap-1 rounded-lg bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-100"
         >
           <Icon className={cn("h-3 w-3", color)} />

@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { ExternalLink, Link2, Play, AlertCircle } from "lucide-react";
 import { Field, Input } from "@/components/ui/field";
+import { extractYoutubeId, YOUTUBE_IFRAME_ALLOW } from "@/lib/news/youtube";
 import { cn } from "@/lib/utils";
 
 interface NewsUrlFieldProps {
@@ -10,17 +11,6 @@ interface NewsUrlFieldProps {
   value: string;
   onChange: (value: string) => void;
   error?: string | null;
-}
-
-function extractYoutubeId(url: string): string | null {
-  try {
-    const u = new URL(url);
-    if (u.hostname.includes("youtu.be")) return u.pathname.slice(1).split("?")[0] || null;
-    if (u.hostname.includes("youtube.com")) return u.searchParams.get("v");
-  } catch {
-    /* invalid */
-  }
-  return null;
 }
 
 function isValidUrl(value: string): boolean {
@@ -35,7 +25,7 @@ function isValidUrl(value: string): boolean {
 export function NewsUrlField({ mode, value, onChange, error }: NewsUrlFieldProps) {
   const isVideo = mode === "video";
   const youtubeId = useMemo(() => (isVideo && value ? extractYoutubeId(value) : null), [isVideo, value]);
-  const valid = value ? isValidUrl(value) : false;
+  const showInvalid = Boolean(value) && (isVideo ? !youtubeId : !isValidUrl(value));
 
   return (
     <div className="space-y-4">
@@ -58,10 +48,12 @@ export function NewsUrlField({ mode, value, onChange, error }: NewsUrlFieldProps
         </div>
       </Field>
 
-      {value && !valid ? (
+      {showInvalid ? (
         <div className="flex items-center gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200">
           <AlertCircle className="h-4 w-4 shrink-0" />
-          URL invalide — vérifiez le format (https://…)
+          {isVideo
+            ? "URL YouTube invalide — utilisez watch, youtu.be ou Shorts"
+            : "URL invalide — vérifiez le format (https://…)"}
         </div>
       ) : null}
 
@@ -75,12 +67,15 @@ export function NewsUrlField({ mode, value, onChange, error }: NewsUrlFieldProps
             src={`https://www.youtube.com/embed/${youtubeId}`}
             title="Aperçu vidéo"
             className="aspect-video w-full"
+            allow={YOUTUBE_IFRAME_ALLOW}
             allowFullScreen
+            loading="lazy"
+            referrerPolicy="strict-origin-when-cross-origin"
           />
         </div>
       ) : null}
 
-      {!isVideo && valid ? (
+      {!isVideo && value && isValidUrl(value) ? (
         <a
           href={value}
           target="_blank"

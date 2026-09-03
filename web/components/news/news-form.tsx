@@ -14,6 +14,7 @@ import { NewsPublishProgress, type PublishPhase } from "@/components/news/news-p
 import { uploadFormData, ApiError } from "@/lib/api";
 import { NEWS_CATEGORIES, type NewsPostItem } from "@/lib/news/constants";
 import { decodeTextBackground, type TextBackgroundId } from "@/lib/news/text-backgrounds";
+import { extractYoutubeId } from "@/lib/news/youtube";
 import { useApi } from "@/lib/hooks";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
@@ -86,6 +87,12 @@ export function NewsForm({ initial, onSuccess }: NewsFormProps) {
       toast.error("Veuillez saisir une URL.");
       return;
     }
+    if (mediaType === "video") {
+      if (!extractYoutubeId(externalUrl)) {
+        toast.error("URL YouTube invalide. Utilisez un lien watch, youtu.be ou Shorts.");
+        return;
+      }
+    }
 
     setBusy(true);
     setPublishPhase("preparing");
@@ -144,9 +151,6 @@ export function NewsForm({ initial, onSuccess }: NewsFormProps) {
   const previewText = body.trim() || title.trim() || "Votre message…";
 
   return (
-    <>
-      <NewsPublishProgress open={busy || publishPhase === "done"} phase={publishPhase} progress={uploadProgress} />
-
       <div className="grid gap-8 xl:grid-cols-[1fr_380px]">
         <form onSubmit={submit} className="space-y-6">
           <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[var(--shadow-card)]">
@@ -260,7 +264,7 @@ export function NewsForm({ initial, onSuccess }: NewsFormProps) {
           </Button>
         </form>
 
-        <aside className="xl:sticky xl:top-6 xl:self-start">
+        <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
           <Card className="overflow-hidden border-brand-100">
             <div className="border-b border-brand-100 bg-gradient-to-r from-brand-50 to-blue-50 px-4 py-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">Aperçu en direct</p>
@@ -279,8 +283,13 @@ export function NewsForm({ initial, onSuccess }: NewsFormProps) {
               />
             </CardBody>
           </Card>
+
+          <NewsPublishProgress
+            open={busy || publishPhase !== "idle"}
+            phase={publishPhase}
+            progress={uploadProgress}
+          />
         </aside>
       </div>
-    </>
   );
 }

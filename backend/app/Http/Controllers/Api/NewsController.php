@@ -6,6 +6,7 @@ use App\Enums\NewsCategory;
 use App\Http\Controllers\Controller;
 use App\Jobs\NotifyNewsPublishedJob;
 use App\Models\NewsComment;
+use App\Models\NewsCommentLike;
 use App\Models\NewsPost;
 use App\Models\NewsReaction;
 use App\Models\NewsShare;
@@ -60,19 +61,18 @@ class NewsController extends Controller
 
         $posts = $query->latest()->paginate(min($request->integer('per_page', 15), 50));
 
-        $memberId = $request->user()->member_id;
-        $myReactions = $memberId
-            ? NewsReaction::query()
-                ->whereIn('news_post_id', $posts->getCollection()->pluck('id'))
-                ->where('member_id', $memberId)
-                ->pluck('type', 'news_post_id')
-            : collect();
+        $userId = $request->user()->id;
+        $myReactions = NewsReaction::query()
+            ->whereIn('news_post_id', $posts->getCollection()->pluck('id'))
+            ->where('user_id', $userId)
+            ->pluck('type', 'news_post_id');
 
         return response()->json([
             'data' => $posts->getCollection()->map(fn (NewsPost $post) => $this->formatPost(
                 $post,
-                $memberId,
+                $request->user()->member_id,
                 myReaction: $myReactions[$post->id] ?? null,
+                userId: $userId,
             )),
             'meta' => [
                 'current_page' => $posts->currentPage(),
@@ -256,8 +256,8 @@ class NewsController extends Controller
 
     public function react(Request $request, NewsPost $newsPost): JsonResponse
     {
-        $member = $request->user()->member;
-        abort_unless($member, 403);
+        $user = $request->user();
+        $member = $user->member;
 
         $validated = $request->validate([
             'type' => ['nullable', 'string', 'in:'.implode(',', self::REACTION_TYPES)],
@@ -266,19 +266,24 @@ class NewsController extends Controller
 
         if ($request->boolean('remove')) {
             NewsReaction::where('news_post_id', $newsPost->id)
-                ->where('member_id', $member->id)
+                ->where('user_id', $user->id)
                 ->delete();
         } else {
             NewsReaction::updateOrCreate(
-                ['news_post_id' => $newsPost->id, 'member_id' => $member->id],
-                ['type' => $validated['type'] ?? 'like'],
+                ['news_post_id' => $newsPost->id, 'user_id' => $user->id],
+                [
+                    'type' => $validated['type'] ?? 'like',
+                    'member_id' => $member?->id,
+                ],
             );
 
-            $newsPost->load('author.member');
-            if ($newsPost->author_id && $newsPost->author?->member_id && $newsPost->author->member_id !== $member->id) {
-                $authorMember = $newsPost->author->member;
-                if ($authorMember) {
-                    $this->notifications->newsReactionReceived($authorMember, $newsPost, $member);
+            if ($member) {
+                $newsPost->load('author.member');
+                if ($newsPost->author_id && $newsPost->author?->member_id && $newsPost->author->member_id !== $member->id) {
+                    $authorMember = $newsPost->author->member;
+                    if ($authorMember) {
+                        $this->notifications->newsReactionReceived($authorMember, $newsPost, $member);
+                    }
                 }
             }
         }
@@ -323,8 +328,73 @@ class NewsController extends Controller
 
         return response()->json([
             'message' => 'Commentaire publié.',
-            'data' => $this->formatComment($comment->load(['member:id,first_name,last_name', 'user:id,name'])),
+            'data' => $this->formatComment(
+                $comment->load(['member:id,first_name,last_name', 'user:id,name']),
+                userId: $request->user()->id,
+            ),
         ], 201);
+    }
+
+    public function updateComment(Request $request, NewsComment $newsComment): JsonResponse
+    {
+        abort_unless(
+            $newsComment->user_id === $request->user()->id
+            || $this->canManage($request),
+            403,
+        );
+
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+        ]);
+
+        $newsComment->update(['body' => $validated['body']]);
+
+        return response()->json([
+            'message' => 'Commentaire modifié.',
+            'data' => $this->formatComment(
+                $newsComment->fresh(['member:id,first_name,last_name', 'user:id,name']),
+                userId: $request->user()->id,
+            ),
+        ]);
+    }
+
+    public function likeComment(Request $request, NewsComment $newsComment): JsonResponse
+    {
+        $userId = $request->user()->id;
+        $existing = NewsCommentLike::query()
+            ->where('news_comment_id', $newsComment->id)
+            ->where('user_id', $userId)
+            ->first();
+
+        if ($request->boolean('remove') || $existing) {
+            if ($existing) {
+                $existing->delete();
+                if ($newsComment->likes_count > 0) {
+                    $newsComment->decrement('likes_count');
+                }
+            }
+
+            return response()->json([
+                'message' => 'Like retiré.',
+                'likes_count' => (int) $newsComment->fresh()->likes_count,
+                'liked' => false,
+            ]);
+        }
+
+        $like = NewsCommentLike::firstOrCreate([
+            'news_comment_id' => $newsComment->id,
+            'user_id' => $userId,
+        ]);
+
+        if ($like->wasRecentlyCreated) {
+            $newsComment->increment('likes_count');
+        }
+
+        return response()->json([
+            'message' => 'Commentaire aimé.',
+            'likes_count' => (int) $newsComment->fresh()->likes_count,
+            'liked' => true,
+        ]);
     }
 
     public function deleteComment(Request $request, NewsComment $newsComment): JsonResponse
@@ -351,6 +421,7 @@ class NewsController extends Controller
         $this->recordView($request, $newsPost);
 
         $memberId = $request->user()->member_id;
+        $userId = $request->user()->id;
         $newsPost->load([
             'author:id,name,role_id',
             'author.role:id,name',
@@ -359,15 +430,22 @@ class NewsController extends Controller
                 ->with([
                     'member:id,first_name,last_name',
                     'user:id,name',
-                    'replies' => fn ($r) => $r->with(['member:id,first_name,last_name', 'user:id,name'])->latest(),
+                    'likes' => fn ($l) => $l->where('user_id', $userId),
+                    'replies' => fn ($r) => $r->with([
+                        'member:id,first_name,last_name',
+                        'user:id,name',
+                        'likes' => fn ($l) => $l->where('user_id', $userId),
+                    ])->latest(),
                 ])
                 ->latest()
                 ->limit(100),
         ]);
 
         return response()->json(['data' => [
-            ...$this->formatPost($newsPost, $memberId, detailed: true),
-            'comments' => $newsPost->comments->map(fn (NewsComment $c) => $this->formatComment($c, withReplies: true)),
+            ...$this->formatPost($newsPost, $memberId, detailed: true, userId: $userId),
+            'comments' => $newsPost->comments->map(
+                fn (NewsComment $c) => $this->formatComment($c, withReplies: true, userId: $userId),
+            ),
         ]]);
     }
 
@@ -502,13 +580,17 @@ class NewsController extends Controller
         }
     }
 
-    private function formatPost(NewsPost $post, ?int $memberId = null, bool $detailed = false, ?string $myReaction = null): array
+    private function formatPost(NewsPost $post, ?int $memberId = null, bool $detailed = false, ?string $myReaction = null, ?int $userId = null): array
     {
         $category = NewsCategory::tryFrom($post->category ?? 'general') ?? NewsCategory::General;
 
-        if ($myReaction === null && $memberId) {
+        if ($myReaction === null && $userId) {
             $myReaction = $post->relationLoaded('reactions')
-                ? $post->reactions->first()?->type
+                ? $post->reactions->firstWhere('user_id', $userId)?->type
+                : $post->reactions()->where('user_id', $userId)->value('type');
+        } elseif ($myReaction === null && $memberId) {
+            $myReaction = $post->relationLoaded('reactions')
+                ? $post->reactions->firstWhere('member_id', $memberId)?->type
                 : $post->reactions()->where('member_id', $memberId)->value('type');
         }
 
@@ -551,18 +633,28 @@ class NewsController extends Controller
         return $base;
     }
 
-    private function formatComment(NewsComment $comment, bool $withReplies = false): array
+    private function formatComment(NewsComment $comment, bool $withReplies = false, ?int $userId = null): array
     {
+        $liked = $userId && $comment->relationLoaded('likes')
+            ? $comment->likes->isNotEmpty()
+            : ($userId ? $comment->likes()->where('user_id', $userId)->exists() : false);
+
         $data = [
             'id' => $comment->id,
             'body' => $comment->body,
             'author' => $comment->user?->name ?? $comment->member?->full_name ?? 'Membre',
+            'user_id' => $comment->user_id,
             'parent_id' => $comment->parent_id,
+            'likes_count' => (int) ($comment->likes_count ?? 0),
+            'liked' => $liked,
             'created_at' => $comment->created_at?->toIso8601String(),
+            'updated_at' => $comment->updated_at?->toIso8601String(),
         ];
 
         if ($withReplies && $comment->relationLoaded('replies')) {
-            $data['replies'] = $comment->replies->map(fn (NewsComment $r) => $this->formatComment($r));
+            $data['replies'] = $comment->replies->map(
+                fn (NewsComment $r) => $this->formatComment($r, userId: $userId),
+            );
         }
 
         return $data;

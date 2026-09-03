@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { NewsActivityBlock, NewsMediaBlock } from "@/components/news/news-media";
 import { TextBackgroundBanner } from "@/components/news/text-background-picker";
 import { RichTextContent } from "@/components/news/rich-text-editor";
 import { CATEGORY_STYLES, type NewsPostItem } from "@/lib/news/constants";
@@ -110,14 +111,10 @@ export function NewsAdminDetailModal({ post, open, onClose, onArchive }: NewsAdm
               </div>
             </div>
           )}
+          <NewsMediaBlock post={post} />
         </div>
 
-        {post.activity ? (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm">
-            <p className="font-medium text-emerald-800">Activité liée</p>
-            <p className="mt-1 text-slate-700">{post.activity.title}</p>
-          </div>
-        ) : null}
+        {post.activity ? <NewsActivityBlock activity={post.activity} /> : null}
       </div>
     </Modal>
   );

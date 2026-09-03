@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class NewsReaction extends Model
 {
-    protected $fillable = ['news_post_id', 'member_id', 'type'];
+    protected $fillable = ['news_post_id', 'member_id', 'user_id', 'type'];
 
     public function post(): BelongsTo
     {
@@ -17,5 +17,10 @@ class NewsReaction extends Model
     public function member(): BelongsTo
     {
         return $this->belongsTo(Member::class);
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 }

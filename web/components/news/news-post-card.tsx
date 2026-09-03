@@ -26,26 +26,11 @@ interface NewsPostCardProps {
 export function NewsPostCard({ post: initial, onUpdated, compact = false }: NewsPostCardProps) {
   const toast = useToast();
   const [post, setPost] = useState(initial);
-  const [expanded, setExpanded] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   function patch(update: Partial<NewsPostItem>) {
     setPost((p) => ({ ...p, ...update }));
-  }
-
-  async function loadDetail() {
-    if (expanded && post.comments) return;
-    setBusy(true);
-    try {
-      const res = await api.get<{ data: NewsPostItem }>(`/news/${post.id}`);
-      setPost(res.data);
-      setExpanded(true);
-    } catch (caught) {
-      toast.error(caught instanceof ApiError ? caught.message : "Chargement impossible.");
-    } finally {
-      setBusy(false);
-    }
   }
 
   async function share(channel: string) {
@@ -101,45 +86,53 @@ export function NewsPostCard({ post: initial, onUpdated, compact = false }: News
       </header>
 
       <div className="mt-4">
+        <Link href={`/actualites/${post.id}`} className="block">
+          <h2 className="text-lg font-semibold text-slate-900 transition group-hover:text-brand-700">{post.title}</h2>
+        </Link>
+
         {hasTextBg ? (
-          <Link href={`/actualites/${post.id}`} className="block">
-            <TextBackgroundBanner
-              backgroundId={post.text_background}
-              title={post.title}
-              body={compact ? bodyPreview : post.body}
-              compact={compact}
-            />
-          </Link>
-        ) : (
-          <>
+          <div className="mt-3">
             <Link href={`/actualites/${post.id}`} className="block">
-              <h2 className="text-lg font-semibold text-slate-900 transition group-hover:text-brand-700">{post.title}</h2>
+              <TextBackgroundBanner
+                backgroundId={post.text_background}
+                body={compact ? bodyPreview : post.body}
+                compact={compact}
+              />
             </Link>
-            <div className="mt-2">
-              {compact ? (
+          </div>
+        ) : (
+          <div className="mt-2">
+            {post.body?.trim() ? (
+              compact ? (
                 <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{bodyPreview}</p>
               ) : (
                 <RichTextContent content={post.body} />
-              )}
-            </div>
-          </>
+              )
+            ) : null}
+          </div>
         )}
-        {!compact ? <NewsMediaBlock post={post} /> : null}
+
+        <NewsMediaBlock post={post} compact={compact} />
         {post.activity ? <NewsActivityBlock activity={post.activity} /> : null}
       </div>
       </div>
 
       <footer className="flex flex-wrap items-center gap-2 border-t border-slate-100 bg-slate-50/50 px-5 py-3">
         <NewsReactions post={post} onUpdate={patch} disabled={busy} />
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void loadDetail()}
-          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-slate-600 transition hover:bg-white hover:shadow-sm"
-        >
-          <MessageCircle className="h-4 w-4" />
-          {post.comments_count}
-        </button>
+        {compact ? (
+          <Link
+            href={`/actualites/${post.id}#commentaires`}
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-slate-600 transition hover:bg-white hover:shadow-sm"
+          >
+            <MessageCircle className="h-4 w-4" />
+            {post.comments_count}
+          </Link>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-slate-500">
+            <MessageCircle className="h-4 w-4" />
+            {post.comments_count}
+          </span>
+        )}
         <div className="relative">
           <button
             type="button"
@@ -186,11 +179,13 @@ export function NewsPostCard({ post: initial, onUpdated, compact = false }: News
         </span>
       </footer>
 
-      {expanded ? (
-        <div className="px-5 pb-5">
+      {!compact ? (
+        <div className="px-5 pb-5" id="commentaires">
           <NewsComments
             postId={post.id}
             comments={post.comments ?? []}
+            totalCount={post.comments_count}
+            defaultOpen
             onChange={(comments) => patch({ comments })}
             onCountChange={(count) => {
               patch({ comments_count: count });
@@ -200,7 +195,7 @@ export function NewsPostCard({ post: initial, onUpdated, compact = false }: News
         </div>
       ) : null}
 
-      {compact && !hasTextBg ? (
+      {compact && post.body && post.body.length > 280 ? (
         <div className="px-5 pb-4">
           <Link
             href={`/actualites/${post.id}`}

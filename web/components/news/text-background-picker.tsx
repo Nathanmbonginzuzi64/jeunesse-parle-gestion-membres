@@ -80,7 +80,12 @@ export function TextBackgroundBanner({
     return null;
   }
 
-  const text = compact && title ? title : body.length > 200 && compact ? `${body.slice(0, 200)}…` : body;
+  const displayBody = body?.trim() || "";
+  const displayTitle = title?.trim() || "";
+  const text =
+    compact && displayBody.length > 200
+      ? `${displayBody.slice(0, 200)}…`
+      : displayBody || displayTitle || "";
 
   return (
     <div
@@ -93,8 +98,8 @@ export function TextBackgroundBanner({
     >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.15),transparent_50%)]" />
       <div className={cn("relative flex h-full flex-col items-center justify-center p-6 text-center", bg.textClass)}>
-        {!compact && title ? <h3 className="mb-2 text-lg font-bold opacity-95">{title}</h3> : null}
-        <p className={cn("font-semibold leading-relaxed", compact ? "text-lg" : "text-xl md:text-2xl")}>{text}</p>
+        {!compact && displayTitle ? <h3 className="mb-2 text-lg font-bold opacity-95">{displayTitle}</h3> : null}
+        <p className={cn("font-semibold leading-relaxed", compact ? "text-base sm:text-lg" : "text-xl md:text-2xl")}>{text}</p>
       </div>
     </div>
   );

@@ -1230,16 +1230,35 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
   if (method === "POST" && path === "/news") {
     requireUser();
     const input = jsonBody(body);
+    const mediaType = String(input.media_type ?? "text");
+    const externalUrl =
+      mediaType === "text" && input.text_background && String(input.text_background) !== "none"
+        ? `bg:${String(input.text_background)}`
+        : input.external_url
+          ? String(input.external_url)
+          : null;
+    const category = String(input.category ?? "general");
     const post = {
       id: newsMocks.nextId++,
       title: String(input.title ?? "Sans titre"),
       body: String(input.body ?? ""),
+      category,
+      category_label: category,
+      category_badge: category.toUpperCase(),
+      media_type: mediaType,
+      media_url: null as string | null,
+      gallery_urls: [] as string[],
+      external_url: mediaType === "text" ? null : externalUrl,
+      text_background: mediaType === "text" && externalUrl?.startsWith("bg:") ? externalUrl.slice(3) : null,
       author: currentUser()?.name ?? "Admin",
+      author_role: "Super Admin",
       activity: null,
       likes_count: 0,
       comments_count: 0,
       shares_count: 0,
       views_count: 0,
+      status: String(input.is_published ?? "1") === "0" || input.is_published === false ? "draft" : "published",
+      is_published: !(String(input.is_published ?? "1") === "0" || input.is_published === false),
       created_at: new Date().toISOString(),
       comments: [],
     };
@@ -1256,8 +1275,15 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
     requireUser();
     const post = newsMocks.posts.find((p) => String(p.id) === segments[1]);
     if (!post) throw new ApiError(404, "Actualité introuvable.");
-    post.likes_count += 1;
-    return { message: "Réaction enregistrée." } as T;
+    const input = jsonBody(body);
+    const removing = Boolean(input.remove);
+    post.likes_count = Math.max(0, post.likes_count + (removing ? -1 : 1));
+    return {
+      message: removing ? "Réaction retirée." : "Réaction enregistrée.",
+      likes_count: post.likes_count,
+      my_reaction: removing ? null : String(input.type ?? "like"),
+      reactions: { like: post.likes_count },
+    } as T;
   }
   if (method === "POST" && segments[0] === "news" && segments[2] === "comments") {
     requireUser();
@@ -1268,12 +1294,53 @@ export async function mockRequest<T>(request: MockRequest): Promise<T> {
       id: newsMocks.nextCommentId++,
       body: String(input.body ?? ""),
       author: currentUser()?.name ?? "Membre",
+      user_id: currentUser()?.id ?? null,
+      likes_count: 0,
+      liked: false,
       created_at: new Date().toISOString(),
+      replies: [] as Array<Record<string, unknown>>,
     };
     post.comments = post.comments ?? [];
     post.comments.push(comment);
     post.comments_count += 1;
     return { message: "Commentaire publié.", data: comment } as T;
+  }
+  if (method === "POST" && segments[0] === "news" && segments[1] === "comments" && segments[3] === "like") {
+    requireUser();
+    const comment = findNewsMockComment(newsMocks, Number(segments[2]));
+    if (!comment) throw new ApiError(404, "Commentaire introuvable.");
+    const input = jsonBody(body);
+    const removing = Boolean(input.remove) || Boolean(comment.liked);
+    if (removing) {
+      comment.liked = false;
+      comment.likes_count = Math.max(0, Number(comment.likes_count ?? 0) - 1);
+      return { message: "Like retiré.", likes_count: comment.likes_count, liked: false } as T;
+    }
+    comment.liked = true;
+    comment.likes_count = Number(comment.likes_count ?? 0) + 1;
+    return { message: "Commentaire aimé.", likes_count: comment.likes_count, liked: true } as T;
+  }
+  if (method === "PATCH" && segments[0] === "news" && segments[1] === "comments" && segments[2]) {
+    requireUser();
+    const comment = findNewsMockComment(newsMocks, Number(segments[2]));
+    if (!comment) throw new ApiError(404, "Commentaire introuvable.");
+    const input = jsonBody(body);
+    comment.body = String(input.body ?? comment.body);
+    comment.updated_at = new Date().toISOString();
+    return { message: "Commentaire modifié.", data: comment } as T;
+  }
+  if (method === "DELETE" && segments[0] === "news" && segments[1] === "comments" && segments[2]) {
+    requireUser();
+    const commentId = Number(segments[2]);
+    for (const post of newsMocks.posts) {
+      const before = post.comments?.length ?? 0;
+      post.comments = (post.comments ?? []).filter((c) => c.id !== commentId);
+      if ((post.comments?.length ?? 0) < before) {
+        post.comments_count = Math.max(0, post.comments_count - 1);
+        return { message: "Commentaire supprimé." } as T;
+      }
+    }
+    throw new ApiError(404, "Commentaire introuvable.");
   }
   if (method === "POST" && segments[0] === "news" && segments[2] === "share") {
     const post = newsMocks.posts.find((p) => String(p.id) === segments[1]);
@@ -1346,9 +1413,34 @@ let newsMockState: {
     shares_count: number;
     views_count: number;
     created_at: string;
-    comments: Array<{ id: number; body: string; author: string; created_at: string }>;
+    comments: Array<{
+      id: number;
+      body: string;
+      author: string;
+      user_id?: number | null;
+      likes_count?: number;
+      liked?: boolean;
+      created_at: string;
+      updated_at?: string;
+      replies?: Array<Record<string, unknown>>;
+    }>;
   }>;
 } | null = null;
+
+function findNewsMockComment(
+  newsMocks: NonNullable<typeof newsMockState>,
+  commentId: number,
+): Record<string, unknown> | null {
+  for (const post of newsMocks.posts) {
+    for (const comment of post.comments ?? []) {
+      if (comment.id === commentId) return comment as Record<string, unknown>;
+      for (const reply of comment.replies ?? []) {
+        if (Number(reply.id) === commentId) return reply;
+      }
+    }
+  }
+  return null;
+}
 
 function getNewsMocks() {
   if (!newsMockState) {
@@ -1372,7 +1464,10 @@ function getNewsMocks() {
               id: 1,
               body: "Notre cellule sera présente.",
               author: "Jean M.",
+              likes_count: 0,
+              liked: false,
               created_at: new Date(Date.now() - 3600000).toISOString(),
+              replies: [],
             },
           ],
         },

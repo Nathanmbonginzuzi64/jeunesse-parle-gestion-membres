@@ -1,23 +1,59 @@
 "use client";
 
-import { Calendar, MapPin } from "lucide-react";
+import { Calendar, ExternalLink, MapPin, Play } from "lucide-react";
 import Link from "next/link";
 import { useProtectedImage } from "@/lib/hooks";
 import { formatDateTime } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type { NewsPostItem } from "@/lib/news/constants";
+import { toYoutubeEmbedUrl, YOUTUBE_IFRAME_ALLOW } from "@/lib/news/youtube";
 
-export function NewsMediaBlock({ post }: { post: NewsPostItem }) {
+export function NewsMediaBlock({ post, compact = false }: { post: NewsPostItem; compact?: boolean }) {
   const mainSrc = useProtectedImage(post.media_url);
+  const hasImage = post.media_type === "image" && post.media_url;
+  const hasGallery = (post.gallery_urls?.length ?? 0) > 0;
+  const spacing = compact ? "mt-3" : "mt-4";
 
   if (post.media_type === "video" && post.external_url) {
+    const embed = toYoutubeEmbedUrl(post.external_url);
     return (
-      <div className="mt-4 overflow-hidden rounded-xl bg-slate-900">
-        <iframe
-          src={toEmbedUrl(post.external_url)}
-          title={post.title}
-          className="aspect-video w-full"
-          allowFullScreen
-        />
+      <div className={cn("space-y-2", spacing)}>
+        {embed ? (
+          <div className="overflow-hidden rounded-xl bg-slate-900 ring-1 ring-slate-800">
+            <iframe
+              src={embed}
+              title={post.title}
+              className="aspect-video w-full"
+              allow={YOUTUBE_IFRAME_ALLOW}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="strict-origin-when-cross-origin"
+            />
+          </div>
+        ) : (
+          <a
+            href={post.external_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 transition hover:bg-red-100"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white">
+              <Play className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block">Ouvrir la vidéo</span>
+              <span className="block truncate text-xs font-normal text-red-600/80">{post.external_url}</span>
+            </span>
+            <ExternalLink className="h-4 w-4 shrink-0 opacity-60" />
+          </a>
+        )}
+        {hasGallery ? (
+          <div className={cn("grid gap-2", compact ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3")}>
+            {post.gallery_urls!.map((url) => (
+              <GalleryThumb key={url} url={url} compact={compact} />
+            ))}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -28,7 +64,10 @@ export function NewsMediaBlock({ post }: { post: NewsPostItem }) {
         href={post.external_url}
         target="_blank"
         rel="noopener noreferrer"
-        className="mt-4 block rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700 hover:bg-brand-100"
+        className={cn(
+          "block rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700 hover:bg-brand-100",
+          spacing,
+        )}
       >
         🔗 {post.external_url}
       </a>
@@ -41,23 +80,48 @@ export function NewsMediaBlock({ post }: { post: NewsPostItem }) {
         href={post.media_url}
         target="_blank"
         rel="noopener noreferrer"
-        className="mt-4 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100"
+        className={cn(
+          "inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100",
+          spacing,
+        )}
       >
         📄 Télécharger le document PDF
       </a>
     );
   }
 
+  if (!hasImage && !hasGallery && !mainSrc) return null;
+
   return (
-    <div className="mt-4 space-y-2">
-      {mainSrc ? (
+    <div className={cn("space-y-2", spacing)}>
+      {hasImage ? (
+        mainSrc ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={mainSrc}
+            alt=""
+            className={cn("w-full rounded-xl object-cover", compact ? "max-h-72" : "max-h-[420px]")}
+          />
+        ) : (
+          <div
+            className={cn(
+              "animate-pulse rounded-xl bg-slate-200",
+              compact ? "aspect-[16/10] max-h-72" : "aspect-video max-h-[420px]",
+            )}
+          />
+        )
+      ) : mainSrc ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={mainSrc} alt="" className="max-h-[420px] w-full rounded-xl object-cover" />
+        <img
+          src={mainSrc}
+          alt=""
+          className={cn("w-full rounded-xl object-cover", compact ? "max-h-72" : "max-h-[420px]")}
+        />
       ) : null}
-      {post.gallery_urls && post.gallery_urls.length > 0 ? (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {post.gallery_urls.map((url, i) => (
-            <GalleryThumb key={url} url={url} />
+      {hasGallery ? (
+        <div className={cn("grid gap-2", compact ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3")}>
+          {post.gallery_urls!.map((url) => (
+            <GalleryThumb key={url} url={url} compact={compact} />
           ))}
         </div>
       ) : null}
@@ -65,12 +129,22 @@ export function NewsMediaBlock({ post }: { post: NewsPostItem }) {
   );
 }
 
-function GalleryThumb({ url }: { url: string }) {
+function GalleryThumb({ url, compact = false }: { url: string; compact?: boolean }) {
   const src = useProtectedImage(url);
-  if (!src) return <div className="aspect-square animate-pulse rounded-lg bg-slate-100" />;
+  if (!src) {
+    return (
+      <div
+        className={cn("animate-pulse rounded-lg bg-slate-100", compact ? "aspect-[4/3]" : "aspect-square")}
+      />
+    );
+  }
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={src} alt="" className="aspect-square w-full rounded-lg object-cover" />
+    <img
+      src={src}
+      alt=""
+      className={cn("w-full rounded-lg object-cover", compact ? "aspect-[4/3]" : "aspect-square")}
+    />
   );
 }
 
@@ -101,16 +175,4 @@ export function NewsActivityBlock({ activity }: { activity: NonNullable<NewsPost
       </Link>
     </div>
   );
-}
-
-function toEmbedUrl(url: string): string {
-  if (url.includes("youtube.com/watch")) {
-    const id = new URL(url).searchParams.get("v");
-    return id ? `https://www.youtube.com/embed/${id}` : url;
-  }
-  if (url.includes("youtu.be/")) {
-    const id = url.split("youtu.be/")[1]?.split("?")[0];
-    return id ? `https://www.youtube.com/embed/${id}` : url;
-  }
-  return url;
 }

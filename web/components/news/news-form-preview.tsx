@@ -6,6 +6,7 @@ import { TextBackgroundBanner } from "@/components/news/text-background-picker";
 import { RichTextContent } from "@/components/news/rich-text-editor";
 import { CATEGORY_STYLES, NEWS_CATEGORIES } from "@/lib/news/constants";
 import type { TextBackgroundId } from "@/lib/news/text-backgrounds";
+import { toYoutubeEmbedUrl, YOUTUBE_IFRAME_ALLOW } from "@/lib/news/youtube";
 import { cn } from "@/lib/utils";
 
 interface NewsFormPreviewProps {
@@ -18,20 +19,6 @@ interface NewsFormPreviewProps {
   externalUrl?: string;
   documentName?: string;
   galleryPreviews?: string[];
-}
-
-function youtubeEmbed(url: string): string | null {
-  try {
-    const u = new URL(url);
-    if (u.hostname.includes("youtu.be")) {
-      const id = u.pathname.slice(1);
-      return id ? `https://www.youtube.com/embed/${id}` : null;
-    }
-    const v = u.searchParams.get("v");
-    return v ? `https://www.youtube.com/embed/${v}` : null;
-  } catch {
-    return null;
-  }
 }
 
 export function NewsFormPreview({
@@ -47,7 +34,7 @@ export function NewsFormPreview({
 }: NewsFormPreviewProps) {
   const cat = NEWS_CATEGORIES.find((c) => c.value === category);
   const hasBg = mediaType === "text" && textBackground !== "none";
-  const yt = mediaType === "video" && externalUrl ? youtubeEmbed(externalUrl) : null;
+  const yt = mediaType === "video" && externalUrl ? toYoutubeEmbedUrl(externalUrl) : null;
 
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -85,7 +72,15 @@ export function NewsFormPreview({
 
         {yt ? (
           <div className="overflow-hidden rounded-xl bg-slate-900">
-            <iframe src={yt} title="Vidéo" className="aspect-video w-full" allowFullScreen />
+            <iframe
+              src={yt}
+              title="Vidéo"
+              className="aspect-video w-full"
+              allow={YOUTUBE_IFRAME_ALLOW}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="strict-origin-when-cross-origin"
+            />
           </div>
         ) : null}
 

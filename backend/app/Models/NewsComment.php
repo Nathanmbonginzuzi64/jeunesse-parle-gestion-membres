@@ -11,7 +11,14 @@ class NewsComment extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['news_post_id', 'member_id', 'user_id', 'parent_id', 'body'];
+    protected $fillable = ['news_post_id', 'member_id', 'user_id', 'parent_id', 'body', 'likes_count'];
+
+    protected function casts(): array
+    {
+        return [
+            'likes_count' => 'integer',
+        ];
+    }
 
     public function post(): BelongsTo
     {
@@ -36,5 +43,10 @@ class NewsComment extends Model
     public function replies(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id');
+    }
+
+    public function likes(): HasMany
+    {
+        return $this->hasMany(NewsCommentLike::class, 'news_comment_id');
     }
 }
