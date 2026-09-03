@@ -17,17 +17,17 @@ import {
 export function CampaignShowcase() {
   return (
     <div className="mt-16 bg-white sm:mt-20 lg:mt-24">
-      <section className="relative isolate overflow-hidden border-b border-slate-200">
+      <section className="relative isolate overflow-hidden border-b border-slate-200 bg-slate-950">
         <div className="absolute inset-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={CAMPAIGN_INTRO.heroImage}
-            alt=""
-            className="h-full w-full object-cover"
+            alt="Lancement Jeunesse Parle — Kinshasa"
+            className="h-full w-full object-contain object-center"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-brand-950/95 via-brand-900/85 to-brand-800/70" />
+          <div className="absolute inset-0 bg-gradient-to-r from-brand-950/75 via-brand-950/35 to-brand-950/15" />
         </div>
-        <div className="relative mx-auto grid max-w-6xl gap-10 px-4 pb-16 pt-20 lg:grid-cols-[1.1fr_0.9fr] lg:pb-20 lg:pt-24">
+        <div className="relative mx-auto grid min-h-[28rem] max-w-6xl items-center gap-10 px-4 pb-16 pt-20 lg:min-h-[34rem] lg:grid-cols-[1.1fr_0.9fr] lg:pb-20 lg:pt-24">
           <RevealOnScroll animation="slide-up">
             <p className="text-xs font-semibold tracking-[0.2em] text-brand-200 uppercase">
               Campagne citoyenne · Archive locale
