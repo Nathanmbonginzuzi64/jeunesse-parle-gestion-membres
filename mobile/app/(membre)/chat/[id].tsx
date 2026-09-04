@@ -80,6 +80,7 @@ export default function MembreChatScreen() {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const sendingLock = useRef(false);
 
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(audioRecorder);
@@ -125,7 +126,15 @@ export default function MembreChatScreen() {
           }>(`/jp-messages/chats/${id}/messages`),
           api.get<{ data: ChatConversationItem }>(`/jp-messages/chats/${id}`).catch(() => null),
         ]);
-        setMessages(thread.data ?? []);
+        setMessages((current) => {
+          const pendingLocal = current.filter((item) => item.pending);
+          const server = thread.data ?? [];
+          if (pendingLocal.length === 0) return server;
+          // Conserve les envois en cours non encore confirmés par le serveur.
+          const serverIds = new Set(server.map((item) => item.id));
+          const stillPending = pendingLocal.filter((item) => !serverIds.has(item.id));
+          return [...server, ...stillPending];
+        });
         setCanSend(thread.meta?.can_send !== false);
         if (meta?.data) setConversation(meta.data);
         setError(null);
@@ -177,11 +186,13 @@ export default function MembreChatScreen() {
     const text = body.trim();
     const attachment = fileOverride ?? pending;
     if ((!text && !attachment) || !id || !canSend) return;
+    if (sendingLock.current) return;
 
-    setSending(true);
-    setError(null);
-    try {
-      if (editingId) {
+    if (editingId) {
+      sendingLock.current = true;
+      setSending(true);
+      setError(null);
+      try {
         const response = await api.put<{ data: ChatMessage }>(
           `/jp-messages/chats/${id}/messages/${editingId}`,
           { body: text },
@@ -196,9 +207,47 @@ export default function MembreChatScreen() {
         setEditingId(null);
         setBody('');
         setEmojiOpen(false);
-        return;
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : 'Envoi impossible.');
+      } finally {
+        sendingLock.current = false;
+        setSending(false);
       }
+      return;
+    }
 
+    const tempId = -Date.now();
+    const optimistic: ChatMessage = {
+      id: tempId,
+      body: text || null,
+      author_id: user?.id ?? null,
+      author: user?.name ?? 'Moi',
+      created_at: new Date().toISOString(),
+      type: attachment?.kind === 'audio' ? 'audio' : attachment?.kind === 'image' ? 'image' : 'text',
+      pending: true,
+      attachments: attachment
+        ? [
+            {
+              id: tempId,
+              kind: attachment.kind,
+              name: attachment.name,
+              url: attachment.uri,
+              mime: attachment.mime,
+            },
+          ]
+        : [],
+    };
+
+    // Affiche le message tout de suite, sans attendre le réseau.
+    setBody('');
+    setPending(null);
+    setEmojiOpen(false);
+    setError(null);
+    setMessages((current) => [...current, optimistic]);
+    sendingLock.current = true;
+    setSending(true);
+
+    try {
       const form = new FormData();
       if (text) form.append('body', text);
       if (attachment) {
@@ -209,16 +258,20 @@ export default function MembreChatScreen() {
         form,
       );
       if (response.data) {
-        setMessages((current) => [...current, response.data]);
+        setMessages((current) =>
+          current.map((item) => (item.id === tempId ? response.data : item)),
+        );
       } else {
+        setMessages((current) => current.filter((item) => item.id !== tempId));
         await load({ silent: true });
       }
-      setBody('');
-      setPending(null);
-      setEmojiOpen(false);
     } catch (err) {
+      setMessages((current) => current.filter((item) => item.id !== tempId));
+      setBody(text);
+      setPending(attachment);
       setError(err instanceof ApiError ? err.message : 'Envoi impossible.');
     } finally {
+      sendingLock.current = false;
       setSending(false);
     }
   }
@@ -263,6 +316,7 @@ export default function MembreChatScreen() {
   }
 
   function onMessageLongPress(message: ChatMessage, mine: boolean) {
+    if (message.pending) return;
     const buttons: {
       text: string;
       style?: 'cancel' | 'destructive' | 'default';
@@ -369,8 +423,6 @@ export default function MembreChatScreen() {
     try {
       if (recorderState.isRecording) {
         await audioRecorder.stop();
-        // Laisse le temps à expo-audio de finaliser le fichier avant lecture de l'URI.
-        await new Promise((resolve) => setTimeout(resolve, 120));
         const uri = audioRecorder.uri;
         if (uri) {
           await send(pendingVoiceFromUri(uri));
@@ -482,7 +534,7 @@ export default function MembreChatScreen() {
                 <Text style={[styles.time, mine && styles.timeMine]}>
                   {message.edited_at ? 'modifié · ' : ''}
                   {formatMessageTime(message.created_at)}
-                  {mine ? ' ✓' : ''}
+                  {mine ? (message.pending ? ' …' : ' ✓') : ''}
                 </Text>
               </Pressable>
             );
@@ -590,8 +642,8 @@ export default function MembreChatScreen() {
               {body.trim() || pending || editingId ? (
                 <Pressable
                   onPress={() => void send()}
-                  disabled={sending || (editingId ? !body.trim() : false)}
-                  style={[styles.send, sending && { opacity: 0.5 }]}
+                  disabled={editingId ? !body.trim() || sending : false}
+                  style={[styles.send, sending && editingId && { opacity: 0.5 }]}
                 >
                   <Ionicons name={editingId ? 'checkmark' : 'send'} size={18} color={JP.white} />
                 </Pressable>

@@ -20,6 +20,8 @@ export type ChatMessage = {
   created_at?: string | null;
   edited_at?: string | null;
   attachments?: ChatAttachment[];
+  /** Message affiché immédiatement, en attente de confirmation serveur. */
+  pending?: boolean;
 };
 
 export type PendingFile = {
@@ -82,6 +84,18 @@ export async function cacheProtectedUri(
 ): Promise<string | null> {
   const resolved = resolveMediaUrl(url);
   if (!resolved) return null;
+
+  // Fichier local (envoi optimiste) : pas de téléchargement.
+  if (
+    resolved.startsWith('file:') ||
+    resolved.startsWith('content:') ||
+    resolved.startsWith('ph:') ||
+    resolved.startsWith('asset:') ||
+    resolved.startsWith('data:')
+  ) {
+    return resolved;
+  }
+
   const base = FileSystem.cacheDirectory;
   if (!base) return resolved;
 
