@@ -2,9 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -12,8 +14,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MembrePageHeader } from '@/components/membre/page-header';
 import { SectionHeader } from '@/components/membre/section';
+import { MemberCardVisual } from '@/components/membre/member-card-visual';
+import type { CardRender } from '@/components/membre/member-card-types';
 import { Badge, BigButton } from '@/components/ui';
 import { api, ApiError, resolveMediaUrl } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { PERMISSIONS } from '@/lib/permissions';
 import { JP } from '@/constants/theme';
 
 type MemberDetail = {
@@ -71,6 +77,9 @@ function InfoRow({
 export default function FicheMembreScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width: screenW } = useWindowDimensions();
+  const { can } = useAuth();
+  const canViewCards = can(PERMISSIONS.cardsView);
   const params = useLocalSearchParams<{
     memberId: string;
     memberCode: string;
@@ -85,8 +94,10 @@ export default function FicheMembreScreen() {
   }>();
 
   const [member, setMember] = useState<MemberDetail | null>(null);
+  const [cardRender, setCardRender] = useState<CardRender | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const cardWidth = Math.min(screenW - 48, 420);
 
   const load = useCallback(async () => {
     const id = params.memberId ? Number(params.memberId) : null;
@@ -104,13 +115,28 @@ export default function FicheMembreScreen() {
           ? response.data
           : (response as MemberDetail);
       setMember(payload);
+
+      if (canViewCards) {
+        try {
+          const cardRes = await api.get<{ render?: CardRender | null }>(`/members/${id}/card`);
+          setCardRender(
+            cardRes.render
+              ? { ...cardRes.render, photo_url: resolveMediaUrl(cardRes.render.photo_url) }
+              : null,
+          );
+        } catch {
+          setCardRender(null);
+        }
+      } else {
+        setCardRender(null);
+      }
     } catch (err) {
       setMember(null);
       setError(err instanceof ApiError ? err.message : 'Impossible de charger la fiche.');
     } finally {
       setLoading(false);
     }
-  }, [params.memberId]);
+  }, [params.memberId, canViewCards]);
 
   useEffect(() => {
     void load();
@@ -164,6 +190,28 @@ export default function FicheMembreScreen() {
             </View>
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
+
+            {cardRender ? (
+              <>
+                <SectionHeader title="Carte officielle" />
+                <View style={styles.cardStage}>
+                  <MemberCardVisual render={cardRender} width={cardWidth} />
+                </View>
+                <Pressable
+                  style={styles.cardLink}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(agent)/carte/[memberId]',
+                      params: { memberId: String(params.memberId) },
+                    })
+                  }
+                >
+                  <Ionicons name="card-outline" size={16} color={JP.brand} />
+                  <Text style={styles.cardLinkText}>Voir recto / verso complet</Text>
+                  <Ionicons name="chevron-forward" size={16} color={JP.brand} />
+                </Pressable>
+              </>
+            ) : null}
 
             <SectionHeader title="Identité" />
             <View style={styles.card}>
@@ -291,6 +339,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
+  cardStage: {
+    backgroundColor: JP.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: JP.border,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  cardLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: JP.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: JP.border,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  cardLinkText: { flex: 1, fontSize: 13, fontWeight: '700', color: JP.brand },
   photo: {
     width: 140,
     height: 140,

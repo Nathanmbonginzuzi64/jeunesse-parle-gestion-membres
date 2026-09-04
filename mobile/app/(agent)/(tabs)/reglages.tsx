@@ -45,6 +45,14 @@ export default function ReglagesScreen() {
           hint: 'QR et téléchargement',
         }
       : null,
+    can(PERMISSIONS.cardsView)
+      ? {
+          href: '/(agent)/cartes',
+          label: 'Cartes membres',
+          icon: 'card-outline' as const,
+          hint: 'Galerie visuelle (design officiel)',
+        }
+      : null,
     can(PERMISSIONS.cardsVerify)
       ? {
           href: '/(agent)/(tabs)/membres-verifies',

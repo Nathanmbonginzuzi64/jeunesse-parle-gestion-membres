@@ -28,6 +28,8 @@ export default function AgentLayout() {
       <Stack.Screen name="profil" />
       <Stack.Screen name="ma-carte" />
       <Stack.Screen name="securite" />
+      <Stack.Screen name="cartes" />
+      <Stack.Screen name="carte/[memberId]" />
     </Stack>
   );
 }

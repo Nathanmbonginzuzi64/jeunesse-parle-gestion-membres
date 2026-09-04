@@ -79,6 +79,7 @@ export default function AgentHomeScreen() {
   const canVerify = can(PERMISSIONS.cardsVerify);
   const canRecord = can(PERMISSIONS.attendanceRecord);
   const canViewAttendance = can(PERMISSIONS.attendanceView) || canRecord;
+  const canViewCards = can(PERMISSIONS.cardsView);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = Boolean(opts?.silent);
@@ -222,7 +223,15 @@ export default function AgentHomeScreen() {
               }
             />
           ) : null}
-          {canVerify ? (
+          {canViewCards ? (
+            <AgentActionTile
+              icon="card-outline"
+              title="Cartes"
+              subtitle="Galerie officielle"
+              tone="success"
+              onPress={() => router.push('/(agent)/cartes')}
+            />
+          ) : canVerify ? (
             <AgentActionTile
               icon="people-outline"
               title="Membres OK"
@@ -232,25 +241,40 @@ export default function AgentHomeScreen() {
             />
           ) : null}
         </View>
-        {canRecord || canVerify ? (
+        <View style={[styles.tiles, { marginTop: 10 }]}>
+          {canViewCards && canVerify ? (
+            <AgentActionTile
+              icon="people-outline"
+              title="Membres OK"
+              subtitle="Déjà vérifiés"
+              onPress={() => router.push('/(agent)/(tabs)/membres-verifies')}
+            />
+          ) : null}
+          {canRecord ? (
+            <AgentActionTile
+              icon="checkmark-done-outline"
+              title="Présences"
+              subtitle="Liste avancée"
+              tone="dark"
+              onPress={() => router.push('/(agent)/(tabs)/presences')}
+            />
+          ) : canVerify ? (
+            <AgentActionTile
+              icon="time-outline"
+              title="Historique"
+              subtitle="Avec recherche"
+              onPress={() => router.push('/(agent)/(tabs)/historique')}
+            />
+          ) : null}
+        </View>
+        {canVerify && (canRecord || canViewCards) ? (
           <View style={[styles.tiles, { marginTop: 10 }]}>
-            {canRecord ? (
-              <AgentActionTile
-                icon="checkmark-done-outline"
-                title="Présences"
-                subtitle="Liste avancée"
-                tone="dark"
-                onPress={() => router.push('/(agent)/(tabs)/presences')}
-              />
-            ) : null}
-            {canVerify ? (
-              <AgentActionTile
-                icon="time-outline"
-                title="Historique"
-                subtitle="Avec recherche"
-                onPress={() => router.push('/(agent)/(tabs)/historique')}
-              />
-            ) : null}
+            <AgentActionTile
+              icon="time-outline"
+              title="Historique"
+              subtitle="Avec recherche"
+              onPress={() => router.push('/(agent)/(tabs)/historique')}
+            />
           </View>
         ) : null}
 
