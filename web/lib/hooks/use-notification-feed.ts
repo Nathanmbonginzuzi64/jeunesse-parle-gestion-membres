@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { AppNotification } from "@/lib/types";
 
-const POLL_MS = 12_000;
+const POLL_MS = 5_000;
 
 export function useNotificationFeed(options?: { enabled?: boolean; onNew?: (items: AppNotification[]) => void }) {
   const enabled = options?.enabled ?? true;
@@ -54,6 +54,7 @@ export function useNotificationFeed(options?: { enabled?: boolean; onNew?: (item
     void pollSince();
 
     const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       void pollSince();
     }, POLL_MS);
 

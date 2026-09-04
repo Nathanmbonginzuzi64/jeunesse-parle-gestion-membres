@@ -3,11 +3,19 @@ import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 const extra = Constants.expoConfig?.extra as { apiUrl?: string } | undefined;
+const API_URL_KEY = 'jp.apiBaseUrl';
+const TOKEN_KEY = 'jp.token';
+const PROBE_TIMEOUT_MS = 3500;
+
+let resolvedBaseUrl: string | null = null;
+let resolveInFlight: Promise<string> | null = null;
 
 function expoLanHost(): string | null {
   const candidates = [
     Constants.expoConfig?.hostUri,
     (Constants as { expoGoConfig?: { debuggerHost?: string } }).expoGoConfig?.debuggerHost,
+    (Constants as { manifest2?: { extra?: { expoGo?: { debuggerHost?: string } } } }).manifest2
+      ?.extra?.expoGo?.debuggerHost,
     Constants.linkingUri,
   ];
   for (const candidate of candidates) {
@@ -21,6 +29,13 @@ function isLoopbackHost(host: string): boolean {
   return host === '127.0.0.1' || host === 'localhost' || host === '::1';
 }
 
+function normalizeApiBase(url: string): string {
+  const trimmed = url.trim().replace(/\/$/, '');
+  if (!trimmed) return trimmed;
+  if (trimmed.endsWith('/api')) return trimmed;
+  return `${trimmed}/api`;
+}
+
 function rewriteForDevice(url: string): string {
   if (Platform.OS === 'android') {
     return url.replace(/:\/\/(127\.0\.0\.1|localhost)(?=[:/]|$)/, '://10.0.2.2');
@@ -28,36 +43,162 @@ function rewriteForDevice(url: string): string {
   return url;
 }
 
-function resolveApiBaseUrl(): string {
-  const fromEnv = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '');
-  if (fromEnv) return rewriteForDevice(fromEnv);
+function withApiPort(host: string): string {
+  return `http://${host}:8000/api`;
+}
 
-  const extraUrl = extra?.apiUrl?.replace(/\/$/, '');
-  let extraHost = '';
-  try {
-    extraHost = extraUrl ? new URL(extraUrl).hostname : '';
-  } catch {
-    extraHost = '';
-  }
+/** Liste ordonnée des URL API possibles (réseau changeant). */
+export function listApiCandidates(saved?: string | null): string[] {
+  const out: string[] = [];
+  const push = (value?: string | null) => {
+    if (!value) return;
+    const normalized = normalizeApiBase(value);
+    if (!normalized) return;
+    if (!out.includes(normalized)) out.push(normalized);
+  };
+
+  push(saved);
+  push(process.env.EXPO_PUBLIC_API_URL);
 
   const lan = expoLanHost();
-  if (lan && (!extraHost || isLoopbackHost(extraHost))) {
-    return `http://${lan}:8000/api`;
+  if (lan) {
+    push(withApiPort(lan));
+    // Variantes fréquentes si le port Expo n'est pas celui de Laravel
+    push(`http://${lan}:8000/api`);
   }
 
-  if (extraUrl) return rewriteForDevice(extraUrl);
-  if (lan) return `http://${lan}:8000/api`;
+  const extraUrl = extra?.apiUrl;
+  if (extraUrl && !isLoopbackHost(safeHostname(extraUrl))) {
+    push(extraUrl);
+  }
+
+  if (Platform.OS === 'android') {
+    push('http://10.0.2.2:8000/api');
+  }
+
+  // Dernier recours (simulateur iOS / machine locale)
+  push(rewriteForDevice('http://127.0.0.1:8000/api'));
+  push('http://localhost:8000/api');
+
+  // app.json peut contenir 127.0.0.1 — on le réécrit pour le device
+  if (extraUrl) {
+    push(rewriteForDevice(normalizeApiBase(extraUrl)));
+  }
+
+  return out;
+}
+
+function safeHostname(url: string): string {
+  try {
+    return new URL(normalizeApiBase(url)).hostname;
+  } catch {
+    return '';
+  }
+}
+
+async function probeHealth(baseUrl: string): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${baseUrl}/health`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        'X-Client-Portal': 'mobile',
+      },
+      signal: controller.signal,
+    });
+    if (!response.ok) return false;
+    const contentType = response.headers.get('content-type') ?? '';
+    if (!contentType.includes('application/json')) return false;
+    const data = (await response.json()) as { ok?: boolean };
+    return data.ok === true;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function readSavedApiUrl(): Promise<string | null> {
+  try {
+    return await SecureStore.getItemAsync(API_URL_KEY);
+  } catch {
+    return null;
+  }
+}
+
+async function writeSavedApiUrl(url: string): Promise<void> {
+  try {
+    await SecureStore.setItemAsync(API_URL_KEY, url);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Choisit une URL API joignable. À rappeler quand le réseau change
+ * ou après une erreur réseau.
+ */
+export async function discoverApiBaseUrl(force = false): Promise<string> {
+  if (!force && resolvedBaseUrl) return resolvedBaseUrl;
+  if (!force && resolveInFlight) return resolveInFlight;
+
+  resolveInFlight = (async () => {
+    const saved = await readSavedApiUrl();
+    const candidates = listApiCandidates(saved);
+
+    for (const candidate of candidates) {
+      if (await probeHealth(candidate)) {
+        resolvedBaseUrl = candidate;
+        await writeSavedApiUrl(candidate);
+        return candidate;
+      }
+    }
+
+    // Aucun health OK : conserve la meilleure estimation (LAN Expo prioritaire)
+    const fallback = candidates[0] ?? rewriteForDevice('http://127.0.0.1:8000/api');
+    resolvedBaseUrl = fallback;
+    return fallback;
+  })();
+
+  try {
+    return await resolveInFlight;
+  } finally {
+    resolveInFlight = null;
+  }
+}
+
+/** Force une nouvelle découverte (changement Wi‑Fi / IP). */
+export async function reconnectApi(): Promise<string> {
+  resolvedBaseUrl = null;
+  return discoverApiBaseUrl(true);
+}
+
+export function getApiBaseUrlSync(): string {
+  if (resolvedBaseUrl) return resolvedBaseUrl;
+  const lan = expoLanHost();
+  if (lan) return withApiPort(lan);
+  const extraUrl = extra?.apiUrl?.replace(/\/$/, '');
+  if (extraUrl) return rewriteForDevice(normalizeApiBase(extraUrl));
   return rewriteForDevice('http://127.0.0.1:8000/api');
 }
 
-export const API_BASE_URL = resolveApiBaseUrl();
+/** Compat : valeur à l’instant T (peut être mis à jour après discover). */
+export let API_BASE_URL = getApiBaseUrlSync();
+
+function syncExportedBase(url: string) {
+  resolvedBaseUrl = url;
+  API_BASE_URL = url;
+}
 
 /** Réécrit les URLs médias Laravel (souvent localhost) vers l’hôte API du téléphone. */
 export function resolveMediaUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   if (url.startsWith('data:')) return url;
   try {
-    const api = new URL(API_BASE_URL);
+    const base = getApiBaseUrlSync();
+    const api = new URL(base);
     const origin = `${api.protocol}//${api.host}`;
     if (url.startsWith('/')) {
       return `${origin}${url}`;
@@ -72,8 +213,6 @@ export function resolveMediaUrl(url: string | null | undefined): string | null {
   }
 }
 
-const TOKEN_KEY = 'jp.token';
-
 export class ApiError extends Error {
   readonly status: number;
   readonly errors: Record<string, string[]>;
@@ -86,6 +225,17 @@ export class ApiError extends Error {
     this.payload = payload;
     this.errors = (payload.errors as Record<string, string[]>) ?? {};
   }
+}
+
+function messageFromPayload(data: Record<string, unknown>, fallback: string): string {
+  if (typeof data.message === 'string' && data.message.trim()) return data.message;
+  const errors = data.errors as Record<string, string[]> | undefined;
+  if (errors) {
+    for (const messages of Object.values(errors)) {
+      if (messages?.[0]) return messages[0];
+    }
+  }
+  return fallback;
 }
 
 export async function getToken(): Promise<string | null> {
@@ -134,9 +284,13 @@ async function request<T>(
     body?: unknown;
     query?: Query;
     anonymous?: boolean;
+    retried?: boolean;
   } = {},
 ): Promise<T> {
-  const { method = 'GET', body, query, anonymous = false } = options;
+  const { method = 'GET', body, query, anonymous = false, retried = false } = options;
+  const base = await discoverApiBaseUrl();
+  syncExportedBase(base);
+
   const headers: Record<string, string> = {
     Accept: 'application/json',
     'X-Client-Portal': 'mobile',
@@ -157,15 +311,21 @@ async function request<T>(
 
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}${buildQuery(query)}`, {
+    response = await fetch(`${base}${path}${buildQuery(query)}`, {
       method,
       headers,
       body: payload,
     });
   } catch {
+    if (!retried) {
+      // Réseau / IP changée : rediscovery puis 1 nouvel essai
+      resolvedBaseUrl = null;
+      await discoverApiBaseUrl(true);
+      return request<T>(path, { ...options, retried: true });
+    }
     throw new ApiError(
       0,
-      `Serveur injoignable (${API_BASE_URL}). Sur le PC : php artisan serve --host=0.0.0.0 --port=8000`,
+      'Serveur injoignable. Vérifiez votre connexion Wi‑Fi et que le serveur est démarré.',
     );
   }
 
@@ -174,20 +334,25 @@ async function request<T>(
   }
 
   const contentType = response.headers.get('content-type') ?? '';
-  const data = contentType.includes('application/json')
-    ? ((await response.json()) as Record<string, unknown>)
-    : {};
+  let data: Record<string, unknown> = {};
+  if (contentType.includes('application/json')) {
+    try {
+      data = (await response.json()) as Record<string, unknown>;
+    } catch {
+      data = {};
+    }
+  }
 
   if (response.status === 401 && !anonymous) {
     await setToken(null);
     onUnauthorized?.();
-    throw new ApiError(401, (data.message as string) ?? 'Session expirée.');
+    throw new ApiError(401, messageFromPayload(data, 'Session expirée.'), data);
   }
 
   if (!response.ok) {
     throw new ApiError(
       response.status,
-      (data.message as string) ?? 'Une erreur est survenue.',
+      messageFromPayload(data, 'Une erreur est survenue.'),
       data,
     );
   }
@@ -207,3 +372,6 @@ export const api = {
       request<T>(path, { method: 'POST', body, anonymous: true }),
   },
 };
+
+/** Démarre la découverte tôt (splash / auth). */
+void discoverApiBaseUrl().then(syncExportedBase).catch(() => undefined);

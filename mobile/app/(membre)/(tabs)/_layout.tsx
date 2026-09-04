@@ -1,8 +1,10 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { JP } from '@/constants/theme';
+import { useTheme } from '@/lib/theme-context';
 
 export default function MembreTabsLayout() {
+  const { colors: JP } = useTheme();
+
   return (
     <Tabs
       screenOptions={{
@@ -14,7 +16,7 @@ export default function MembreTabsLayout() {
           paddingBottom: 8,
           paddingTop: 6,
           borderTopColor: JP.border,
-          backgroundColor: JP.white,
+          backgroundColor: JP.card,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}

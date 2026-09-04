@@ -24,7 +24,9 @@ import { cn } from "@/lib/utils";
 /** Panneau configuration plateforme (settings.manage). */
 export function PlatformSettingsPanel() {
   const toast = useToast();
-  const { data, loading, error } = useApi<SettingsPayload>("/settings");
+  const { data, loading, error } = useApi<SettingsPayload>("/settings", undefined, {
+    refreshInterval: false,
+  });
   const [tab, setTab] = useState("general");
   const [form, setForm] = useState<SettingsPayload | null>(null);
   const [saving, setSaving] = useState(false);

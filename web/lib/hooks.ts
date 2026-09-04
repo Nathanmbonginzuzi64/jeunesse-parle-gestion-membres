@@ -10,13 +10,34 @@ interface FetchState<T> {
   error: string | null;
 }
 
+export type UseApiOptions = {
+  /**
+   * Intervalle de refresh silencieux en ms (défaut 5000).
+   * `false` pour désactiver. Ne bascule jamais `loading` pendant le poll.
+   */
+  refreshInterval?: number | false;
+};
+
+const DEFAULT_REFRESH_MS = 5_000;
+
+function sameData(a: unknown, b: unknown) {
+  if (a === b) return true;
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Récupère une ressource de l'API et annule la requête précédente dès que les
  * paramètres changent, ce qui évite les réponses obsolètes lors du filtrage.
+ * En arrière-plan, rafraîchit les données sans spinner ni reset d’écran.
  */
 export function useApi<T>(
   path: string | null,
   query?: Record<string, string | number | boolean | null | undefined>,
+  options?: UseApiOptions,
 ): FetchState<T> & { reload: () => void } {
   const [state, setState] = useState<FetchState<T>>({
     data: null,
@@ -25,6 +46,12 @@ export function useApi<T>(
   });
   const [nonce, setNonce] = useState(0);
   const serialized = JSON.stringify(query ?? {});
+  const refreshInterval =
+    options?.refreshInterval === false
+      ? false
+      : (options?.refreshInterval ?? DEFAULT_REFRESH_MS);
+  const dataRef = useRef<T | null>(null);
+  dataRef.current = state.data;
 
   useEffect(() => {
     if (!path) {
@@ -49,6 +76,48 @@ export function useApi<T>(
 
     return () => controller.abort();
   }, [path, serialized, nonce]);
+
+  useEffect(() => {
+    if (!path || refreshInterval === false || refreshInterval <= 0) return;
+
+    let cancelled = false;
+    let inFlight = false;
+
+    const tick = async () => {
+      if (cancelled || inFlight) return;
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+
+      inFlight = true;
+      try {
+        const data = await api.get<T>(path, JSON.parse(serialized));
+        if (cancelled) return;
+        if (sameData(dataRef.current, data)) return;
+        setState((current) => ({
+          ...current,
+          data,
+          loading: false,
+          error: null,
+        }));
+      } catch {
+        /* silencieux — on conserve les données affichées */
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void tick();
+    };
+
+    const timer = window.setInterval(() => void tick(), refreshInterval);
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [path, serialized, refreshInterval]);
 
   const reload = useCallback(() => setNonce((value) => value + 1), []);
 

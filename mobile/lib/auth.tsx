@@ -7,7 +7,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { api, ApiError, deviceName, setToken, setUnauthorizedHandler } from './api';
+import { api, ApiError, deviceName, discoverApiBaseUrl, setToken, setUnauthorizedHandler } from './api';
+import { syncBiometricCredentials } from './biometric-auth';
 import { ROLE_SLUGS } from '@/constants/theme';
 
 export interface AuthUser {
@@ -68,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
+      await discoverApiBaseUrl();
       const response = await api.get<{ user: AuthUser }>('/auth/me');
       setUser(response.user);
     } catch {
@@ -85,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const applySession = useCallback(async (token: string) => {
     await setToken(token);
+    await discoverApiBaseUrl();
     const me = await api.get<{ user: AuthUser }>('/auth/me');
     setUser(me.user);
     setLoading(false);
@@ -92,12 +95,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (loginValue: string, password: string) => {
+    await discoverApiBaseUrl(true);
     const response = await api.public.post<{ token: string; user: AuthUser }>('/auth/login', {
       login: loginValue,
       password,
       device_name: deviceName(),
     });
-    return applySession(response.token);
+    const authenticated = await applySession(response.token);
+    await syncBiometricCredentials(loginValue, password);
+    return authenticated;
   }, [applySession]);
 
   const logout = useCallback(async () => {

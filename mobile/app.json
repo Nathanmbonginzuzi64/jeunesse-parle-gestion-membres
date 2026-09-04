@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "jeunesseparle",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
@@ -15,6 +15,7 @@
         "NSCameraUsageDescription": "Scanner les QR codes, prendre des photos et joindre des images dans JP Message.",
         "NSPhotoLibraryUsageDescription": "Choisir une photo d’identité ou joindre une image dans JP Message.",
         "NSMicrophoneUsageDescription": "Enregistrer un message vocal dans JP Message.",
+        "NSFaceIDUsageDescription": "Jeunesse Parle utilise Face ID uniquement pour sécuriser votre connexion.",
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true,
           "NSAllowsArbitraryLoads": true
@@ -75,10 +76,16 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-video"
+      "expo-video",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Jeunesse Parle utilise Face ID uniquement pour sécuriser votre connexion."
+        }
+      ]
     ],
     "extra": {
-      "apiUrl": "http://127.0.0.1:8000/api"
+      "apiUrl": ""
     },
     "experiments": {
       "typedRoutes": true,

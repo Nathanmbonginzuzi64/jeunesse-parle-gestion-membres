@@ -2,31 +2,31 @@ import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { BigButton, Card, Screen, Subtitle, Title } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
-import { API_BASE_URL } from '@/lib/api';
-import { JP } from '@/constants/theme';
+import { useTheme } from '@/lib/theme-context';
 
 export default function ReglagesScreen() {
   const { user, logout } = useAuth();
+  const { colors: JP, isDark, toggleDark } = useTheme();
   const router = useRouter();
 
   return (
-    <Screen>
+    <Screen style={{ backgroundColor: JP.bg }}>
       <Title>Réglages</Title>
-      <Subtitle>Compte agent et connexion API.</Subtitle>
+      <Subtitle>Compte agent.</Subtitle>
 
       <Card>
-        <Text style={styles.label}>Connecté</Text>
-        <Text style={styles.value}>{user?.name}</Text>
-        <Text style={styles.meta}>{user?.role?.name}</Text>
-        <Text style={styles.meta}>{user?.email ?? user?.phone}</Text>
+        <Text style={[styles.label, { color: JP.muted }]}>Connecté</Text>
+        <Text style={[styles.value, { color: JP.text }]}>{user?.name}</Text>
+        <Text style={[styles.meta, { color: JP.muted }]}>{user?.role?.name}</Text>
+        <Text style={[styles.meta, { color: JP.muted }]}>{user?.email ?? user?.phone}</Text>
       </Card>
 
       <View style={{ height: 12 }} />
-      <Card>
-        <Text style={styles.label}>API</Text>
-        <Text style={styles.meta}>{API_BASE_URL}</Text>
-        <Text style={styles.meta}>Portail : mobile</Text>
-      </Card>
+      <BigButton
+        label={isDark ? 'Mode clair' : 'Mode sombre'}
+        tone="neutral"
+        onPress={toggleDark}
+      />
 
       <View style={{ height: 20 }} />
       <BigButton
@@ -53,10 +53,9 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 11,
     fontWeight: '700',
-    color: JP.muted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  value: { marginTop: 6, fontSize: 18, fontWeight: '700', color: JP.text },
-  meta: { marginTop: 4, color: JP.muted, fontSize: 13 },
+  value: { marginTop: 6, fontSize: 18, fontWeight: '700' },
+  meta: { marginTop: 4, fontSize: 13 },
 });

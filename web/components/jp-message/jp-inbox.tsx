@@ -98,7 +98,7 @@ export function JpInbox({
   }, [loadLists]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => void loadLists(true), 8000);
+    const timer = window.setInterval(() => void loadLists(true), 5000);
     return () => window.clearInterval(timer);
   }, [loadLists]);
 

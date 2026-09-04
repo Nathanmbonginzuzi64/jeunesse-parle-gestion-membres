@@ -172,11 +172,11 @@ export function BigButton({
       disabled={disabled || loading}
       style={({ pressed }) => [
         styles.bigButton,
-        { backgroundColor: bg, opacity: pressed || disabled ? 0.7 : 1 },
+        { backgroundColor: bg, opacity: pressed || disabled || loading ? 0.55 : 1 },
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={JP.white} />
+        <ActivityIndicator color="#FFFFFF" />
       ) : (
         <Text style={[styles.bigButtonText, tone === 'neutral' && { color: JP.text }]}>{label}</Text>
       )}
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
   },
   inputWrapValid: {
     borderColor: JP.success,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: JP.validBg,
   },
   input: {
     flex: 1,
@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   bigButtonText: {
-    color: JP.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
   },

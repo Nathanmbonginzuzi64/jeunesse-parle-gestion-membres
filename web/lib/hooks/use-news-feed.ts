@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { NewsPostItem } from "@/lib/news/constants";
 
-const POLL_MS = 15_000;
+const POLL_MS = 5_000;
 
 interface NewsFeedMeta {
   current_page: number;
@@ -83,29 +83,56 @@ export function useNewsFeed(options: UseNewsFeedOptions = {}) {
   }, [meta, loadingMore, fetchPage]);
 
   const pollNew = useCallback(async () => {
-    if (!enabled || !sinceRef.current) return;
+    if (!enabled) return;
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
 
     try {
-      const response = await api.get<{ data: NewsPostItem[] }>("/news", {
-        since: sinceRef.current,
-        per_page: 10,
+      // Si on a un curseur "since", n'injecte que les nouveaux posts.
+      if (sinceRef.current) {
+        const response = await api.get<{ data: NewsPostItem[] }>("/news", {
+          since: sinceRef.current,
+          per_page: 10,
+          ...(category && category !== "all" ? { category } : {}),
+        });
+
+        if (response.data.length) {
+          setPosts((current) => {
+            const ids = new Set(current.map((p) => p.id));
+            const fresh = response.data.filter((p) => !ids.has(p.id));
+            if (!fresh.length) return current;
+            sinceRef.current = fresh[0].created_at;
+            return [...fresh, ...current];
+          });
+          window.dispatchEvent(
+            new CustomEvent("jp:news-feed", { detail: { count: response.data.length } }),
+          );
+        }
+        return;
+      }
+
+      // Sinon, rafraîchit la 1ʳᵉ page sans spinner.
+      const response = await api.get<{ data: NewsPostItem[]; meta: NewsFeedMeta }>("/news", {
+        page: 1,
+        per_page: 15,
+        ...(q ? { q } : {}),
         ...(category && category !== "all" ? { category } : {}),
       });
-
-      if (response.data.length) {
-        setPosts((current) => {
-          const ids = new Set(current.map((p) => p.id));
-          const fresh = response.data.filter((p) => !ids.has(p.id));
-          if (!fresh.length) return current;
-          sinceRef.current = fresh[0].created_at;
-          return [...fresh, ...current];
-        });
-        window.dispatchEvent(new CustomEvent("jp:news-feed", { detail: { count: response.data.length } }));
+      setMeta(response.meta);
+      setPosts((current) => {
+        try {
+          if (JSON.stringify(current) === JSON.stringify(response.data)) return current;
+        } catch {
+          /* ignore */
+        }
+        return response.data;
+      });
+      if (response.data[0]?.created_at) {
+        sinceRef.current = response.data[0].created_at;
       }
     } catch {
       /* silencieux */
     }
-  }, [enabled, category]);
+  }, [enabled, category, q]);
 
   useEffect(() => {
     pageRef.current = 1;
@@ -115,7 +142,14 @@ export function useNewsFeed(options: UseNewsFeedOptions = {}) {
   useEffect(() => {
     if (!enabled) return;
     const interval = setInterval(() => void pollNew(), POLL_MS);
-    return () => clearInterval(interval);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void pollNew();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [enabled, pollNew]);
 
   return {

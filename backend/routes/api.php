@@ -67,6 +67,15 @@ Route::post('contact', [ContactController::class, 'store'])->middleware('throttl
 
 Route::get('references', [ReferenceController::class, 'index']);
 
+/** Ping léger pour le mobile (découverte d'URL quand le réseau change). Sans throttle/DB. */
+Route::get('health', function () {
+    return response()->json([
+        'ok' => true,
+        'service' => 'jeunesse-parle',
+        'time' => now()->toIso8601String(),
+    ]);
+});
+
 Route::get('public/stats', [StatisticsController::class, 'publicLanding'])->middleware('throttle:60,1');
 
 Route::prefix('territories')->group(function () {
