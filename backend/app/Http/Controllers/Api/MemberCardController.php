@@ -116,7 +116,7 @@ class MemberCardController extends Controller
 
         $svg = $this->qrCodes->renderSvg(
             $this->qrCodes->verificationUrl($token->token),
-            (int) $request->integer('size', 320),
+            (int) $request->integer('size', 512),
         );
 
         return response($svg, 200, [

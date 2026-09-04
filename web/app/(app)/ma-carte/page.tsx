@@ -3,9 +3,10 @@
 import { Download, Printer, Share2 } from "lucide-react";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
 import { MemberCardPresentation } from "@/components/cards/member-card-presentation";
+import { MemberQrCode } from "@/components/cards/member-qr-code";
 import { PageHeader } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
-import { Card, CardBody } from "@/components/ui/card";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Alert, EmptyState, PageLoader } from "@/components/ui/feedback";
 import { useAuth } from "@/lib/auth";
 import { useApi } from "@/lib/hooks";
@@ -35,12 +36,14 @@ export default function MyCardPage() {
     );
   }
 
+  const qrValue = data.render.verification_url || data.render.member_code;
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div className="no-print">
         <PageHeader
           title="Ma carte de membre"
-          description="Recto / verso officiels — présentez le QR code pour être identifié."
+          description="Recto / verso officiels — présentez le QR agrandi ci-dessous pour un scan rapide."
           actions={
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" onClick={() => window.print()}>
@@ -63,6 +66,26 @@ export default function MyCardPage() {
         >
           <MemberCardPresentation render={data.render} />
         </div>
+      </DashboardAnimate>
+
+      <DashboardAnimate delay={60}>
+        <Card className="no-print overflow-hidden border-brand-200">
+          <CardHeader
+            title="QR pour scan agent"
+            description="Agrandissez cet écran ou présentez-le à l’agent de vérification."
+          />
+          <CardBody className="flex flex-col items-center gap-3 bg-gradient-to-b from-white to-brand-50/40 py-8">
+            <MemberQrCode
+              value={qrValue}
+              size={280}
+              emphasize
+              label={data.render.member_code ?? "Code membre"}
+            />
+            <p className="max-w-md text-center text-sm text-slate-600">
+              Contraste maximal et zone blanche élargie pour une lecture fiable au téléphone.
+            </p>
+          </CardBody>
+        </Card>
       </DashboardAnimate>
 
       <Card className="no-print">

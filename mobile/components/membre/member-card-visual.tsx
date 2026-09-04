@@ -49,7 +49,7 @@ export function MemberCardVisual({
   const active = isActiveStatus(render.status);
   const certified = isCertifiedCard(render);
   const qrValue = render.verification_url || render.member_code;
-  const qrSize = compact ? 64 : 72;
+  const qrSize = compact ? 84 : 100;
   const initials =
     `${(render.first_name?.[0] ?? '').toUpperCase()}${(render.last_name?.[0] ?? '').toUpperCase()}` ||
     (render.full_name?.[0] ?? '?').toUpperCase();
@@ -244,32 +244,32 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     alignItems: 'center',
     flexShrink: 0,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: CARD.slate200,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: CARD.brand600,
     backgroundColor: CARD.white,
-    padding: 5,
+    padding: 6,
   },
   qrCaption: {
-    marginTop: 2,
-    fontSize: 6,
-    fontWeight: '700',
+    marginTop: 3,
+    fontSize: 7,
+    fontWeight: '800',
     letterSpacing: 0.3,
-    color: CARD.slate500,
+    color: CARD.brand700,
     textTransform: 'uppercase',
   },
   photoWrap: {
-    width: 64,
+    width: 56,
     alignSelf: 'center',
     aspectRatio: 0.82,
-    maxHeight: 78,
+    maxHeight: 70,
     borderRadius: 8,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: CARD.slate200,
     backgroundColor: CARD.slate100,
   },
-  photoWrapCompact: { width: 52, maxHeight: 64 },
+  photoWrapCompact: { width: 46, maxHeight: 58 },
   photo: { width: '100%', height: '100%' },
   photoFallback: {
     flex: 1,

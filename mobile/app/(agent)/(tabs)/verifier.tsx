@@ -1,9 +1,30 @@
-import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { BigButton, Field, Screen, Subtitle, Title } from '@/components/ui';
+import * as Haptics from 'expo-haptics';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MembrePageHeader } from '@/components/membre/page-header';
+import { SectionHeader } from '@/components/membre/section';
+import { AgentActionTile, AgentChip, AgentListCard } from '@/components/agent/agent-ui';
+import { VerificationResultCard } from '@/components/agent/verification-result-card';
+import { BigButton, Field } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { pushAgentHistory } from '@/lib/agent-history';
+import type { VerificationResult } from '@/lib/agent-types';
+import { useAuth } from '@/lib/auth';
+import { PERMISSIONS } from '@/lib/permissions';
+import { extractTokenFromQr } from '@/lib/qr-token';
+import { useBackgroundRefresh } from '@/lib/use-background-refresh';
 import { JP } from '@/constants/theme';
+
+type Mode = 'identity' | 'attendance';
 
 interface MemberHit {
   id: number;
@@ -25,9 +46,21 @@ interface ActivityRow {
 
 export default function VerifierScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ activityId?: string }>();
+  const insets = useSafeAreaInsets();
+  const { can } = useAuth();
+  const params = useLocalSearchParams<{ activityId?: string; mode?: string; fresh?: string }>();
+  const canVerify = can(PERMISSIONS.cardsVerify);
+  const canRecord = can(PERMISSIONS.attendanceRecord);
+  const canViewMembers = can(PERMISSIONS.membersView);
+
+  const [mode, setMode] = useState<Mode>(
+    params.mode === 'attendance' || params.activityId ? 'attendance' : 'identity',
+  );
+  const [token, setToken] = useState('');
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<VerificationResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<MemberHit[]>([]);
   const [activities, setActivities] = useState<ActivityRow[]>([]);
   const [activityId, setActivityId] = useState<number | null>(
@@ -35,23 +68,117 @@ export default function VerifierScreen() {
   );
 
   useEffect(() => {
-    void api
-      .get<{ data: ActivityRow[] }>('/activities/for-attendance', { per_page: 40 })
-      .then((response) => {
+    if (params.fresh === '1' || params.mode === 'identity') {
+      setMode('identity');
+      setResult(null);
+      setError(null);
+      setToken('');
+    }
+  }, [params.fresh, params.mode]);
+
+  const loadActivities = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!canRecord) return;
+      const silent = Boolean(opts?.silent);
+      try {
+        const response = await api.get<{ data: ActivityRow[] }>('/activities/for-attendance', {
+          per_page: 40,
+        });
         const list = response.data ?? [];
         setActivities(list);
-        if (!activityId && list[0]) setActivityId(list[0].id);
-      })
-      .catch(() => setActivities([]));
-  }, []);
+        setActivityId((current) => current ?? list[0]?.id ?? null);
+      } catch {
+        if (!silent) setActivities([]);
+      }
+    },
+    [canRecord],
+  );
 
   useEffect(() => {
-    if (params.activityId) setActivityId(Number(params.activityId));
+    void loadActivities();
+  }, [loadActivities]);
+
+  useBackgroundRefresh(() => loadActivities({ silent: true }), {
+    enabled: canRecord,
+    intervalMs: 8000,
+  });
+
+  useEffect(() => {
+    if (params.activityId) {
+      setActivityId(Number(params.activityId));
+      setMode('attendance');
+    }
   }, [params.activityId]);
+
+  useEffect(() => {
+    if (mode === 'identity' && !canVerify && canRecord) setMode('attendance');
+    if (mode === 'attendance' && !canRecord && canVerify) setMode('identity');
+  }, [mode, canVerify, canRecord]);
 
   const selectedActivity = activities.find((item) => item.id === activityId);
 
-  async function search() {
+  async function verifyIdentity(source: string) {
+    if (!canVerify) {
+      Alert.alert('Autorisation', 'Vous n’avez pas la permission de vérifier les cartes.');
+      return;
+    }
+    const value = extractTokenFromQr(source);
+    const normalized = value.trim();
+    const isMemberCode = /^JP-RDC-/i.test(normalized);
+    if (!normalized || (!isMemberCode && normalized.length < 16)) {
+      setError('Identifiant ou jeton QR invalide.');
+      setResult(null);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.post<VerificationResult>('/members/verify', {
+        token: value,
+      });
+      setResult(response);
+      await Haptics.notificationAsync(
+        response.valid
+          ? Haptics.NotificationFeedbackType.Success
+          : Haptics.NotificationFeedbackType.Warning,
+      );
+      await pushAgentHistory({
+        kind: 'verify',
+        ok: Boolean(response.valid),
+        title: response.member?.full_name ?? response.message,
+        subtitle: response.member?.member_code ?? response.result,
+        memberCode: response.member?.member_code,
+      });
+    } catch (caught) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      if (caught instanceof ApiError) {
+        const payload = caught.payload as unknown as VerificationResult;
+        setResult(payload?.result ? payload : null);
+        setError(caught.message);
+        if (payload?.result) {
+          await pushAgentHistory({
+            kind: 'verify',
+            ok: Boolean(payload.valid),
+            title: payload.member?.full_name ?? caught.message,
+            subtitle: payload.member?.member_code ?? payload.result,
+            memberCode: payload.member?.member_code,
+          });
+        }
+      } else {
+        setError('Vérification impossible.');
+        setResult(null);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function searchMembers() {
+    if (!canViewMembers) {
+      Alert.alert('Autorisation', 'Permission membres.view requise.');
+      return;
+    }
     if (!q.trim()) {
       Alert.alert('Recherche', 'Saisissez un numéro ou un nom.');
       return;
@@ -66,8 +193,8 @@ export default function VerifierScreen() {
       if ((response.data ?? []).length === 0) {
         Alert.alert('Aucun résultat', 'Aucun membre ne correspond à cette recherche.');
       }
-    } catch (error) {
-      Alert.alert('Erreur', error instanceof ApiError ? error.message : 'Recherche impossible.');
+    } catch (err) {
+      Alert.alert('Erreur', err instanceof ApiError ? err.message : 'Recherche impossible.');
     } finally {
       setLoading(false);
     }
@@ -99,137 +226,200 @@ export default function VerifierScreen() {
   }
 
   return (
-    <Screen>
-      <Title>Vérifier un membre</Title>
-      <Subtitle>
-        Choisissez l’activité, puis scannez le QR ou l’empreinte — présence (et inscription)
-        automatiques.
-      </Subtitle>
-
-      <Text style={styles.section}>Activité de pointage</Text>
-      {activities.map((activity) => (
-        <Pressable
-          key={activity.id}
-          onPress={() => setActivityId(activity.id)}
-          style={[styles.activityRow, activityId === activity.id && styles.activityOn]}
-        >
-          <Text style={[styles.activityTitle, activityId === activity.id && styles.activityTitleOn]}>
-            {activityId === activity.id ? `✓ ${activity.title}` : activity.title}
-          </Text>
-          {activity.code ? <Text style={styles.activityCode}>{activity.code}</Text> : null}
-        </Pressable>
-      ))}
-      {activities.length === 0 ? (
-        <Text style={styles.meta}>Aucune activité ouverte. Allez dans Présences.</Text>
-      ) : null}
-
-      <View style={styles.grid}>
-        <Pressable
-          style={[styles.cta, styles.ctaPrimary]}
-          onPress={() => {
-            if (!requireActivity()) return;
-            router.push({
-              pathname: '/(agent)/(tabs)/scan-qr',
-              params: {
-                activityId: String(activityId),
-                activityTitle: selectedActivity?.title ?? '',
-              },
-            });
-          }}
-        >
-          <Text style={styles.ctaEmoji}>📷</Text>
-          <Text style={styles.ctaTitle}>Scanner QR</Text>
-          <Text style={styles.ctaSub}>Présence auto</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.cta, styles.ctaSecondary]}
-          onPress={() => {
-            if (!requireActivity()) return;
-            router.push({
-              pathname: '/(agent)/(tabs)/empreinte',
-              params: {
-                activityId: String(activityId),
-                activityTitle: selectedActivity?.title ?? '',
-              },
-            });
-          }}
-        >
-          <Text style={styles.ctaEmoji}>👆</Text>
-          <Text style={styles.ctaTitle}>Empreinte</Text>
-          <Text style={styles.ctaSub}>Inscription + présence</Text>
-        </Pressable>
-      </View>
-
-      <View style={{ height: 16 }} />
-      <Field
-        label="Recherche manuelle"
-        placeholder="JP-RDC-… ou nom"
-        value={q}
-        onChangeText={setQ}
-        onSubmitEditing={() => void search()}
-        returnKeyType="search"
+    <View style={styles.screen}>
+      <MembrePageHeader
+        title="Vérification"
+        subtitle={
+          mode === 'identity'
+            ? 'Contrôle d’identité carte'
+            : 'Pointage sur activité'
+        }
+        icon="scan-outline"
       />
-      <BigButton label="Rechercher" onPress={() => void search()} loading={loading} />
 
-      <View style={{ marginTop: 12 }}>
-        {results.map((item) => (
-          <Pressable key={item.id} style={styles.result} onPress={() => openMember(item)}>
-            <Text style={styles.resultName}>{item.full_name}</Text>
-            <Text style={styles.resultMeta}>{item.member_code}</Text>
-          </Pressable>
-        ))}
-      </View>
-    </Screen>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: 28 + insets.bottom }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {(canVerify || canRecord) && (
+          <View style={styles.modes}>
+            {canVerify ? (
+              <AgentChip
+                label="Identité"
+                active={mode === 'identity'}
+                onPress={() => setMode('identity')}
+              />
+            ) : null}
+            {canRecord ? (
+              <AgentChip
+                label="Pointage"
+                active={mode === 'attendance'}
+                onPress={() => setMode('attendance')}
+              />
+            ) : null}
+          </View>
+        )}
+
+        {mode === 'identity' && canVerify ? (
+          <>
+            <SectionHeader title="Saisie manuelle" />
+            <Field
+              label="Code / jeton carte"
+              placeholder="JP-RDC-… ou jeton QR"
+              autoCapitalize="characters"
+              value={token}
+              onChangeText={setToken}
+              onSubmitEditing={() => void verifyIdentity(token)}
+            />
+            <BigButton
+              label="Vérifier l’identité"
+              loading={loading}
+              onPress={() => void verifyIdentity(token)}
+            />
+            <View style={{ height: 12 }} />
+            <View style={styles.tiles}>
+              <AgentActionTile
+                icon="qr-code-outline"
+                title="Scanner QR"
+                subtitle="Identité seule"
+                tone="success"
+                onPress={() =>
+                  router.push({
+                    pathname: '/(agent)/(tabs)/scan-qr',
+                    params: { mode: 'verify' },
+                  })
+                }
+              />
+            </View>
+            <View style={{ height: 14 }} />
+            <VerificationResultCard result={result} error={error} />
+          </>
+        ) : null}
+
+        {mode === 'attendance' && canRecord ? (
+          <>
+            <SectionHeader title="Activité de pointage" />
+            {activities.map((activity) => (
+              <AgentListCard
+                key={activity.id}
+                active={activityId === activity.id}
+                onPress={() => setActivityId(activity.id)}
+              >
+                <Text style={styles.activityTitle}>
+                  {activityId === activity.id ? `✓ ${activity.title}` : activity.title}
+                </Text>
+                {activity.code ? <Text style={styles.meta}>{activity.code}</Text> : null}
+              </AgentListCard>
+            ))}
+            {activities.length === 0 ? (
+              <Text style={styles.meta}>Aucune activité ouverte.</Text>
+            ) : null}
+
+            <SectionHeader title="Enregistrer une présence" />
+            <View style={styles.tiles}>
+              <AgentActionTile
+                icon="camera-outline"
+                title="Scanner QR"
+                subtitle="Présence auto"
+                onPress={() => {
+                  if (!requireActivity()) return;
+                  router.push({
+                    pathname: '/(agent)/(tabs)/scan-qr',
+                    params: {
+                      mode: 'attendance',
+                      activityId: String(activityId),
+                      activityTitle: selectedActivity?.title ?? '',
+                    },
+                  });
+                }}
+              />
+              <AgentActionTile
+                icon="finger-print-outline"
+                title="Empreinte"
+                subtitle="Inscription + présence"
+                tone="dark"
+                onPress={() => {
+                  if (!requireActivity()) return;
+                  router.push({
+                    pathname: '/(agent)/(tabs)/empreinte',
+                    params: {
+                      activityId: String(activityId),
+                      activityTitle: selectedActivity?.title ?? '',
+                    },
+                  });
+                }}
+              />
+            </View>
+
+            {activityId ? (
+              <>
+                <View style={{ height: 12 }} />
+                <Pressable
+                  style={styles.linkRow}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(agent)/(tabs)/feuille',
+                      params: {
+                        activityId: String(activityId),
+                        activityTitle: selectedActivity?.title ?? '',
+                      },
+                    })
+                  }
+                >
+                  <Text style={styles.linkText}>Ouvrir la feuille de présence</Text>
+                  <Text style={styles.linkChevron}>→</Text>
+                </Pressable>
+              </>
+            ) : null}
+
+            {canViewMembers ? (
+              <>
+                <SectionHeader title="Recherche membre" />
+                <Field
+                  label="Nom ou code"
+                  placeholder="JP-RDC-… ou nom"
+                  value={q}
+                  onChangeText={setQ}
+                  onSubmitEditing={() => void searchMembers()}
+                  returnKeyType="search"
+                />
+                <BigButton label="Rechercher" onPress={() => void searchMembers()} loading={loading} />
+                <View style={{ marginTop: 8 }}>
+                  {results.map((item) => (
+                    <AgentListCard key={item.id} onPress={() => openMember(item)}>
+                      <Text style={styles.activityTitle}>{item.full_name}</Text>
+                      <Text style={styles.code}>{item.member_code}</Text>
+                    </AgentListCard>
+                  ))}
+                </View>
+              </>
+            ) : null}
+          </>
+        ) : null}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  section: {
-    marginTop: 16,
-    marginBottom: 8,
-    fontSize: 12,
-    fontWeight: '800',
-    color: JP.muted,
-    textTransform: 'uppercase',
-  },
-  activityRow: {
-    backgroundColor: JP.white,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: JP.border,
-    padding: 12,
-    marginBottom: 8,
-  },
-  activityOn: { borderColor: JP.brand, backgroundColor: JP.brandLight },
-  activityTitle: { fontWeight: '700', color: JP.text, fontSize: 14 },
-  activityTitleOn: { color: JP.brandDark },
-  activityCode: { marginTop: 2, fontSize: 11, color: JP.muted, fontWeight: '600' },
-  meta: { color: JP.muted, fontSize: 13, marginBottom: 8 },
-  grid: {
+  screen: { flex: 1, backgroundColor: JP.bg },
+  content: { paddingHorizontal: 16, paddingTop: 4 },
+  modes: { flexDirection: 'row', gap: 8, marginTop: 8, marginBottom: 4 },
+  tiles: { flexDirection: 'row', gap: 10 },
+  activityTitle: { fontWeight: '800', color: JP.text, fontSize: 14 },
+  meta: { marginTop: 2, fontSize: 12, color: JP.muted, fontWeight: '600' },
+  code: { marginTop: 2, fontSize: 12, color: JP.brandDark, fontFamily: 'monospace', fontWeight: '700' },
+  linkRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 14,
-  },
-  cta: {
-    flex: 1,
-    minHeight: 110,
-    borderRadius: 18,
-    padding: 14,
-    justifyContent: 'flex-end',
-  },
-  ctaPrimary: { backgroundColor: JP.brand },
-  ctaSecondary: { backgroundColor: JP.brandDark },
-  ctaEmoji: { fontSize: 28, marginBottom: 8 },
-  ctaTitle: { color: JP.white, fontWeight: '800', fontSize: 15 },
-  ctaSub: { color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: '600', marginTop: 2 },
-  result: {
-    backgroundColor: JP.card,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: JP.white,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: JP.border,
     padding: 14,
-    marginBottom: 8,
   },
-  resultName: { fontWeight: '700', color: JP.text, fontSize: 15 },
-  resultMeta: { color: JP.muted, marginTop: 2, fontFamily: 'monospace' },
+  linkText: { fontWeight: '800', color: JP.brand, fontSize: 14 },
+  linkChevron: { color: JP.brand, fontWeight: '800', fontSize: 16 },
 });

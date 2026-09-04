@@ -5,15 +5,16 @@ import QRCode from 'qrcode';
 import { JP } from '@/constants/theme';
 
 /**
- * Affiche un QR scannable.
+ * Affiche un QR scannable (contraste noir/blanc + quiet zone).
  * Évite react-native-qrcode-svg (conflit Metro / entities) et les data-URI SVG via Image RN.
  */
 export function MemberQrCode({
   value,
-  size = 220,
+  size = 240,
   caption,
   svgDataUri,
   compact = false,
+  emphasize = false,
 }: {
   value?: string | null;
   size?: number;
@@ -22,19 +23,25 @@ export function MemberQrCode({
   svgDataUri?: string | null;
   /** Moins de padding / bordure — pour intégration dans la carte. */
   compact?: boolean;
+  /** Cadre généreux pour scan agent (écran Ma carte). */
+  emphasize?: boolean;
 }) {
   const payload = (value ?? '').trim();
-  const pad = compact ? 2 : 12;
+  const pad = emphasize ? 14 : compact ? 4 : 12;
   const inner = Math.max(size - pad * 2, 12);
   const [xml, setXml] = useState<string | null>(() => decodeSvgDataUri(svgDataUri));
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    const fromApi = decodeSvgDataUri(svgDataUri);
-    if (fromApi) {
-      setXml(fromApi);
-      setFailed(false);
-      return;
+    // Sur la carte ou en mode scan, on privilégie un rendu client haute qualité
+    // (EC H + marge) plutôt qu'un SVG serveur parfois trop dense pour la taille affichée.
+    if (svgDataUri && !emphasize && !compact) {
+      const fromApi = decodeSvgDataUri(svgDataUri);
+      if (fromApi) {
+        setXml(fromApi);
+        setFailed(false);
+        return;
+      }
     }
 
     if (!payload) {
@@ -46,10 +53,10 @@ export function MemberQrCode({
     setFailed(false);
     void QRCode.toString(payload, {
       type: 'svg',
-      margin: 1,
-      width: inner,
-      color: { dark: JP.text, light: '#FFFFFF' },
-      errorCorrectionLevel: 'M',
+      margin: emphasize ? 3 : compact ? 2 : 3,
+      width: Math.max(inner, emphasize ? 280 : 160),
+      color: { dark: '#000000', light: '#FFFFFF' },
+      errorCorrectionLevel: 'H',
     })
       .then((svg) => {
         if (!cancelled) setXml(svg);
@@ -64,7 +71,7 @@ export function MemberQrCode({
     return () => {
       cancelled = true;
     };
-  }, [payload, inner, svgDataUri]);
+  }, [payload, inner, svgDataUri, compact, emphasize]);
 
   if (!payload && !xml) {
     return (
@@ -87,6 +94,7 @@ export function MemberQrCode({
         style={[
           styles.box,
           compact ? styles.boxCompact : styles.qrPad,
+          emphasize && styles.boxEmphasize,
           { width: size, minHeight: size, padding: pad },
         ]}
       >
@@ -98,7 +106,7 @@ export function MemberQrCode({
           <ActivityIndicator color={JP.brand} size={compact ? 'small' : 'large'} />
         )}
       </View>
-      {caption ? <Text style={styles.caption}>{caption}</Text> : null}
+      {caption ? <Text style={[styles.caption, emphasize && styles.captionEmphasize]}>{caption}</Text> : null}
     </View>
   );
 }
@@ -108,7 +116,6 @@ function decodeSvgDataUri(dataUri?: string | null): string | null {
   const base64 = dataUri.match(/^data:image\/svg\+xml;base64,(.+)$/i);
   if (base64?.[1]) {
     try {
-      // atob disponible sous Hermes / Expo
       return globalThis.atob(base64[1]);
     } catch {
       return null;
@@ -131,18 +138,29 @@ const styles = StyleSheet.create({
   box: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: JP.white,
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: JP.border,
   },
   boxCompact: {
-    borderRadius: 6,
+    borderRadius: 8,
     borderWidth: 0,
+  },
+  boxEmphasize: {
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: JP.brand,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   qrPad: { padding: 12 },
   empty: { fontSize: 13, fontWeight: '800', color: JP.muted, textAlign: 'center' },
   emptyCompact: { fontSize: 9, fontWeight: '700', color: JP.muted },
   hint: { marginTop: 4, fontSize: 11, color: JP.muted, textAlign: 'center' },
   caption: { marginTop: 10, fontSize: 12, fontWeight: '800', color: JP.brand },
+  captionEmphasize: { fontSize: 14, marginTop: 12 },
 });

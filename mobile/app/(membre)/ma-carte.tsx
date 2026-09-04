@@ -17,6 +17,7 @@ import ViewShot from 'react-native-view-shot';
 import { BigButton, Screen } from '@/components/ui';
 import { MemberCardBack } from '@/components/membre/member-card-back';
 import { MemberCardVisual } from '@/components/membre/member-card-visual';
+import { MemberQrCode } from '@/components/membre/member-qr-code';
 import type { CardRender } from '@/components/membre/member-card-types';
 import { cardFaceSize } from '@/components/membre/member-card-types';
 import { MembrePageHeader } from '@/components/membre/page-header';
@@ -29,7 +30,7 @@ import {
   shareCardImage,
   type CardFace,
 } from '@/lib/card-export';
-import { JP } from '@/constants/theme';
+import { JP, ROLE_SLUGS } from '@/constants/theme';
 
 export default function MaCarteScreen() {
   const { user, postLoginPath } = useAuth();
@@ -51,6 +52,8 @@ export default function MaCarteScreen() {
 
   useEffect(() => {
     if (!user) return;
+    // Les gardes d'onboarding ne concernent que le portail membre.
+    if (user.role?.slug !== ROLE_SLUGS.membre) return;
     if (
       user.member_status === 'pending' ||
       user.needs_structure_choice ||
@@ -61,7 +64,11 @@ export default function MaCarteScreen() {
   }, [user, router, postLoginPath]);
 
   const load = useCallback(async () => {
-    if (!user?.member_id || user.needs_profile_completion) {
+    // Blocage profil incomplet : portail membre uniquement (l'agent peut déjà avoir une carte).
+    if (
+      !user?.member_id ||
+      (user.role?.slug === ROLE_SLUGS.membre && user.needs_profile_completion)
+    ) {
       setLoading(false);
       return;
     }
@@ -237,6 +244,20 @@ export default function MaCarteScreen() {
             </View>
             <Text style={styles.hint}>Glissez pour basculer recto / verso</Text>
 
+            <View style={styles.scanPanel}>
+              <Text style={styles.scanTitle}>QR pour scan agent</Text>
+              <Text style={styles.scanSub}>
+                Présentez ce code en plein écran pour une vérification rapide.
+              </Text>
+              <MemberQrCode
+                value={card.verification_url || card.member_code}
+                svgDataUri={card.qr_svg}
+                size={Math.min(cardWidth - 24, 280)}
+                emphasize
+                caption={card.member_code}
+              />
+            </View>
+
             <View style={[styles.actions, { marginTop: 16 }]}>
               <BigButton
                 label={busy ? 'Préparation…' : 'Partager l’image'}
@@ -322,6 +343,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: JP.muted,
     fontWeight: '600',
+  },
+  scanPanel: {
+    width: '100%',
+    maxWidth: 420,
+    marginTop: 20,
+    padding: 16,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: JP.border,
+    backgroundColor: JP.white,
+    alignItems: 'center',
+  },
+  scanTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: JP.text,
+  },
+  scanSub: {
+    marginTop: 4,
+    marginBottom: 14,
+    fontSize: 12,
+    color: JP.muted,
+    textAlign: 'center',
+    fontWeight: '600',
+    lineHeight: 17,
   },
   refreshRow: {
     flexDirection: 'row',

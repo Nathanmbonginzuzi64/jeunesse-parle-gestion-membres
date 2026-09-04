@@ -178,8 +178,8 @@ export function MemberCardVisual({
         </div>
 
         {/* QR */}
-        <div className="flex flex-col items-center justify-center self-center rounded-lg border border-slate-200 bg-white/95 px-1.5 py-1.5 shadow-sm">
-          <MemberQrCode value={qrValue} size={compact ? 56 : 68} label="Vérification du membre" />
+        <div className="flex flex-col items-center justify-center self-center rounded-xl border-2 border-brand-500 bg-white px-2 py-2 shadow-sm ring-1 ring-brand-100">
+          <MemberQrCode value={qrValue} size={compact ? 88 : 108} label="Scan agent" />
         </div>
       </div>
 

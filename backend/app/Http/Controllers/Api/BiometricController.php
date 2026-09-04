@@ -135,6 +135,19 @@ class BiometricController extends Controller
             ]);
         }
 
+        if ($context === BiometricContext::MemberVerification) {
+            if (! $actor) {
+                throw ValidationException::withMessages([
+                    'context' => 'Authentification requise pour la vérification biométrique.',
+                ]);
+            }
+            if (! $actor->hasPermission(\App\Enums\Permission::CardsVerify)) {
+                throw ValidationException::withMessages([
+                    'context' => 'Permission cards.verify requise.',
+                ]);
+            }
+        }
+
         if ($context === BiometricContext::Attendance) {
             $request->setUserResolver(fn () => $actor);
             $activityId = $validated['activity_id'] ?? null;
@@ -198,6 +211,19 @@ class BiometricController extends Controller
             $request->setUserResolver(fn () => $actor);
             $activity = Activity::findOrFail($validated['activity_id']);
             $this->authorizeRecordAttendance($actor, $activity);
+        } elseif ($context === BiometricContext::MemberVerification) {
+            if (! $actor) {
+                throw ValidationException::withMessages([
+                    'context' => 'Connectez-vous en tant qu\'agent pour vérifier une identité.',
+                ]);
+            }
+            if (! $actor->hasPermission(\App\Enums\Permission::CardsVerify)) {
+                throw ValidationException::withMessages([
+                    'context' => 'Permission cards.verify requise pour la vérification biométrique.',
+                ]);
+            }
+            $request->setUserResolver(fn () => $actor);
+            $activity = null;
         } else {
             $activity = null;
         }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, CreditCard, IdCard, MessageSquare, Pencil, ShieldCheck } from "lucide-react";
+import { Bell, CalendarCheck2, CalendarDays, CreditCard, IdCard, MessageSquare, Pencil, ShieldCheck } from "lucide-react";
 import { PageHeader } from "@/components/layout/topbar";
 import { Avatar } from "@/components/ui/avatar";
 import { MemberStatusBadge } from "@/components/ui/badge";
@@ -54,26 +54,44 @@ export default function MemberSpacePage() {
 
       <div className={cn(dashboardCardGrid, "sm:grid-cols-2 xl:grid-cols-4")}>
         <KpiCard label="Ma carte" value="QR" hint="Présenter ou imprimer" icon={CreditCard} tone="info" href="/ma-carte" />
-        <KpiCard label="Notifications" value="—" hint="Messages et alertes" icon={Bell} tone="neutral" href="/notifications" />
+        <KpiCard label="Activités" value="+" hint="S'inscrire et pointer" icon={CalendarDays} tone="neutral" href="/mon-espace/activites" />
+        <KpiCard label="Présences" value="✓" hint="Historique des pointages" icon={CalendarCheck2} tone="success" href="/mon-espace/presences" />
         <KpiCard label="Structure" value={member.structure?.name ?? "—"} icon={IdCard} tone="neutral" />
-        <KpiCard label="Province" value={member.province?.name ?? "—"} icon={ShieldCheck} tone="success" />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Link href="/ma-carte" className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-brand-300 hover:shadow-sm">
           <CreditCard className="h-5 w-5 text-brand-600" />
           <p className="mt-2 text-sm font-medium">Ma carte</p>
-          <p className="text-xs text-slate-500">QR code et téléchargement</p>
+          <p className="text-xs text-slate-500">QR agrandi pour scan agent</p>
+        </Link>
+        <Link href="/mon-espace/activites" className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-brand-300 hover:shadow-sm">
+          <CalendarDays className="h-5 w-5 text-brand-600" />
+          <p className="mt-2 text-sm font-medium">Mes activités</p>
+          <p className="text-xs text-slate-500">Inscription + présence QR</p>
+        </Link>
+        <Link href="/mon-espace/presences" className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-brand-300 hover:shadow-sm">
+          <CalendarCheck2 className="h-5 w-5 text-brand-600" />
+          <p className="mt-2 text-sm font-medium">Mes présences</p>
+          <p className="text-xs text-slate-500">Historique de vos pointages</p>
         </Link>
         <Link href="/notifications" className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-brand-300 hover:shadow-sm">
           <Bell className="h-5 w-5 text-brand-600" />
           <p className="mt-2 text-sm font-medium">Mes notifications</p>
         </Link>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-2">
         <Link href="/jp-message" className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-brand-300 hover:shadow-sm">
           <MessageSquare className="h-5 w-5 text-brand-600" />
           <p className="mt-2 text-sm font-medium">JP Message</p>
           <p className="text-xs text-slate-500">Messagerie et dossiers officiels</p>
         </Link>
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <ShieldCheck className="h-5 w-5 text-brand-600" />
+          <p className="mt-2 text-sm font-medium">Province</p>
+          <p className="text-xs text-slate-500">{member.province?.name ?? "—"}</p>
+        </div>
       </div>
 
       <Card>

@@ -10,6 +10,7 @@ use App\Models\Activity;
 use App\Models\Attendance;
 use App\Models\Member;
 use App\Models\User;
+use App\Models\VerificationLog;
 use App\Models\WebAuthnCredential;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -530,7 +531,12 @@ class ContextualBiometricService
 
         return match ($context) {
             BiometricContext::Login => $this->handleLogin($user, $request, $context),
-            BiometricContext::MemberVerification => $this->handleVerification($member, $user, $context),
+            BiometricContext::MemberVerification => $this->handleVerification(
+                $member,
+                $request->user() instanceof User ? $request->user() : null,
+                $request,
+                $context,
+            ),
             // L'acteur = responsable connecté (pas le propriétaire du credential / membre pointé).
             BiometricContext::Attendance => $this->handleAttendance(
                 $member,
@@ -629,7 +635,7 @@ class ContextualBiometricService
         ];
     }
 
-    private function handleVerification(?Member $member, ?User $user, BiometricContext $context): array
+    private function handleVerification(?Member $member, ?User $actor, Request $request, BiometricContext $context): array
     {
         if (! $member) {
             throw ValidationException::withMessages([
@@ -637,17 +643,50 @@ class ContextualBiometricService
             ]);
         }
 
-        $this->audit->log($context->auditAction(), $member, "Vérification biométrique {$member->member_code}", [], [
-            'result' => 'success',
-            'status' => $member->status->value,
-            // Pas de création de session.
+        $member->loadMissing(['activeCard.activeQrToken', 'province', 'city', 'structure']);
+        $card = $member->activeCard;
+        $qrToken = $card?->activeQrToken;
+
+        $result = $this->evaluateMemberCard($member, $card);
+        $valid = $result === 'valid';
+
+        VerificationLog::create([
+            'member_id' => $member->id,
+            'member_card_id' => $card?->id,
+            'qr_token_id' => $qrToken?->id,
+            'token_fingerprint' => substr($qrToken?->token ?? $member->member_code, 0, 8),
+            'result' => $result,
+            'verified_by' => $actor?->id,
+            'context' => 'biometric',
+            'ip_address' => $request->ip(),
+            'user_agent' => substr((string) $request->userAgent(), 0, 255),
         ]);
 
+        $this->audit->log($context->auditAction(), $member, "Vérification biométrique {$member->member_code}", [], [
+            'result' => $result,
+            'status' => $member->status->value,
+            'valid' => $valid,
+        ]);
+
+        if ($actor) {
+            $this->notifications->adminCardVerified($member, $result, $actor, 'biometric');
+        }
+
+        $message = match ($result) {
+            'valid' => 'Membre vérifié (biométrie).',
+            'revoked' => 'Identifié, mais la carte est désactivée.',
+            'expired' => 'Identifié, mais la carte est expirée.',
+            'inactive' => 'Identifié, mais le compte membre n\'est pas actif.',
+            default => 'Identification biométrique effectuée.',
+        };
+
         return [
-            'ok' => true,
+            'ok' => $valid,
+            'valid' => $valid,
+            'result' => $result,
             'context' => $context->value,
             'action' => 'MEMBER_VERIFICATION',
-            'message' => 'Membre identifié.',
+            'message' => $message,
             'creates_session' => false,
             'member' => [
                 'id' => $member->id,
@@ -663,15 +702,40 @@ class ContextualBiometricService
                 'city' => $member->city?->name,
                 'position' => $member->position,
                 'phone' => $member->phone,
-                'card' => $member->activeCard ? [
-                    'status' => $member->activeCard->status->value,
-                    'status_label' => $member->activeCard->status->label(),
-                    'card_number' => $member->activeCard->card_number,
-                    'issued_at' => $member->activeCard->issued_at?->toDateString(),
-                    'expires_at' => $member->activeCard->expires_at?->toDateString(),
+                'card' => $card ? [
+                    'status' => $card->status->value,
+                    'status_label' => $card->status->label(),
+                    'card_number' => $card->card_number,
+                    'issued_at' => $card->issued_at?->toDateString(),
+                    'expires_at' => $card->expires_at?->toDateString(),
                 ] : null,
             ],
         ];
+    }
+
+    private function evaluateMemberCard(Member $member, $card): string
+    {
+        if (! $member->status->allowsCard()) {
+            return 'inactive';
+        }
+
+        if (! $card || ! $card->status->isUsable()) {
+            return 'revoked';
+        }
+
+        if ($card->isExpired()) {
+            return 'expired';
+        }
+
+        $token = $card->relationLoaded('activeQrToken')
+            ? $card->activeQrToken
+            : $card->activeQrToken()->first();
+
+        if ($token && ($token->status === 'revoked' || $token->isExpired())) {
+            return $token->status === 'revoked' ? 'revoked' : 'expired';
+        }
+
+        return 'valid';
     }
 
     private function handleAttendance(
@@ -730,6 +794,9 @@ class ContextualBiometricService
             'activity_id' => $activity->id,
             'result' => 'success',
         ]);
+
+        $this->notifications->attendanceRecorded($member, $activity, AttendanceStatus::Present->label(), $actor);
+        $this->notifications->adminAttendanceRecorded($member, $activity, AttendanceStatus::Present->label(), $actor);
 
         return [
             'ok' => true,

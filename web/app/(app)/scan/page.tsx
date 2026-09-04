@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   CalendarDays,
   ClipboardList,
@@ -42,13 +43,16 @@ type ScanMode = "biometric" | "qr" | "fingerprint";
 export default function ScanPage() {
   return (
     <RequirePermission permission={PERMISSIONS.attendanceRecord}>
-      <ScanTool />
+      <Suspense fallback={<PageLoader label="Chargement du scan…" />}>
+        <ScanTool />
+      </Suspense>
     </RequirePermission>
   );
 }
 
 function ScanTool() {
   const toast = useToast();
+  const searchParams = useSearchParams();
   const activities = useApi<Paginated<Activity>>("/activities/for-attendance", { per_page: 50 });
   const [activityId, setActivityId] = useState("");
   const [mode, setMode] = useState<ScanMode>("biometric");
@@ -58,6 +62,11 @@ function ScanTool() {
   const [error, setError] = useState<string | null>(null);
   const [sessionCount, setSessionCount] = useState(0);
   const [sheetRefreshKey, setSheetRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const fromQuery = searchParams.get("activity");
+    if (fromQuery) setActivityId(fromQuery);
+  }, [searchParams]);
 
   const selectedActivity = (activities.data?.data ?? []).find((item) => String(item.id) === activityId);
 

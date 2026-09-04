@@ -18,6 +18,8 @@ import { cn } from "@/lib/utils";
 
 export type BiometricResult = {
   ok: boolean;
+  valid?: boolean;
+  result?: string;
   context: BiometricContext;
   action?: string;
   message: string;
@@ -74,7 +76,11 @@ export function BiometricModal({
   const challengeRef = useRef<ChallengeResponse | null>(null);
 
   const available = USE_MOCKS || isWebAuthnAvailable();
-  const needsAuth = context === "ATTENDANCE" || context === "BIOMETRIC_REGISTRATION" || context === "SECURITY_CONFIRMATION";
+  const needsAuth =
+    context === "ATTENDANCE" ||
+    context === "MEMBER_VERIFICATION" ||
+    context === "BIOMETRIC_REGISTRATION" ||
+    context === "SECURITY_CONFIRMATION";
 
   async function postJson<T>(path: string, body: unknown, authenticated: boolean): Promise<T> {
     if (authenticated) return api.post<T>(path, body);

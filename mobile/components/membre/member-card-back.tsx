@@ -35,7 +35,7 @@ export function MemberCardBack({
     [render.province, render.commune ?? render.city, render.structure].filter(Boolean).join(' / ') ||
     null;
   const qrValue = render.verification_url || render.member_code;
-  const qrSize = width < 360 ? 22 : 24;
+  const qrSize = width < 360 ? 40 : 48;
 
   return (
     <View style={[styles.card, { width, height }]}>

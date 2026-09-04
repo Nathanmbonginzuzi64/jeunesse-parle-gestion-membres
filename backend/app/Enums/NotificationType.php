@@ -25,6 +25,8 @@ enum NotificationType: string
     case ChatMessage = 'chat_message';
     case AdminNewMember = 'admin_new_member';
     case AdminNewActivity = 'admin_new_activity';
+    case AdminCardVerified = 'admin_card_verified';
+    case AdminAttendanceRecorded = 'admin_attendance_recorded';
     case AdminSystemAlert = 'admin_system_alert';
     case Manual = 'manual';
 
@@ -38,7 +40,8 @@ enum NotificationType: string
             self::AttendanceRecorded, self::AttendanceFailed => NotificationCategory::Presence,
             self::NewsPublished, self::NewsComment, self::NewsReaction, self::NewsShare => NotificationCategory::News,
             self::JpMessageCreated, self::JpMessageReply, self::ChatMessage => NotificationCategory::Message,
-            self::AdminNewMember, self::AdminNewActivity, self::AdminSystemAlert => NotificationCategory::Admin,
+            self::AdminNewMember, self::AdminNewActivity, self::AdminCardVerified,
+            self::AdminAttendanceRecorded, self::AdminSystemAlert => NotificationCategory::Admin,
             self::Manual => NotificationCategory::Admin,
         };
     }
@@ -50,7 +53,7 @@ enum NotificationType: string
             self::AdminSystemAlert => 'warning',
             self::AccountStatusChanged => 'warning',
             self::AccountValidated, self::CardIssued, self::AttendanceRecorded,
-            self::MemberWelcome => 'success',
+            self::MemberWelcome, self::AdminCardVerified, self::AdminAttendanceRecorded => 'success',
             default => 'info',
         };
     }

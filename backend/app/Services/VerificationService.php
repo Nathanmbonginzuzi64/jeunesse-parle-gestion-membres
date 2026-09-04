@@ -2,35 +2,41 @@
 
 namespace App\Services;
 
+use App\Models\Member;
 use App\Models\QrToken;
 use App\Models\User;
 use App\Models\VerificationLog;
 use Illuminate\Http\Request;
 
 /**
- * Vérification d'une carte à partir de son jeton QR.
+ * Vérification d'une carte à partir d'un jeton QR ou d'un code membre.
  *
  * Le résultat public est volontairement minimal : il confirme l'appartenance
  * sans divulguer les coordonnées ni les données sensibles du membre.
  */
 class VerificationService
 {
-    public function __construct(private readonly AuditLogger $audit) {}
+    public function __construct(
+        private readonly AuditLogger $audit,
+        private readonly NotificationService $notifications,
+    ) {}
 
     /**
      * @return array{result: string, valid: bool, message: string, member: ?array}
      */
     public function verify(string $token, Request $request, ?User $actor = null, string $context = 'public'): array
     {
-        /** @var QrToken|null $qrToken */
-        $qrToken = QrToken::with(['member.province', 'member.city', 'member.structure', 'card'])
-            ->where('token', $token)
-            ->first();
+        $normalized = $this->normalizeInput($token);
+
+        $qrToken = $this->resolveQrToken($normalized);
 
         if (! $qrToken) {
-            $this->logAttempt(null, $token, 'not_found', $request, $actor, $context);
+            $this->logAttempt(null, $normalized !== '' ? $normalized : $token, 'not_found', $request, $actor, $context);
 
-            return $this->failure('not_found', 'Aucune carte ne correspond à ce QR code.');
+            return $this->failure(
+                'not_found',
+                'Aucune carte ne correspond à cet identifiant. Vérifiez le code JP-RDC ou le QR.',
+            );
         }
 
         $result = $this->evaluate($qrToken);
@@ -40,7 +46,16 @@ class VerificationService
             'scan_count' => $qrToken->scan_count + 1,
         ])->save();
 
-        $this->logAttempt($qrToken, $token, $result, $request, $actor, $context);
+        $this->logAttempt($qrToken, $normalized, $result, $request, $actor, $context);
+
+        if ($actor && in_array($context, ['agent', 'biometric', 'attendance'], true) && $qrToken->member) {
+            $this->notifications->adminCardVerified(
+                $qrToken->member,
+                $result,
+                $actor,
+                $context === 'biometric' ? 'biometric' : 'qr',
+            );
+        }
 
         if ($result !== 'valid') {
             return $this->failure($result, $this->messageFor($result));
@@ -52,6 +67,62 @@ class VerificationService
             'message' => 'Membre vérifié.',
             'member' => $this->publicPayload($qrToken, $actor),
         ];
+    }
+
+    /**
+     * Accepte : jeton opaque, URL …/verifier-membre/{token}, code JP-RDC-….
+     */
+    public function normalizeInput(string $value): string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return $trimmed;
+        }
+
+        if (str_contains($trimmed, '/')) {
+            $path = parse_url($trimmed, PHP_URL_PATH);
+            if (is_string($path) && $path !== '') {
+                $trimmed = basename($path);
+            }
+        }
+
+        if (preg_match('/^JP-RDC-/i', $trimmed) === 1) {
+            return mb_strtoupper($trimmed);
+        }
+
+        return $trimmed;
+    }
+
+    private function resolveQrToken(string $normalized): ?QrToken
+    {
+        if ($normalized === '') {
+            return null;
+        }
+
+        $with = ['member.province', 'member.city', 'member.structure', 'card'];
+
+        /** @var QrToken|null $byToken */
+        $byToken = QrToken::with($with)->where('token', $normalized)->first();
+        if ($byToken) {
+            return $byToken;
+        }
+
+        // Saisie manuelle du code membre (JP-RDC-XXXXXXXX).
+        if (preg_match('/^JP-RDC-[A-Z0-9]+$/i', $normalized) !== 1) {
+            return null;
+        }
+
+        $member = Member::query()
+            ->where('member_code', $normalized)
+            ->with('activeCard.activeQrToken')
+            ->first();
+
+        $tokenId = $member?->activeCard?->activeQrToken?->id;
+        if (! $tokenId) {
+            return null;
+        }
+
+        return QrToken::with($with)->find($tokenId);
     }
 
     private function evaluate(QrToken $qrToken): string

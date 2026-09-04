@@ -1,10 +1,16 @@
 "use client";
 
-import { ScanLine } from "lucide-react";
+import { useState } from "react";
+import { Plus, ScanLine } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import type { VerificationResult } from "@/lib/types";
+import { Alert, EmptyState, TableSkeleton } from "@/components/ui/feedback";
+import { Pagination } from "@/components/ui/table";
+import { useApi } from "@/lib/hooks";
+import type { Paginated, VerificationLogRow, VerificationResult } from "@/lib/types";
+import { formatDateTime } from "@/lib/utils";
 
 export interface VerificationHistoryEntry {
   id: string;
@@ -18,8 +24,8 @@ export function VerificationHistory({ entries }: { entries: VerificationHistoryE
   return (
     <Card>
       <CardHeader
-        title="Vérifications récentes"
-        description="Historique de cette session (non enregistré en base)"
+        title="Session en cours"
+        description="Aperçu temporaire de cette page (complété par l’historique serveur ci-dessous)"
       />
       <CardBody className="divide-y divide-slate-100 p-0">
         {entries.map((entry) => {
@@ -48,6 +54,142 @@ export function VerificationHistory({ entries }: { entries: VerificationHistoryE
             </div>
           );
         })}
+      </CardBody>
+    </Card>
+  );
+}
+
+export function ServerVerificationHistory({
+  onNewVerification,
+}: {
+  onNewVerification: () => void;
+}) {
+  const [page, setPage] = useState(1);
+  const [resultFilter, setResultFilter] = useState<"all" | "valid" | "rejected">("all");
+  const query = {
+    page,
+    per_page: 15,
+    result:
+      resultFilter === "all" ? undefined : resultFilter === "valid" ? "valid" : "rejected",
+  };
+  const history = useApi<{ data: VerificationLogRow[]; meta: Paginated<unknown>["meta"] }>(
+    "/verifications/history",
+    query,
+    { refreshInterval: 5_000 },
+  );
+
+  const meta = history.data?.meta;
+  const rows = history.data?.data ?? [];
+
+  return (
+    <Card>
+      <CardHeader
+        title="Historique des vérifications"
+        description="Journal paginé de vos contrôles (serveur)"
+        action={
+          <Button type="button" size="sm" onClick={onNewVerification}>
+            <Plus className="h-4 w-4" />
+            Nouvelle vérification
+          </Button>
+        }
+      />
+      <CardBody className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              { key: "all", label: "Tous" },
+              { key: "valid", label: "Valides" },
+              { key: "rejected", label: "Rejetés" },
+            ] as const
+          ).map((opt) => (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => {
+                setResultFilter(opt.key);
+                setPage(1);
+              }}
+              className={
+                resultFilter === opt.key
+                  ? "rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white"
+                  : "rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+              }
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {history.error ? <Alert tone="danger">{history.error}</Alert> : null}
+        {history.loading && rows.length === 0 ? <TableSkeleton rows={5} /> : null}
+        {!history.loading && rows.length === 0 ? (
+          <EmptyState
+            title="Aucune vérification"
+            description="Scannez une carte pour commencer. Le bouton ci-dessus lance un nouveau contrôle."
+            action={
+              <Button type="button" onClick={onNewVerification}>
+                <ScanLine className="h-4 w-4" />
+                Nouvelle vérification
+              </Button>
+            }
+          />
+        ) : null}
+
+        {rows.length > 0 ? (
+          <div className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+            {rows.map((row) => {
+              const ok = row.result === "valid";
+              return (
+                <div key={row.id} className="flex items-center gap-3 px-4 py-3">
+                  {row.member ? (
+                    <Avatar
+                      src={row.member.photo_url}
+                      name={row.member.full_name}
+                      size="sm"
+                    />
+                  ) : (
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs text-slate-400">
+                      ?
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-slate-900">
+                      {row.member?.full_name ?? "Carte introuvable"}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {formatDateTime(row.created_at) || "—"}
+                      {row.member ? ` · ${row.member.member_code}` : ""}
+                      {row.context ? ` · ${row.context}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge tone={ok ? "success" : "danger"} className="shrink-0">
+                      {ok ? "Valide" : row.result}
+                    </Badge>
+                    <button
+                      type="button"
+                      onClick={onNewVerification}
+                      className="text-[11px] font-medium text-brand-700 hover:underline"
+                    >
+                      Nouvelle vérif.
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {meta ? (
+          <Pagination
+            page={meta.current_page}
+            lastPage={meta.last_page}
+            total={meta.total}
+            perPage={meta.per_page}
+            onChange={setPage}
+            label="vérifications"
+          />
+        ) : null}
       </CardBody>
     </Card>
   );

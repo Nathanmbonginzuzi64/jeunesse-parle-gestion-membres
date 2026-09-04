@@ -81,8 +81,8 @@ class ActivityController extends Controller
     {
         $user = $request->user()->loadMissing('member');
 
-        if (! $user->hasRole(RoleSlug::Membre) || ! $user->member_id || ! $user->member) {
-            abort(403, "Réservé à l'espace membre.");
+        if (! $user->member_id || ! $user->member) {
+            abort(403, "Aucun dossier membre rattaché à ce compte.");
         }
 
         if ($user->member->status?->value !== 'active') {
@@ -168,8 +168,8 @@ class ActivityController extends Controller
     {
         $user = $request->user()->loadMissing('member');
 
-        if (! $user->hasRole(RoleSlug::Membre) || ! $user->member_id || ! $user->member) {
-            abort(403, "Réservé à l'espace membre.");
+        if (! $user->member_id || ! $user->member) {
+            abort(403, "Aucun dossier membre rattaché à ce compte.");
         }
 
         $member = $user->member;
@@ -221,8 +221,8 @@ class ActivityController extends Controller
     {
         $user = $request->user()->loadMissing('member.activeCard.activeQrToken');
 
-        if (! $user->hasRole(RoleSlug::Membre) || ! $user->member_id || ! $user->member) {
-            abort(403, "Réservé à l'espace membre.");
+        if (! $user->member_id || ! $user->member) {
+            abort(403, "Aucun dossier membre rattaché à ce compte.");
         }
 
         $member = $user->member;

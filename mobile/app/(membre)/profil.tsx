@@ -17,8 +17,14 @@ import { MembrePageHeader } from '@/components/membre/page-header';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, getToken, resolveMediaUrl } from '@/lib/api';
 import { syncBiometricCredentials } from '@/lib/biometric-auth';
-import { JP, type JpColors } from '@/constants/theme';
+import { ROLE_SLUGS, JP, type JpColors } from '@/constants/theme';
 import type { PickedPhoto } from '@/components/photo-field';
+
+function portalCardPath(roleSlug?: string | null) {
+  return roleSlug === ROLE_SLUGS.agentVerification
+    ? '/(agent)/ma-carte'
+    : '/(membre)/ma-carte';
+}
 
 type MemberProfile = {
   full_name?: string;
@@ -304,7 +310,7 @@ export default function MembreProfilScreen() {
                 <MemberCardPreview
                   card={card}
                   fallbackPhotoUrl={photoPreview}
-                  onPress={() => router.push('/(membre)/ma-carte')}
+                  onPress={() => router.push(portalCardPath(user?.role?.slug) as never)}
                 />
                 <View style={{ height: 16 }} />
               </>

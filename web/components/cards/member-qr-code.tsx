@@ -6,7 +6,8 @@ import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { cn } from "@/lib/utils";
 
-const BRAND_DARK = "#072a40";
+/** Noir pur pour un contraste maximal au scan agent. */
+const SCAN_DARK = "#000000";
 
 /** Construit la charge utile scannable (URL absolue si possible). */
 export function resolveQrPayload(value: string | null | undefined): string | null {
@@ -23,16 +24,19 @@ export function resolveQrPayload(value: string | null | undefined): string | nul
 
 export function MemberQrCode({
   value,
-  size = 120,
+  size = 160,
   label,
   className,
   compact = false,
+  /** Affiche un cadre blanc plus généreux (scan plein écran / ma carte). */
+  emphasize = false,
 }: {
   value: string | null | undefined;
   size?: number;
   label?: string;
   className?: string;
   compact?: boolean;
+  emphasize?: boolean;
 }) {
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -50,10 +54,10 @@ export function MemberQrCode({
     setFailed(false);
     void QRCode.toDataURL(payload, {
       errorCorrectionLevel: "H",
-      margin: 1,
-      width: Math.max(size * 2, 256),
+      margin: emphasize ? 3 : compact ? 2 : 3,
+      width: Math.max(size * 2, emphasize ? 512 : 320),
       color: {
-        dark: BRAND_DARK,
+        dark: SCAN_DARK,
         light: "#ffffff",
       },
     })
@@ -70,19 +74,29 @@ export function MemberQrCode({
     return () => {
       cancelled = true;
     };
-  }, [value, size]);
+  }, [value, size, compact, emphasize]);
 
   return (
     <div className={cn("flex flex-col items-center", className)}>
       <div
         className={cn(
-          "flex items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm",
-          compact ? "p-0.5" : "p-1",
+          "flex items-center justify-center overflow-hidden border border-slate-200 bg-white",
+          emphasize
+            ? "rounded-2xl p-3 shadow-md ring-2 ring-brand-100"
+            : compact
+              ? "rounded-md p-1 shadow-sm"
+              : "rounded-lg p-1.5 shadow-sm",
         )}
         style={{ width: size, height: size }}
       >
         {src ? (
-          <img src={src} alt={label ?? "QR code"} width={size} height={size} className="h-full w-full object-contain" />
+          <img
+            src={src}
+            alt={label ?? "QR code"}
+            width={size}
+            height={size}
+            className="h-full w-full object-contain"
+          />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-slate-50 text-[8px] text-slate-400">
             {failed ? "QR indisponible" : "…"}
@@ -92,8 +106,12 @@ export function MemberQrCode({
       {label && (
         <p
           className={cn(
-            "mt-1 text-center font-medium tracking-wide text-slate-500 uppercase",
-            compact ? "text-[6px] leading-tight" : "text-[7px] leading-tight sm:text-[8px]",
+            "mt-1 text-center font-semibold tracking-wide text-slate-600 uppercase",
+            emphasize
+              ? "text-xs"
+              : compact
+                ? "text-[6px] leading-tight"
+                : "text-[8px] leading-tight sm:text-[9px]",
           )}
         >
           {label}

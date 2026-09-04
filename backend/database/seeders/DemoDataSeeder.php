@@ -119,6 +119,70 @@ class DemoDataSeeder extends Seeder
 
         $this->seedMembers($cards, $roles, $password);
         $this->seedActivities($identifiers);
+        $this->ensureAgentMemberProfile($cards, $identifiers);
+    }
+
+    /**
+     * Relie le compte agent de vérification à un dossier membre + carte
+     * pour le portail mobile (profil / ma carte), sans changer son rôle.
+     */
+    private function ensureAgentMemberProfile(CardService $cards, IdentifierGenerator $identifiers): void
+    {
+        $agent = User::where('email', 'agent@jeunesseparle.test')->first();
+        $admin = User::where('email', 'admin@jeunesseparle.test')->first();
+        if (! $agent) {
+            return;
+        }
+
+        $member = $agent->member_id
+            ? Member::query()->find($agent->member_id)
+            : Member::query()->where('email', 'agent@jeunesseparle.test')->first();
+
+        if (! $member) {
+            $structure = Structure::query()->where('name', 'Cellule Kintambo')->first()
+                ?? Structure::query()->first();
+
+            $member = Member::factory()->create([
+                'member_code' => $identifiers->memberCode(),
+                'status' => MemberStatus::Active,
+                'first_name' => 'Agent',
+                'middle_name' => null,
+                'last_name' => 'Vérification',
+                'email' => 'agent@jeunesseparle.test',
+                'phone' => '+243900000007',
+                'position' => 'Agent de vérification',
+                'structure_id' => $structure?->id,
+                'province_id' => $structure?->province_id,
+                'city_id' => $structure?->city_id,
+                'commune_id' => $structure?->commune_id,
+                'zone_id' => $structure?->zone_id,
+                'registered_by' => $admin?->id,
+                'validated_at' => now(),
+                'validated_by' => $admin?->id,
+                'user_id' => $agent->id,
+            ]);
+        } else {
+            $member->update([
+                'first_name' => 'Agent',
+                'last_name' => 'Vérification',
+                'email' => 'agent@jeunesseparle.test',
+                'phone' => '+243900000007',
+                'position' => 'Agent de vérification',
+                'status' => MemberStatus::Active,
+                'user_id' => $agent->id,
+                'validated_at' => $member->validated_at ?? now(),
+                'validated_by' => $member->validated_by ?? $admin?->id,
+            ]);
+        }
+
+        $agent->update(['member_id' => $member->id]);
+
+        $member->loadMissing('activeCard');
+        if (! $member->activeCard && $admin) {
+            $cards->issue($member->fresh(), $admin, 'Carte agent de vérification');
+        }
+
+        $this->command?->info('Profil + carte liés au compte agent@jeunesseparle.test.');
     }
 
     private function seedMembers(CardService $cards, $roles, string $password): void

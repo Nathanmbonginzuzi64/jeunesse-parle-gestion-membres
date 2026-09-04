@@ -405,6 +405,71 @@ class NotificationService
         }
     }
 
+    /** Vérification carte (QR / biométrie) — admins dans le périmètre du membre. */
+    public function adminCardVerified(Member $member, string $result, ?User $author = null, string $method = 'qr'): void
+    {
+        $label = match ($result) {
+            'valid' => 'validée',
+            'revoked' => 'carte révoquée',
+            'expired' => 'carte expirée',
+            'inactive' => 'membre inactif',
+            default => $result,
+        };
+        $agent = $author?->name ?? 'Agent';
+        $level = $result === 'valid' ? 'success' : 'warning';
+
+        foreach ($this->adminsForMember($member, Permission::CardsVerify) as $admin) {
+            if ($author && (int) $admin->id === (int) $author->id) {
+                continue;
+            }
+
+            $this->pushToUser(
+                $admin,
+                NotificationType::AdminCardVerified,
+                $result === 'valid' ? 'Carte vérifiée' : 'Vérification carte — alerte',
+                "{$agent} a vérifié {$member->full_name} ({$member->member_code}) — résultat : {$label} ({$method}).",
+                [
+                    'member_id' => $member->id,
+                    'member_code' => $member->member_code,
+                    'result' => $result,
+                    'method' => $method,
+                    'action' => 'view_member',
+                ],
+                $level,
+                $member,
+                $author,
+            );
+        }
+    }
+
+    /** Pointage enregistré — admins avec attendance.view dans le périmètre. */
+    public function adminAttendanceRecorded(Member $member, Activity $activity, string $status, ?User $author = null): void
+    {
+        $agent = $author?->name ?? 'Agent';
+
+        foreach ($this->adminsForMember($member, Permission::AttendanceView) as $admin) {
+            if ($author && (int) $admin->id === (int) $author->id) {
+                continue;
+            }
+
+            $this->pushToUser(
+                $admin,
+                NotificationType::AdminAttendanceRecorded,
+                'Présence enregistrée',
+                "{$agent} a pointé {$member->full_name} ({$member->member_code}) — {$status} · {$activity->title}.",
+                $this->activityData($activity, [
+                    'member_id' => $member->id,
+                    'member_code' => $member->member_code,
+                    'status' => $status,
+                    'action' => 'view_attendance',
+                ]),
+                'success',
+                $member,
+                $author,
+            );
+        }
+    }
+
     public function adminSystemAlert(string $title, string $body, array $data = [], ?User $author = null): void
     {
         foreach ($this->adminUsers(Permission::AuditView) as $admin) {
@@ -529,6 +594,20 @@ class NotificationService
             ->where('is_active', true)
             ->get()
             ->filter(fn (User $user) => $user->hasPermission($permission));
+    }
+
+    /**
+     * Admins concernés par un membre (permission + périmètre territorial).
+     *
+     * @return Collection<int, User>
+     */
+    private function adminsForMember(Member $member, Permission $permission): Collection
+    {
+        return $this->adminUsers($permission)
+            ->merge($this->adminUsers(Permission::AuditView))
+            ->unique('id')
+            ->filter(fn (User $admin) => $member->isVisibleTo($admin))
+            ->values();
     }
 
     private function activityBody(Activity $activity): string

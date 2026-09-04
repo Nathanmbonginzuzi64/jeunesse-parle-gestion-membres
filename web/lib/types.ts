@@ -363,10 +363,71 @@ export interface VerificationLogRow {
   id: number;
   result: string;
   context: string | null;
-  member: { member_code: string; full_name: string } | null;
+  member: {
+    id?: number;
+    member_code: string;
+    full_name: string;
+    photo_url?: string | null;
+  } | null;
   verified_by: string | null;
   ip_address: string | null;
   created_at: string | null;
+}
+
+export interface AgentPresentMember {
+  id: number;
+  member_code: string;
+  full_name: string;
+  structure?: string | null;
+  photo_url?: string | null;
+}
+
+export interface AgentPresentRow {
+  id: number;
+  status: string | null;
+  status_label: string | null;
+  method: string | null;
+  recorded_at: string | null;
+  recorded_by?: string | null;
+  member: AgentPresentMember | null;
+  activity?: {
+    id: number;
+    code?: string;
+    title: string;
+    starts_at?: string | null;
+    location?: string | null;
+    status?: string | null;
+    status_label?: string | null;
+    structure?: string | null;
+  } | null;
+}
+
+export interface AgentOngoingPresents {
+  activity: {
+    id: number;
+    code?: string;
+    title: string;
+    status?: string | null;
+    status_label?: string | null;
+    starts_at?: string | null;
+    location?: string | null;
+    structure?: string | null;
+  };
+  present_count: number;
+  presents: AgentPresentRow[];
+}
+
+export interface AgentPresentsFeed {
+  ongoing: AgentOngoingPresents[];
+  by_date: Array<{ date: string; items: AgentPresentRow[] }>;
+  data: AgentPresentRow[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    mine_only?: boolean;
+  };
 }
 
 export interface StatisticsOverview {

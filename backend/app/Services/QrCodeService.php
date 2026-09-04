@@ -62,22 +62,25 @@ class QrCodeService
     /**
      * Rendu SVG : volontairement sans dépendance à ext-gd / ext-imagick,
      * ce qui garantit le fonctionnement sur tous les environnements de déploiement.
+     * Quiet zone large + correction H pour un scan terrain fiable (agent / téléphone).
      */
-    public function renderSvg(string $payload, int $size = 320): string
+    public function renderSvg(string $payload, int $size = 512): string
     {
+        $size = max(128, min($size, 1024));
+
         $renderer = new ImageRenderer(
-            new RendererStyle($size, 1),
+            new RendererStyle($size, 4),
             new SvgImageBackEnd(),
         );
 
         return (new Writer($renderer))->writeString(
             $payload,
             Encoder::DEFAULT_BYTE_MODE_ENCODING,
-            ErrorCorrectionLevel::M(),
+            ErrorCorrectionLevel::H(),
         );
     }
 
-    public function renderDataUri(string $payload, int $size = 320): string
+    public function renderDataUri(string $payload, int $size = 512): string
     {
         return 'data:image/svg+xml;base64,'.base64_encode($this->renderSvg($payload, $size));
     }

@@ -20,6 +20,7 @@ import { RequirePermission } from "@/components/auth/require-permission";
 import {
   VerificationHero,
   VerificationHistory,
+  ServerVerificationHistory,
   type VerificationHistoryEntry,
 } from "@/components/verification/verification-history";
 import { VerificationResultPanel } from "@/components/verification/verification-result-panel";
@@ -56,11 +57,14 @@ function VerificationTool() {
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<VerificationHistoryEntry[]>([]);
+  const [historyTick, setHistoryTick] = useState(0);
   const [lastQrToken, setLastQrToken] = useState<string | null>(null);
 
   async function verify(tokenSource: string) {
     const token = extractTokenFromQr(tokenSource);
-    if (!token.toUpperCase().startsWith("JP-RDC-") && token.length < 16) {
+    const normalized = token.trim();
+    const isMemberCode = /^JP-RDC-/i.test(normalized);
+    if (!normalized || (!isMemberCode && normalized.length < 16)) {
       setError("Identifiant ou jeton QR invalide.");
       setResult(null);
       setLastQrToken(null);
@@ -69,10 +73,10 @@ function VerificationTool() {
 
     setLoading(true);
     setError(null);
-    setLastQrToken(token);
+    setLastQrToken(normalized);
 
     try {
-      const response = await api.public.post<VerificationResult>("/members/verify", { token });
+      const response = await api.post<VerificationResult>("/members/verify", { token: normalized });
       setResult(response);
       pushHistory(response);
     } catch (caught) {
@@ -95,15 +99,21 @@ function VerificationTool() {
       { id: crypto.randomUUID(), scannedAt: new Date(), result: entry },
       ...prev.slice(0, 9),
     ]);
+    setHistoryTick((tick) => tick + 1);
   }
 
   function handleBiometricSuccess(fpResult: BiometricResult) {
-    if (!fpResult.ok || !fpResult.member) return;
+    if (!fpResult.member) return;
 
-    const isActive = fpResult.member.status === "active";
+    const valid =
+      typeof fpResult.valid === "boolean"
+        ? fpResult.valid
+        : fpResult.ok && fpResult.member.status === "active";
+    const outcome = (fpResult.result as VerificationResult["result"]) ?? (valid ? "valid" : "inactive");
+
     const synthetic: VerificationResult = {
-      result: isActive ? "valid" : "inactive",
-      valid: isActive,
+      result: outcome,
+      valid,
       message: fpResult.message,
       member: {
         member_id: fpResult.member.id,
@@ -126,7 +136,7 @@ function VerificationTool() {
       },
     };
     setResult(synthetic);
-    setError(null);
+    setError(valid ? null : fpResult.message);
     setLastQrToken(null);
     pushHistory(synthetic);
     setBiometricOpen(false);
@@ -136,6 +146,14 @@ function VerificationTool() {
     setResult(null);
     setError(null);
     setLastQrToken(null);
+  }
+
+  function startNewVerification() {
+    clearResult();
+    setMode("qr");
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   }
 
   const kpis = stats.data?.kpis;
@@ -233,13 +251,13 @@ function VerificationTool() {
           ) : (
             <Card className="overflow-hidden">
               <CardHeader
-                title="Identifier avec mon empreinte"
-                description="Windows Hello — identification uniquement, sans connexion automatique."
+                title="Identifier le membre"
+                description="Windows Hello — le membre pose son doigt. Aucune session n'est créée."
               />
               <CardBody className="space-y-4 text-center">
                 <Fingerprint className="mx-auto h-14 w-14 text-brand-600" />
                 <p className="text-sm text-slate-600">
-                  Le membre pose son doigt sur le lecteur. Aucune session n&apos;est créée.
+                  Identification biométrique du membre pour vérifier sa carte (statut, validité).
                 </p>
                 <Button
                   type="button"
@@ -249,7 +267,7 @@ function VerificationTool() {
                   disabled={loading}
                 >
                   <Fingerprint className="h-4 w-4" />
-                  Identifier avec mon empreinte
+                  Lancer la vérification biométrique
                 </Button>
               </CardBody>
             </Card>
@@ -277,6 +295,13 @@ function VerificationTool() {
           <VerificationHistory entries={history} />
         </DashboardAnimate>
       )}
+
+      <DashboardAnimate delay={160}>
+        <ServerVerificationHistory
+          key={historyTick}
+          onNewVerification={startNewVerification}
+        />
+      </DashboardAnimate>
 
       <DashboardAnimate delay={180}>
         <DashboardSection

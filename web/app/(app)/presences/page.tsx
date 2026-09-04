@@ -11,6 +11,7 @@ import {
   Users,
 } from "lucide-react";
 import { AttendanceHero } from "@/components/attendance/attendance-hero";
+import { AgentPresentsPanel } from "@/components/attendance/agent-presents-panel";
 import { RequirePermission, Can } from "@/components/auth/require-permission";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
 import { QuickLinkCard } from "@/components/dashboard/quick-link-card";
@@ -108,6 +109,10 @@ function AttendanceHub() {
             tone="amber"
           />
         </div>
+      </DashboardAnimate>
+
+      <DashboardAnimate delay={120}>
+        <AgentPresentsPanel />
       </DashboardAnimate>
 
       <DashboardAnimate delay={140}>

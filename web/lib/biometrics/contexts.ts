@@ -20,9 +20,9 @@ export const BIOMETRIC_CONTEXT_COPY: Record<
   },
   MEMBER_VERIFICATION: {
     title: "Identification du membre",
-    description: "Utilisez votre empreinte pour identifier le membre.",
+    description: "Le membre pose son doigt sur le lecteur (Windows Hello / WebAuthn).",
     waiting: "En attente de l'empreinte du membre…",
-    successDefault: "Membre identifié.",
+    successDefault: "Membre vérifié.",
   },
   ATTENDANCE: {
     title: "Enregistrer la présence",

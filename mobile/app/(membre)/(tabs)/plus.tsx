@@ -9,6 +9,7 @@ import { JP } from '@/constants/theme';
 const LINKS = [
   { href: '/(membre)/profil', label: 'Mon profil', icon: 'person-outline' as const },
   { href: '/(membre)/ma-carte', label: 'Ma carte', icon: 'card-outline' as const },
+  { href: '/(membre)/mes-presences', label: 'Mes présences', icon: 'checkmark-done-outline' as const },
   { href: '/(membre)/parametres', label: 'Paramètres', icon: 'settings-outline' as const },
 ];
 

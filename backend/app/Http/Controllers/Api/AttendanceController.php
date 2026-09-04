@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\AttendanceStatus;
 use App\Enums\MemberStatus;
+use App\Enums\Permission;
 use App\Enums\RoleSlug;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RecordAttendanceRequest;
@@ -18,9 +19,11 @@ use App\Services\AuditLogger;
 use App\Services\BiometricService;
 use App\Services\NotificationService;
 use App\Services\VerificationService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -32,6 +35,275 @@ class AttendanceController extends Controller
         private readonly NotificationService $notifications,
         private readonly AuditLogger $audit,
     ) {}
+
+    /**
+     * Historique des présences du membre connecté (self-service portail membre).
+     */
+    public function forMember(Request $request): JsonResponse
+    {
+        $user = $request->user()->loadMissing('member');
+
+        if (! $user->member_id || ! $user->member) {
+            abort(403, 'Aucun dossier membre rattaché à ce compte.');
+        }
+
+        $member = $user->member;
+
+        if ($member->status !== MemberStatus::Active) {
+            abort(403, 'Votre compte membre doit être actif.');
+        }
+
+        $filters = $request->validate([
+            'status' => ['nullable', 'string', 'in:present,absent,late,excused'],
+            'q' => ['nullable', 'string', 'max:120'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $perPage = min((int) ($filters['per_page'] ?? 25), 100);
+
+        $base = Attendance::query()
+            ->where('member_id', $member->id)
+            ->whereHas('activity');
+
+        $summary = [
+            'total' => (clone $base)->count(),
+            'present' => (clone $base)->where('status', AttendanceStatus::Present)->count(),
+            'late' => (clone $base)->where('status', AttendanceStatus::Late)->count(),
+            'absent' => (clone $base)->where('status', AttendanceStatus::Absent)->count(),
+            'excused' => (clone $base)->where('status', AttendanceStatus::Excused)->count(),
+        ];
+
+        $query = Attendance::query()
+            ->where('member_id', $member->id)
+            ->with([
+                'activity:id,code,title,type,starts_at,ends_at,location,status,structure_id',
+                'activity.structure:id,name',
+                'recorder:id,name',
+            ])
+            ->when($filters['status'] ?? null, fn (Builder $q, $status) => $q->where('status', $status))
+            ->when($filters['q'] ?? null, function (Builder $q, string $search) {
+                $q->whereHas('activity', function (Builder $activity) use ($search) {
+                    $activity->where('title', 'like', "%{$search}%")
+                        ->orWhere('code', 'like', "%{$search}%")
+                        ->orWhere('location', 'like', "%{$search}%");
+                });
+            })
+            ->orderByDesc('recorded_at')
+            ->orderByDesc('id');
+
+        $page = $query->paginate($perPage);
+
+        $byDate = $page->getCollection()
+            ->groupBy(fn (Attendance $row) => optional($row->recorded_at ?? $row->activity?->starts_at)->toDateString() ?? 'inconnu')
+            ->map(function ($items, $date) {
+                return [
+                    'date' => $date,
+                    'items' => $items->map(fn (Attendance $row) => $this->serializeMemberAttendance($row))->values(),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'summary' => $summary,
+            'by_date' => $byDate,
+            'data' => $page->getCollection()->map(fn (Attendance $row) => $this->serializeMemberAttendance($row))->values(),
+            'meta' => [
+                'current_page' => $page->currentPage(),
+                'last_page' => $page->lastPage(),
+                'per_page' => $page->perPage(),
+                'total' => $page->total(),
+            ],
+        ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function serializeMemberAttendance(Attendance $row): array
+    {
+        $activity = $row->activity;
+
+        return [
+            'id' => $row->id,
+            'status' => $row->status?->value,
+            'status_label' => $row->status?->label(),
+            'method' => $row->method,
+            'recorded_at' => $row->recorded_at?->toIso8601String(),
+            'recorded_by' => $row->recorder?->name,
+            'note' => $row->note,
+            'activity' => $activity ? [
+                'id' => $activity->id,
+                'code' => $activity->code,
+                'title' => $activity->title,
+                'type' => $activity->type instanceof \BackedEnum ? $activity->type->value : $activity->type,
+                'starts_at' => $activity->starts_at?->toIso8601String(),
+                'ends_at' => $activity->ends_at?->toIso8601String(),
+                'location' => $activity->location,
+                'status' => $activity->status?->value,
+                'status_label' => $activity->status?->label(),
+                'structure' => $activity->structure?->name,
+            ] : null,
+        ];
+    }
+
+    /**
+     * Présents scannés pour le portail agent : événement(s) en cours + historique paginé par date.
+     */
+    public function agentPresents(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (
+            ! $user->hasPermission(Permission::AttendanceView)
+            && ! $user->hasPermission(Permission::AttendanceRecord)
+        ) {
+            abort(403, "Vous n'avez pas l'autorisation d'effectuer cette action.");
+        }
+
+        $filters = $request->validate([
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'date' => ['nullable', 'date'],
+            'activity_id' => ['nullable', 'integer', 'exists:activities,id'],
+            'mine_only' => ['nullable', 'boolean'],
+        ]);
+
+        $mineOnly = $request->boolean('mine_only', true);
+        $perPage = min((int) ($filters['per_page'] ?? 25), 100);
+
+        $presentStatuses = [
+            AttendanceStatus::Present->value,
+            AttendanceStatus::Late->value,
+        ];
+
+        $ongoingActivities = Activity::query()
+            ->visibleTo($user)
+            ->whereIn('status', [ActivityStatus::Planned->value, ActivityStatus::Ongoing->value])
+            ->where(function (Builder $q) {
+                $q->whereNull('starts_at')
+                    ->orWhere('starts_at', '<=', now()->addDay())
+                    ->orWhere('status', ActivityStatus::Ongoing->value);
+            })
+            ->with(['structure:id,name', 'organizer:id,name'])
+            ->orderBy('starts_at')
+            ->limit(20)
+            ->get();
+
+        $ongoing = $ongoingActivities->map(function (Activity $activity) use ($user, $mineOnly, $presentStatuses) {
+            $base = $activity->attendances()
+                ->whereIn('status', $presentStatuses)
+                ->when($mineOnly, fn (Builder $q) => $q->where('recorded_by', $user->id));
+
+            $presentCount = (clone $base)->count();
+
+            $presents = (clone $base)
+                ->with([
+                    'member:id,member_code,last_name,middle_name,first_name,photo_path,structure_id',
+                    'member.structure:id,name',
+                    'recorder:id,name',
+                ])
+                ->orderByDesc('recorded_at')
+                ->limit(50)
+                ->get()
+                ->map(fn (Attendance $row) => $this->serializePresentRow($row));
+
+            return [
+                'activity' => [
+                    'id' => $activity->id,
+                    'code' => $activity->code,
+                    'title' => $activity->title,
+                    'status' => $activity->status?->value,
+                    'status_label' => $activity->status?->label(),
+                    'starts_at' => $activity->starts_at?->toIso8601String(),
+                    'location' => $activity->location,
+                    'structure' => $activity->structure?->name,
+                ],
+                'present_count' => $presentCount,
+                'presents' => $presents,
+            ];
+        })->values();
+
+        $historyQuery = Attendance::query()
+            ->whereIn('status', $presentStatuses)
+            ->whereHas('activity', fn (Builder $q) => $q->visibleTo($user))
+            ->when($mineOnly, fn (Builder $q) => $q->where('recorded_by', $user->id))
+            ->when($filters['activity_id'] ?? null, fn (Builder $q, $id) => $q->where('activity_id', $id))
+            ->when($filters['date'] ?? null, function (Builder $q) use ($filters) {
+                $q->whereDate('recorded_at', Carbon::parse($filters['date'])->toDateString());
+            })
+            ->with([
+                'member:id,member_code,last_name,middle_name,first_name,photo_path,structure_id',
+                'member.structure:id,name',
+                'activity:id,code,title,starts_at,location,status,structure_id',
+                'activity.structure:id,name',
+                'recorder:id,name',
+            ])
+            ->orderByDesc('recorded_at');
+
+        $history = $historyQuery->paginate($perPage);
+
+        $grouped = $history->getCollection()
+            ->groupBy(fn (Attendance $row) => optional($row->recorded_at)->toDateString() ?? 'inconnu')
+            ->map(function ($items, $date) {
+                return [
+                    'date' => $date,
+                    'items' => $items->map(fn (Attendance $row) => $this->serializePresentRow($row, true))->values(),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'ongoing' => $ongoing,
+            'by_date' => $grouped,
+            'data' => $history->getCollection()->map(fn (Attendance $row) => $this->serializePresentRow($row, true))->values(),
+            'meta' => [
+                'current_page' => $history->currentPage(),
+                'last_page' => $history->lastPage(),
+                'per_page' => $history->perPage(),
+                'total' => $history->total(),
+                'mine_only' => $mineOnly,
+            ],
+        ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function serializePresentRow(Attendance $row, bool $withActivity = false): array
+    {
+        $member = $row->member;
+
+        $payload = [
+            'id' => $row->id,
+            'status' => $row->status?->value,
+            'status_label' => $row->status?->label(),
+            'method' => $row->method,
+            'recorded_at' => $row->recorded_at?->toIso8601String(),
+            'recorded_by' => $row->recorder?->name,
+            'member' => $member ? [
+                'id' => $member->id,
+                'member_code' => $member->member_code,
+                'full_name' => $member->full_name,
+                'structure' => $member->structure?->name,
+                'photo_url' => $member->photo_path
+                    ? route('media.member-photo', ['member' => $member->member_code])
+                    : null,
+            ] : null,
+        ];
+
+        if ($withActivity) {
+            $activity = $row->activity;
+            $payload['activity'] = $activity ? [
+                'id' => $activity->id,
+                'code' => $activity->code,
+                'title' => $activity->title,
+                'starts_at' => $activity->starts_at?->toIso8601String(),
+                'location' => $activity->location,
+                'status' => $activity->status?->value,
+                'status_label' => $activity->status?->label(),
+                'structure' => $activity->structure?->name,
+            ] : null;
+        }
+
+        return $payload;
+    }
 
     public function index(Request $request, Activity $activity): AnonymousResourceCollection
     {
@@ -104,7 +376,8 @@ class AttendanceController extends Controller
             ],
         );
 
-        $this->notifications->attendanceRecorded($member, $activity, $status->label());
+        $this->notifications->attendanceRecorded($member, $activity, $status->label(), $request->user());
+        $this->notifications->adminAttendanceRecorded($member, $activity, $status->label(), $request->user());
 
         $suffix = $wasRegistered ? '' : ' (inscrit automatiquement)';
 
@@ -122,8 +395,8 @@ class AttendanceController extends Controller
     {
         $user = $request->user()->loadMissing('member.activeCard.activeQrToken');
 
-        if (! $user->hasRole(RoleSlug::Membre) || ! $user->member_id || ! $user->member) {
-            abort(403, "Réservé à l'espace membre.");
+        if (! $user->member_id || ! $user->member) {
+            abort(403, "Aucun dossier membre rattaché à ce compte.");
         }
 
         $member = $user->member;
@@ -244,7 +517,8 @@ class AttendanceController extends Controller
             ],
         );
 
-        $this->notifications->attendanceRecorded($member, $activity, AttendanceStatus::Present->label());
+        $this->notifications->attendanceRecorded($member, $activity, AttendanceStatus::Present->label(), $user);
+        $this->notifications->adminAttendanceRecorded($member, $activity, AttendanceStatus::Present->label(), $user);
 
         return response()->json([
             'message' => 'Présence confirmée.',
@@ -384,7 +658,8 @@ class AttendanceController extends Controller
             ],
         );
 
-        $this->notifications->attendanceRecorded($member, $activity, AttendanceStatus::Present->label());
+        $this->notifications->attendanceRecorded($member, $activity, AttendanceStatus::Present->label(), $request->user());
+        $this->notifications->adminAttendanceRecorded($member, $activity, AttendanceStatus::Present->label(), $request->user());
 
         $suffix = $wasRegistered ? '' : ' — inscrit automatiquement';
 
@@ -498,6 +773,8 @@ class AttendanceController extends Controller
         if ($filters['status'] ?? null) {
             if ($filters['status'] === 'not_recorded') {
                 $rows = $rows->filter(fn ($row) => $row['status'] === null);
+            } elseif ($filters['status'] === 'present') {
+                $rows = $rows->filter(fn ($row) => in_array($row['status'], ['present', 'late'], true));
             } else {
                 $rows = $rows->filter(fn ($row) => $row['status'] === $filters['status']);
             }

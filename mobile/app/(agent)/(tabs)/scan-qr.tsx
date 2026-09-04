@@ -3,75 +3,96 @@ import { Alert, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { VerificationResultCard } from '@/components/agent/verification-result-card';
 import { BigButton, Screen, Subtitle, Title } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { pushAgentHistory } from '@/lib/agent-history';
+import type { VerificationResult } from '@/lib/agent-types';
+import { extractTokenFromQr } from '@/lib/qr-token';
 import { JP } from '@/constants/theme';
-
-function extractToken(raw: string): string {
-  const trimmed = raw.trim();
-  const match =
-    trimmed.match(/\/verifier-membre\/([A-Za-z0-9_-]+)/i) ||
-    trimmed.match(/\/verify\/([A-Za-z0-9_-]+)/i);
-  if (match?.[1]) return match[1];
-  if (/^[A-Za-z0-9_-]{16,80}$/.test(trimmed)) return trimmed;
-  try {
-    const url = new URL(trimmed);
-    const parts = url.pathname.split('/').filter(Boolean);
-    const last = parts[parts.length - 1];
-    if (last && /^[A-Za-z0-9_-]{16,80}$/.test(last)) return last;
-  } catch {
-    /* ignore */
-  }
-  return trimmed;
-}
 
 export default function ScanQrScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ activityId?: string; activityTitle?: string }>();
+  const params = useLocalSearchParams<{
+    activityId?: string;
+    activityTitle?: string;
+    mode?: string;
+  }>();
+  const mode = params.mode === 'verify' ? 'verify' : 'attendance';
   const activityId = params.activityId ? Number(params.activityId) : null;
   const [permission, requestPermission] = useCameraPermissions();
   const [busy, setBusy] = useState(false);
   const [lastMessage, setLastMessage] = useState<string | null>(null);
+  const [verifyResult, setVerifyResult] = useState<VerificationResult | null>(null);
   const locked = useRef(false);
 
   useEffect(() => {
-    if (!activityId) {
+    if (mode === 'attendance' && !activityId) {
       Alert.alert(
         'Activité requise',
         'Choisissez d’abord une activité dans Présences, puis scannez le QR.',
         [{ text: 'OK', onPress: () => router.replace('/(agent)/(tabs)/presences') }],
       );
     }
-  }, [activityId, router]);
+  }, [activityId, mode, router]);
 
   const onBarcode = useCallback(
     async ({ data }: { data: string }) => {
-      if (!activityId || locked.current || busy) return;
+      if (locked.current || busy) return;
+      if (mode === 'attendance' && !activityId) return;
+
       locked.current = true;
       setBusy(true);
       setLastMessage(null);
-      try {
-        const token = extractToken(data);
+      setVerifyResult(null);
 
-        const verify = await api.post<{
-          valid: boolean;
-          message?: string;
-          member?: {
-            member_id: number;
-            member_code: string;
-            full_name: string;
-            status?: string;
-            photo_url?: string | null;
-            province?: string | null;
-            city?: string | null;
-            structure?: string | null;
-            card_status?: string | null;
-          };
-        }>('/members/verify', { token });
+      try {
+        const token = extractTokenFromQr(data);
+
+        if (mode === 'verify') {
+          try {
+            const response = await api.post<VerificationResult>('/members/verify', {
+              token,
+            });
+            setVerifyResult(response);
+            await Haptics.notificationAsync(
+              response.valid
+                ? Haptics.NotificationFeedbackType.Success
+                : Haptics.NotificationFeedbackType.Warning,
+            );
+            await pushAgentHistory({
+              kind: 'verify',
+              ok: Boolean(response.valid),
+              title: response.member?.full_name ?? response.message,
+              subtitle: response.member?.member_code ?? response.result,
+              memberCode: response.member?.member_code,
+            });
+            setLastMessage(response.message);
+          } catch (caught) {
+            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            if (caught instanceof ApiError) {
+              const payload = caught.payload as unknown as VerificationResult;
+              setVerifyResult(payload?.result ? payload : null);
+              setLastMessage(caught.message);
+            } else {
+              Alert.alert('Erreur', 'Vérification impossible.');
+            }
+          }
+          return;
+        }
+
+        const verify = await api.post<VerificationResult>('/members/verify', { token });
 
         if (!verify.valid || !verify.member) {
           await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          setVerifyResult(verify);
           Alert.alert('QR non reconnu', verify.message ?? 'Identifiant invalide.');
+          await pushAgentHistory({
+            kind: 'verify',
+            ok: false,
+            title: verify.message,
+            subtitle: verify.result,
+          });
           return;
         }
 
@@ -90,15 +111,36 @@ export default function ScanQrScreen() {
             attendance.auto_registered ? ' (inscrit automatiquement)' : ''
           }.`;
         setLastMessage(msg);
+        setVerifyResult(verify);
+        await pushAgentHistory({
+          kind: 'attendance',
+          ok: true,
+          title: verify.member.full_name,
+          subtitle: msg,
+          memberCode: verify.member.member_code,
+          activityTitle: params.activityTitle,
+        });
+
         Alert.alert('Présence confirmée', msg, [
           { text: 'Scanner encore', style: 'default' },
+          {
+            text: 'Feuille',
+            onPress: () =>
+              router.replace({
+                pathname: '/(agent)/(tabs)/feuille',
+                params: {
+                  activityId: String(activityId),
+                  activityTitle: params.activityTitle ?? '',
+                },
+              }),
+          },
           {
             text: 'Voir la fiche',
             onPress: () =>
               router.replace({
                 pathname: '/(agent)/(tabs)/fiche-membre',
                 params: {
-                  memberId: String(verify.member!.member_id),
+                  memberId: String(verify.member!.member_id ?? ''),
                   memberCode: verify.member!.member_code,
                   fullName: verify.member!.full_name,
                   statusLabel: verify.member!.status ?? '',
@@ -124,7 +166,7 @@ export default function ScanQrScreen() {
         }, 1800);
       }
     },
-    [activityId, busy, router],
+    [activityId, busy, mode, params.activityTitle, router],
   );
 
   if (!permission) {
@@ -147,26 +189,37 @@ export default function ScanQrScreen() {
     );
   }
 
+  const canScan = mode === 'verify' || Boolean(activityId);
+
   return (
     <View style={styles.root}>
       <CameraView
         style={StyleSheet.absoluteFill}
         facing="back"
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-        onBarcodeScanned={busy || !activityId ? undefined : onBarcode}
+        onBarcodeScanned={busy || !canScan ? undefined : onBarcode}
       />
       <View style={styles.overlay}>
         <View>
           <Text style={styles.hint}>
             {busy
-              ? 'IDENTIFICATION + POINTAGE…'
-              : params.activityTitle
-                ? `Scan pour : ${params.activityTitle}`
-                : 'Cadrez le QR de la carte'}
+              ? mode === 'verify'
+                ? 'VÉRIFICATION IDENTITÉ…'
+                : 'IDENTIFICATION + POINTAGE…'
+              : mode === 'verify'
+                ? 'Scan identité (sans pointage)'
+                : params.activityTitle
+                  ? `Scan pour : ${params.activityTitle}`
+                  : 'Cadrez le QR de la carte'}
           </Text>
           {lastMessage ? <Text style={styles.lastOk}>{lastMessage}</Text> : null}
         </View>
         <View style={styles.frame} />
+        {mode === 'verify' && verifyResult ? (
+          <View style={styles.resultWrap}>
+            <VerificationResultCard result={verifyResult} />
+          </View>
+        ) : null}
         <BigButton label="Fermer" tone="neutral" onPress={() => router.back()} />
       </View>
     </View>
@@ -209,5 +262,10 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: JP.white,
     borderRadius: 24,
+  },
+  resultWrap: {
+    maxHeight: 220,
+    borderRadius: 16,
+    overflow: 'hidden',
   },
 });

@@ -157,7 +157,19 @@ export default function MembreActivitesScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#EEF3F8' }}>
-      <MembrePageHeader title="Activités" subtitle={subtitle} icon="calendar" />
+      <MembrePageHeader
+        title="Activités"
+        subtitle={subtitle}
+        icon="calendar"
+      />
+      <Pressable
+        onPress={() => router.push('/(membre)/mes-presences' as never)}
+        style={styles.presencesLink}
+      >
+        <Ionicons name="checkmark-done-outline" size={16} color={JP.brand} />
+        <Text style={styles.presencesLinkText}>Mes présences</Text>
+        <Ionicons name="chevron-forward" size={14} color={JP.muted} />
+      </Pressable>
       <Screen
         style={{ backgroundColor: '#EEF3F8', paddingTop: 8 }}
         contentContainerStyle={{ paddingBottom: 32 }}
@@ -320,6 +332,26 @@ export default function MembreActivitesScreen() {
 }
 
 const styles = StyleSheet.create({
+  presencesLink: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: JP.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: JP.border,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  presencesLinkText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '800',
+    color: JP.brand,
+  },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',

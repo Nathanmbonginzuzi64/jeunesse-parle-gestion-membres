@@ -6,9 +6,7 @@ export default function AgentTabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerStyle: { backgroundColor: JP.brand },
-        headerTintColor: JP.white,
-        headerTitleStyle: { fontWeight: '700' },
+        headerShown: false,
         tabBarActiveTintColor: JP.brand,
         tabBarInactiveTintColor: JP.muted,
         tabBarStyle: {
@@ -16,6 +14,7 @@ export default function AgentTabsLayout() {
           paddingBottom: 8,
           paddingTop: 6,
           borderTopColor: JP.border,
+          backgroundColor: JP.card,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}
@@ -38,7 +37,9 @@ export default function AgentTabsLayout() {
         name="presences"
         options={{
           title: 'Présences',
-          tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-done" color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="checkmark-done" color={color} size={size} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -51,13 +52,16 @@ export default function AgentTabsLayout() {
       <Tabs.Screen
         name="reglages"
         options={{
-          title: 'Réglages',
-          tabBarIcon: ({ color, size }) => <Ionicons name="settings" color={color} size={size} />,
+          title: 'Plus',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="ellipsis-horizontal-circle" color={color} size={size} />
+          ),
         }}
       />
       <Tabs.Screen name="scan-qr" options={{ href: null, title: 'Scanner QR' }} />
       <Tabs.Screen name="empreinte" options={{ href: null, title: 'Empreinte' }} />
       <Tabs.Screen name="fiche-membre" options={{ href: null, title: 'Fiche membre' }} />
+      <Tabs.Screen name="feuille" options={{ href: null, title: 'Feuille de présence' }} />
     </Tabs>
   );
 }

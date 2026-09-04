@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { BigButton, Field, Screen, Subtitle, Title } from '@/components/ui';
+import { MembrePageHeader } from '@/components/membre/page-header';
+import { BigButton, Field, Screen } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { pushAgentHistory } from '@/lib/agent-history';
 import { JP } from '@/constants/theme';
 
 export default function AgentEmpreinteScreen() {
@@ -49,6 +51,13 @@ export default function AgentEmpreinteScreen() {
       if (!response.valid && response.attendance_recorded === false) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert('Échec', response.message ?? 'Empreinte non reconnue.');
+        await pushAgentHistory({
+          kind: 'attendance',
+          ok: false,
+          title: response.message ?? 'Échec empreinte',
+          memberCode: code,
+          activityTitle: params.activityTitle,
+        });
         return;
       }
 
@@ -58,7 +67,28 @@ export default function AgentEmpreinteScreen() {
         `Présence confirmée${response.auto_registered ? ' (inscrit automatiquement)' : ''}.`;
       setLastResult(msg);
       setMemberCode('');
-      Alert.alert('Présence confirmée', msg);
+      await pushAgentHistory({
+        kind: 'attendance',
+        ok: true,
+        title: response.full_name ?? code,
+        subtitle: msg,
+        memberCode: code,
+        activityTitle: params.activityTitle,
+      });
+      Alert.alert('Présence confirmée', msg, [
+        { text: 'Continuer' },
+        {
+          text: 'Feuille',
+          onPress: () =>
+            router.push({
+              pathname: '/(agent)/(tabs)/feuille',
+              params: {
+                activityId: String(activityId),
+                activityTitle: params.activityTitle ?? '',
+              },
+            }),
+        },
+      ]);
     } catch (error) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert(
@@ -68,52 +98,58 @@ export default function AgentEmpreinteScreen() {
     } finally {
       setBusy(false);
     }
-  }, [activityId, memberCode]);
+  }, [activityId, memberCode, params.activityTitle, router]);
 
   return (
-    <Screen>
-      <Title>Empreinte</Title>
-      <Subtitle>
-        {params.activityTitle
-          ? `Pointage pour « ${params.activityTitle} ».`
-          : 'Identification biométrique + présence automatique.'}
-      </Subtitle>
-      <Text style={styles.note}>
-        Si le membre n’est pas encore inscrit à l’activité, l’empreinte reconnue l’inscrit et
-        confirme sa présence en une seule étape.
-      </Text>
-
-      <View style={{ height: 12 }} />
-      <Field
-        label="Code membre"
-        placeholder="JP-…"
-        autoCapitalize="characters"
-        value={memberCode}
-        onChangeText={setMemberCode}
-        onSubmitEditing={() => void record()}
+    <View style={styles.screen}>
+      <MembrePageHeader
+        title="Empreinte"
+        subtitle={
+          params.activityTitle
+            ? `Pointage · ${params.activityTitle}`
+            : 'Identification + présence'
+        }
+        icon="finger-print-outline"
+        showBack
+        showNotifications={false}
       />
 
-      <BigButton
-        label={busy ? 'Vérification…' : 'Lire empreinte & pointer'}
-        loading={busy}
-        onPress={() => void record()}
-      />
+      <Screen style={{ backgroundColor: JP.bg, paddingTop: 8 }}>
+        <Text style={styles.note}>
+          Si le membre n’est pas inscrit à l’activité, l’empreinte reconnue l’inscrit et confirme
+          sa présence.
+        </Text>
 
-      {busy ? <ActivityIndicator color={JP.brand} style={{ marginTop: 16 }} /> : null}
-      {lastResult ? <Text style={styles.ok}>{lastResult}</Text> : null}
+        <View style={{ height: 12 }} />
+        <Field
+          label="Code membre"
+          placeholder="JP-…"
+          autoCapitalize="characters"
+          value={memberCode}
+          onChangeText={setMemberCode}
+          onSubmitEditing={() => void record()}
+        />
 
-      <View style={{ height: 16 }} />
-      <BigButton label="Retour" tone="neutral" onPress={() => router.back()} />
-    </Screen>
+        <BigButton
+          label={busy ? 'Vérification…' : 'Lire empreinte & pointer'}
+          loading={busy}
+          onPress={() => void record()}
+        />
+
+        {busy ? <ActivityIndicator color={JP.brand} style={{ marginTop: 16 }} /> : null}
+        {lastResult ? <Text style={styles.ok}>{lastResult}</Text> : null}
+      </Screen>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: JP.bg },
   note: {
-    marginTop: 10,
     fontSize: 13,
     color: JP.muted,
     lineHeight: 18,
+    fontWeight: '600',
   },
   ok: {
     marginTop: 14,

@@ -187,6 +187,9 @@ Route::middleware(['auth:sanctum', 'account.active', 'session.timeout', 'mainten
     Route::get('activities/for-member', [ActivityController::class, 'forMember']);
     Route::get('activities/{activity}/for-member', [ActivityController::class, 'showForMember']);
     Route::post('activities/{activity}/register', [ActivityController::class, 'registerSelf']);
+    Route::get('attendance/agent-presents', [AttendanceController::class, 'agentPresents']);
+    Route::get('attendances/for-member', [AttendanceController::class, 'forMember']);
+    Route::get('verifications/history', [VerificationController::class, 'history']);
     Route::apiResource('activities', ActivityController::class);
     Route::post('activities/{activity}', [ActivityController::class, 'update']); // multipart + _method
 

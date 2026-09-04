@@ -89,7 +89,7 @@ export function MemberCardBack({
             </span>
           </div>
 
-          <MemberQrCode value={qrValue} size={36} label="QR sec." compact className="shrink-0" />
+          <MemberQrCode value={qrValue} size={52} label="QR sec." compact className="shrink-0" />
         </div>
       </div>
 

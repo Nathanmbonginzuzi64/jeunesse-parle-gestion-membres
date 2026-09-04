@@ -134,6 +134,8 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/parametres", label: "Paramètres", icon: Settings },
       { href: "/parametres/profil", label: "Mon profil", icon: UserCircle },
       { href: "/mon-espace", label: "Espace membre", icon: IdCard, requiresMember: true },
+      { href: "/mon-espace/activites", label: "Mes activités", icon: CalendarDays, requiresMember: true },
+      { href: "/mon-espace/presences", label: "Mes présences", icon: CheckSquare, requiresMember: true },
       { href: "/ma-carte", label: "Ma carte", icon: CreditCard, requiresMember: true },
     ],
   },

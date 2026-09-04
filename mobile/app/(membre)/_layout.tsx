@@ -47,6 +47,7 @@ export default function MembreLayout() {
     >
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="ma-carte" />
+      <Stack.Screen name="mes-presences" />
       <Stack.Screen name="profil" />
       <Stack.Screen name="parametres" />
       <Stack.Screen name="parametres/securite" />
