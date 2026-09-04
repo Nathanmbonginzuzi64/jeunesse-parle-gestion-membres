@@ -12,8 +12,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "cd.jeunesseparle.mobile",
       "infoPlist": {
-        "NSCameraUsageDescription": "Scanner les QR codes et prendre la photo d’identité pour l’adhésion Jeunesse Parle.",
-        "NSPhotoLibraryUsageDescription": "Choisir une photo d’identité pour le dossier d’adhésion Jeunesse Parle.",
+        "NSCameraUsageDescription": "Scanner les QR codes, prendre des photos et joindre des images dans JP Message.",
+        "NSPhotoLibraryUsageDescription": "Choisir une photo d’identité ou joindre une image dans JP Message.",
+        "NSMicrophoneUsageDescription": "Enregistrer un message vocal dans JP Message.",
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true,
           "NSAllowsArbitraryLoads": true
@@ -31,7 +32,9 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "permissions": [
-        "CAMERA"
+        "CAMERA",
+        "RECORD_AUDIO",
+        "READ_MEDIA_IMAGES"
       ],
       "edgeToEdgeEnabled": true
     },
@@ -51,8 +54,15 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Autoriser Jeunesse Parle à accéder à vos photos pour le dossier d’adhésion.",
-          "cameraPermission": "Autoriser Jeunesse Parle à prendre une photo d’identité."
+          "photosPermission": "Autoriser Jeunesse Parle à accéder à vos photos pour le dossier d’adhésion et JP Message.",
+          "cameraPermission": "Autoriser Jeunesse Parle à prendre une photo d’identité ou pour JP Message."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Autoriser Jeunesse Parle à enregistrer des messages vocaux dans JP Message.",
+          "recordAudioAndroid": true
         }
       ],
       [

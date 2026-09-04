@@ -15,6 +15,8 @@ export default function MembreLayout() {
       <Stack.Screen name="parametres" />
       <Stack.Screen name="notifications" options={{ presentation: 'modal' }} />
       <Stack.Screen name="chat/[id]" />
+      <Stack.Screen name="jp-message/nouveau" />
+      <Stack.Screen name="jp-message/dossier/[id]" />
       <Stack.Screen name="actualite/[id]" />
       <Stack.Screen name="activite/[id]" />
     </Stack>
