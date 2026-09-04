@@ -129,6 +129,44 @@ export default function AgentHomeScreen() {
         icon={greeting.icon}
       />
 
+      {/* Carte profil fixe : le scroll passe en dessous */}
+      <View style={styles.stickyProfile}>
+        <View style={styles.profileCard}>
+          {photo ? (
+            <Image source={{ uri: photo }} style={styles.photo} />
+          ) : (
+            <View style={[styles.photo, styles.photoFallback]}>
+              <Ionicons name="person" size={42} color={JP.muted} />
+            </View>
+          )}
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.profileName} numberOfLines={2}>
+              {user?.name ?? 'Agent'}
+            </Text>
+            <Text style={styles.profileMeta} numberOfLines={1}>
+              {user?.role?.name ?? 'Agent de vérification'}
+            </Text>
+            <Text style={styles.profileId} numberOfLines={1}>
+              {dashboard?.agent.member_code ??
+                user?.member_code ??
+                user?.email ??
+                user?.phone ??
+                '—'}
+            </Text>
+            <Text style={styles.profileContact} numberOfLines={2}>
+              {[user?.email, user?.phone].filter(Boolean).join('\n') || 'Identifiants compte'}
+            </Text>
+          </View>
+          <Pressable
+            style={styles.editBtn}
+            onPress={() => router.push('/(agent)/securite')}
+            accessibilityLabel="Paramètres"
+          >
+            <Ionicons name="settings-outline" size={18} color={JP.brand} />
+          </Pressable>
+        </View>
+      </View>
+
       <ScrollView
         style={styles.feed}
         contentContainerStyle={[styles.feedContent, { paddingBottom: 28 + insets.bottom }]}
@@ -137,32 +175,6 @@ export default function AgentHomeScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} tintColor={JP.brand} />
         }
       >
-        <View style={styles.profileCard}>
-          {photo ? (
-            <Image source={{ uri: photo }} style={styles.photo} />
-          ) : (
-            <View style={[styles.photo, styles.photoFallback]}>
-              <Ionicons name="person" size={36} color={JP.muted} />
-            </View>
-          )}
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.profileName}>{user?.name ?? 'Agent'}</Text>
-            <Text style={styles.profileMeta}>{user?.role?.name ?? 'Agent de vérification'}</Text>
-            <Text style={styles.profileId} numberOfLines={1}>
-              {dashboard?.agent.member_code ?? user?.member_code ?? user?.email ?? user?.phone ?? '—'}
-            </Text>
-            <Text style={styles.profileContact} numberOfLines={1}>
-              {[user?.email, user?.phone].filter(Boolean).join(' · ') || 'Identifiants compte'}
-            </Text>
-          </View>
-          <Pressable
-            style={styles.editBtn}
-            onPress={() => router.push('/(agent)/securite')}
-          >
-            <Ionicons name="settings-outline" size={18} color={JP.brand} />
-          </Pressable>
-        </View>
-
         {kpis ? (
           <>
             <SectionHeader title="Statistiques du jour" />
@@ -324,8 +336,20 @@ function StatCard({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: JP.bg },
-  feed: { flex: 1 },
-  feedContent: { paddingHorizontal: 16, paddingTop: 4 },
+  stickyProfile: {
+    zIndex: 20,
+    elevation: 8,
+    backgroundColor: JP.bg,
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: JP.border,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+  },
   profileCard: {
     flexDirection: 'row',
     gap: 14,
@@ -335,9 +359,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: JP.border,
     padding: 14,
-    marginBottom: 12,
   },
-  photo: { width: 84, height: 84, borderRadius: 20 },
+  photo: {
+    width: 96,
+    height: 96,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: JP.brandLight,
+  },
   photoFallback: {
     backgroundColor: JP.brandLight,
     alignItems: 'center',
@@ -346,7 +375,7 @@ const styles = StyleSheet.create({
   profileName: { fontSize: 18, fontWeight: '900', color: JP.text },
   profileMeta: { marginTop: 2, fontSize: 13, fontWeight: '700', color: JP.brand },
   profileId: { marginTop: 6, fontSize: 12, fontWeight: '800', color: JP.text },
-  profileContact: { marginTop: 2, fontSize: 11, fontWeight: '600', color: JP.muted },
+  profileContact: { marginTop: 2, fontSize: 11, fontWeight: '600', color: JP.muted, lineHeight: 15 },
   editBtn: {
     width: 40,
     height: 40,
@@ -355,7 +384,10 @@ const styles = StyleSheet.create({
     borderColor: JP.border,
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'flex-start',
   },
+  feed: { flex: 1 },
+  feedContent: { paddingHorizontal: 16, paddingTop: 8 },
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   statCard: {
     width: '48%',

@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BigButton, Field, Screen } from '@/components/ui';
@@ -20,7 +20,7 @@ export default function AgentSecuriteScreen() {
   const router = useRouter();
   const [bioEnabled, setBioEnabled] = useState(false);
   const [bioAvailable, setBioAvailable] = useState(false);
-  const [bioLabel, setBioLabel] = useState('biométrie');
+  const [bioLabel, setBioLabel] = useState('Face ID / empreinte');
   const [showBioPassword, setShowBioPassword] = useState(false);
   const [bioPassword, setBioPassword] = useState('');
   const [bioBusy, setBioBusy] = useState(false);
@@ -46,7 +46,8 @@ export default function AgentSecuriteScreen() {
       await disableBiometricLogin();
       setBioEnabled(false);
       setShowBioPassword(false);
-      Alert.alert('Biométrie', 'Connexion biométrique désactivée.');
+      setBioPassword('');
+      Alert.alert(bioLabel, 'Connexion biométrique désactivée sur cet appareil.');
       return;
     }
     setShowBioPassword(true);
@@ -55,11 +56,11 @@ export default function AgentSecuriteScreen() {
   async function confirmEnableBiometric() {
     const loginId = (user?.email || user?.phone || '').trim();
     if (!loginId) {
-      Alert.alert('Biométrie', 'Identifiant introuvable. Reconnectez-vous.');
+      Alert.alert(bioLabel, 'Identifiant introuvable. Reconnectez-vous.');
       return;
     }
     if (!bioPassword) {
-      Alert.alert('Biométrie', 'Saisissez votre mot de passe pour activer la biométrie.');
+      Alert.alert(bioLabel, 'Saisissez votre mot de passe pour activer Face ID / empreinte.');
       return;
     }
     setBioBusy(true);
@@ -70,13 +71,13 @@ export default function AgentSecuriteScreen() {
         setBioEnabled(true);
         setShowBioPassword(false);
         setBioPassword('');
-        Alert.alert('Biométrie', `${bioLabel} activée sur cet appareil.`);
+        Alert.alert(bioLabel, `${bioLabel} activé(e) pour la connexion sur cet appareil.`);
       } else {
-        Alert.alert('Biométrie', 'Activation annulée ou biométrie indisponible.');
+        Alert.alert(bioLabel, 'Activation annulée ou biométrie indisponible.');
       }
     } catch (error) {
       Alert.alert(
-        'Biométrie',
+        bioLabel,
         error instanceof ApiError ? error.message : 'Mot de passe incorrect.',
       );
     } finally {
@@ -115,11 +116,14 @@ export default function AgentSecuriteScreen() {
     }
   }
 
+  const bioIcon =
+    bioLabel.toLowerCase().includes('face') ? 'scan-outline' : 'finger-print-outline';
+
   return (
     <View style={{ flex: 1, backgroundColor: JP.bg }}>
       <MembrePageHeader
         title="Paramètres agent"
-        subtitle="Profil limité · sécurité · empreinte"
+        subtitle="Mot de passe · Face ID / empreinte"
         icon="shield-checkmark-outline"
         showBack
         showNotifications={false}
@@ -140,13 +144,13 @@ export default function AgentSecuriteScreen() {
 
         <View style={styles.card}>
           <View style={styles.cardHead}>
-            <Ionicons name="finger-print-outline" size={20} color={JP.brand} />
+            <Ionicons name={bioIcon} size={20} color={JP.brand} />
             <Text style={styles.cardTitle}>Connexion {bioLabel}</Text>
           </View>
           <Text style={styles.cardText}>
             {bioAvailable
-              ? `Utilisez ${bioLabel} pour ouvrir l’application plus rapidement sur cet appareil.`
-              : 'Aucune biométrie détectée sur cet appareil.'}
+              ? `Activez ${bioLabel} pour vous connecter plus vite sans retaper le mot de passe sur cet appareil.`
+              : 'Aucune biométrie (Face ID / empreinte) détectée sur cet appareil.'}
           </Text>
           {bioAvailable ? (
             <>
@@ -154,24 +158,33 @@ export default function AgentSecuriteScreen() {
                 onPress={() => void onToggleBiometric()}
                 style={[styles.toggle, bioEnabled && styles.toggleOn]}
               >
-                <Text style={[styles.toggleText, bioEnabled && styles.toggleTextOn]}>
-                  {bioEnabled ? 'Activée' : 'Désactivée'} — toucher pour changer
-                </Text>
+                <View style={styles.toggleRow}>
+                  <Ionicons
+                    name={bioEnabled ? 'checkmark-circle' : 'ellipse-outline'}
+                    size={20}
+                    color={bioEnabled ? JP.success : JP.muted}
+                  />
+                  <Text style={[styles.toggleText, bioEnabled && styles.toggleTextOn]}>
+                    {bioEnabled ? `${bioLabel} activé(e)` : `Activer ${bioLabel}`}
+                  </Text>
+                </View>
               </Pressable>
               {showBioPassword ? (
                 <View style={styles.bioBox}>
-                  <Text style={styles.bioTitle}>Mot de passe pour activer</Text>
-                  <TextInput
+                  <Text style={styles.bioTitle}>
+                    Confirmez votre mot de passe pour activer {bioLabel}
+                  </Text>
+                  <Field
+                    label="Mot de passe"
                     value={bioPassword}
                     onChangeText={setBioPassword}
-                    secureTextEntry
-                    placeholder="Mot de passe"
-                    placeholderTextColor={JP.muted}
-                    style={styles.bioInput}
+                    passwordToggle
+                    autoCapitalize="none"
+                    placeholder="Votre mot de passe"
                   />
                   <View style={{ height: 10 }} />
                   <BigButton
-                    label="Activer"
+                    label={`Activer ${bioLabel}`}
                     onPress={() => void confirmEnableBiometric()}
                     loading={bioBusy}
                   />
@@ -199,24 +212,27 @@ export default function AgentSecuriteScreen() {
             label="Mot de passe actuel"
             value={currentPassword}
             onChangeText={setCurrentPassword}
-            secureTextEntry
+            passwordToggle
             autoCapitalize="none"
+            placeholder="Mot de passe actuel"
           />
           <View style={{ height: 8 }} />
           <Field
             label="Nouveau mot de passe"
             value={password}
             onChangeText={setPassword}
-            secureTextEntry
+            passwordToggle
             autoCapitalize="none"
+            placeholder="8 caractères minimum"
           />
           <View style={{ height: 8 }} />
           <Field
             label="Confirmer"
             value={passwordConfirmation}
             onChangeText={setPasswordConfirmation}
-            secureTextEntry
+            passwordToggle
             autoCapitalize="none"
+            placeholder="Retapez le nouveau mot de passe"
           />
           {pwdError ? <Text style={styles.error}>{pwdError}</Text> : null}
           <View style={{ height: 10 }} />
@@ -263,19 +279,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   toggleOn: { borderColor: JP.brand, backgroundColor: JP.brandLight },
-  toggleText: { fontSize: 13, fontWeight: '700', color: JP.text },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  toggleText: { flex: 1, fontSize: 13, fontWeight: '700', color: JP.text },
   toggleTextOn: { color: JP.brandDark },
   bioBox: { marginTop: 12 },
   bioTitle: { fontSize: 13, fontWeight: '700', color: JP.text, marginBottom: 8 },
-  bioInput: {
-    borderWidth: 1,
-    borderColor: JP.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: JP.text,
-    backgroundColor: JP.bg,
-  },
   error: { marginTop: 8, color: JP.danger, fontSize: 12, fontWeight: '700' },
 });

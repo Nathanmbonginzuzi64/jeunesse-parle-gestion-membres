@@ -1,21 +1,71 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MembrePageHeader } from '@/components/membre/page-header';
 import { SectionHeader } from '@/components/membre/section';
-import { AgentListCard } from '@/components/agent/agent-ui';
 import { Badge, BigButton } from '@/components/ui';
-import { api, ApiError } from '@/lib/api';
-import { pushAgentHistory } from '@/lib/agent-history';
-import { useBackgroundRefresh } from '@/lib/use-background-refresh';
+import { api, ApiError, resolveMediaUrl } from '@/lib/api';
 import { JP } from '@/constants/theme';
 
-interface ActivityRow {
+type MemberDetail = {
   id: number;
-  code: string;
-  title: string;
+  member_code: string;
+  full_name: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  middle_name?: string | null;
+  gender_label?: string | null;
+  age?: number | null;
+  photo_url?: string | null;
+  status?: string;
+  status_label?: string;
+  phone?: string | null;
+  email?: string | null;
+  profession?: string | null;
+  position?: string | null;
+  province?: { name: string } | null;
+  city?: { name: string } | null;
+  commune?: { name: string } | null;
+  structure?: { name: string; code?: string } | null;
+  fingerprint_enrolled?: boolean;
+  fingerprints_count?: number;
+  card?: {
+    card_number?: string;
+    status_label?: string;
+    issued_at?: string | null;
+    expires_at?: string | null;
+  } | null;
+};
+
+function InfoRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value?: string | null;
+}) {
+  return (
+    <View style={styles.infoRow}>
+      <View style={styles.infoIcon}>
+        <Ionicons name={icon} size={16} color={JP.brand} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.infoLabel}>{label}</Text>
+        <Text style={styles.infoValue}>{value?.trim() || '—'}</Text>
+      </View>
+    </View>
+  );
 }
 
 export default function FicheMembreScreen() {
@@ -32,96 +82,52 @@ export default function FicheMembreScreen() {
     photoUrl?: string;
     verified?: string;
     cardStatus?: string;
-    activityId?: string;
-    alreadyPresent?: string;
   }>();
 
-  const [activities, setActivities] = useState<ActivityRow[]>([]);
-  const [activityId, setActivityId] = useState<number | null>(
-    params.activityId ? Number(params.activityId) : null,
-  );
-  const [saving, setSaving] = useState(false);
+  const [member, setMember] = useState<MemberDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const loadActivities = useCallback(async (opts?: { silent?: boolean }) => {
-    const silent = Boolean(opts?.silent);
-    try {
-      const response = await api.get<{ data: ActivityRow[] }>('/activities/for-attendance', {
-        per_page: 20,
-      });
-      setActivities(response.data ?? []);
-      setActivityId((current) => current ?? response.data?.[0]?.id ?? null);
-    } catch {
-      if (!silent) setActivities([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadActivities();
-  }, [loadActivities]);
-
-  useBackgroundRefresh(() => loadActivities({ silent: true }), { intervalMs: 8000 });
-
-  async function confirmPresence() {
-    if (!activityId) {
-      Alert.alert('Activité requise', 'Sélectionnez une activité pour le pointage.');
+  const load = useCallback(async () => {
+    const id = params.memberId ? Number(params.memberId) : null;
+    if (!id) {
+      setLoading(false);
+      setError('Membre introuvable.');
       return;
     }
-    setSaving(true);
+    setLoading(true);
+    setError(null);
     try {
-      const response = await api.post<{ message?: string; auto_registered?: boolean }>(
-        `/activities/${activityId}/attendance`,
-        {
-          member_id: Number(params.memberId),
-          status: 'present',
-        },
-      );
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      const msg =
-        response.message ??
-        `${params.fullName} a été pointé(e)${
-          response.auto_registered ? ' et inscrit(e) automatiquement' : ''
-        }.`;
-      await pushAgentHistory({
-        kind: 'attendance',
-        ok: true,
-        title: params.fullName ?? params.memberCode ?? 'Membre',
-        subtitle: msg,
-        memberCode: params.memberCode,
-        activityTitle: activities.find((item) => item.id === activityId)?.title,
-      });
-      Alert.alert('Présence confirmée', msg, [
-        { text: 'OK', onPress: () => router.replace('/(agent)/(tabs)/verifier') },
-        {
-          text: 'Feuille',
-          onPress: () =>
-            router.replace({
-              pathname: '/(agent)/(tabs)/feuille',
-              params: {
-                activityId: String(activityId),
-                activityTitle: activities.find((item) => item.id === activityId)?.title ?? '',
-              },
-            }),
-        },
-      ]);
-    } catch (error) {
-      Alert.alert('Échec', error instanceof ApiError ? error.message : 'Enregistrement impossible.');
+      const response = await api.get<{ data?: MemberDetail } | MemberDetail>(`/members/${id}`);
+      const payload =
+        response && typeof response === 'object' && 'data' in response && response.data
+          ? response.data
+          : (response as MemberDetail);
+      setMember(payload);
+    } catch (err) {
+      setMember(null);
+      setError(err instanceof ApiError ? err.message : 'Impossible de charger la fiche.');
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
-  }
+  }, [params.memberId]);
 
-  const subtitle =
-    params.alreadyPresent === '1'
-      ? 'Présence déjà enregistrée'
-      : params.verified === '1'
-        ? 'Identité confirmée via QR'
-        : 'Vérifiez avant de pointer';
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const name = member?.full_name ?? params.fullName ?? 'Membre';
+  const code = member?.member_code ?? params.memberCode ?? '—';
+  const photo =
+    resolveMediaUrl(member?.photo_url ?? params.photoUrl) ?? null;
+  const statusLabel = member?.status_label ?? params.statusLabel ?? 'Membre';
+  const cardStatus = member?.card?.status_label ?? params.cardStatus;
 
   return (
     <View style={styles.screen}>
       <MembrePageHeader
         title="Fiche membre"
-        subtitle={subtitle}
+        subtitle={params.verified === '1' ? 'Identité confirmée' : 'Détail du membre'}
         icon="person-outline"
         showBack
         showNotifications={false}
@@ -131,57 +137,143 @@ export default function FicheMembreScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: 28 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.card}>
-          <View style={styles.hero}>
-            {params.photoUrl ? (
-              <Image source={{ uri: params.photoUrl }} style={styles.photo} />
-            ) : (
-              <View style={[styles.photo, styles.photoFallback]}>
-                <Text style={styles.photoInitials}>
-                  {(params.fullName ?? '?').slice(0, 1).toUpperCase()}
-                </Text>
-              </View>
-            )}
-            <Text style={styles.name}>{params.fullName}</Text>
-            <Text style={styles.code}>{params.memberCode}</Text>
-            <View style={styles.badges}>
-              <Badge label={params.statusLabel || 'Membre'} tone="success" />
-              {params.cardStatus ? <Badge label={params.cardStatus} tone="success" /> : null}
-              {params.verified === '1' ? <Badge label="Identité OK" tone="success" /> : null}
-              {params.alreadyPresent === '1' ? <Badge label="Présent" tone="success" /> : null}
-            </View>
-          </View>
-          <Text style={styles.meta}>Province : {params.province || '—'}</Text>
-          <Text style={styles.meta}>Commune : {params.commune || '—'}</Text>
-          <Text style={styles.meta}>Structure : {params.structure || '—'}</Text>
-        </View>
-
-        {params.alreadyPresent !== '1' ? (
+        {loading ? (
+          <ActivityIndicator color={JP.brand} style={{ marginTop: 32 }} />
+        ) : (
           <>
-            <SectionHeader title="Activité de pointage" />
-            {activities.map((activity) => (
-              <AgentListCard
-                key={activity.id}
-                active={activityId === activity.id}
-                onPress={() => setActivityId(activity.id)}
-              >
-                <Text style={styles.activityTitle}>
-                  {activityId === activity.id ? `✓ ${activity.title}` : activity.title}
-                </Text>
-                <Text style={styles.meta}>{activity.code}</Text>
-              </AgentListCard>
-            ))}
-            <View style={{ height: 12 }} />
+            <View style={styles.heroCard}>
+              {photo ? (
+                <Image source={{ uri: photo }} style={styles.photo} />
+              ) : (
+                <View style={[styles.photo, styles.photoFallback]}>
+                  <Text style={styles.photoInitials}>
+                    {name.slice(0, 1).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              <Text style={styles.name}>{name}</Text>
+              <Text style={styles.code}>{code}</Text>
+              <View style={styles.badges}>
+                <Badge label={statusLabel} tone="success" />
+                {cardStatus ? <Badge label={cardStatus} tone="success" /> : null}
+                {params.verified === '1' ? <Badge label="Identité OK" tone="success" /> : null}
+                {member?.fingerprint_enrolled ? (
+                  <Badge label="Empreinte" tone="success" />
+                ) : null}
+              </View>
+            </View>
+
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+
+            <SectionHeader title="Identité" />
+            <View style={styles.card}>
+              <InfoRow
+                icon="person-outline"
+                label="Nom complet"
+                value={name}
+              />
+              <InfoRow icon="barcode-outline" label="Code membre" value={code} />
+              <InfoRow
+                icon="male-female-outline"
+                label="Genre"
+                value={member?.gender_label}
+              />
+              <InfoRow
+                icon="calendar-outline"
+                label="Âge"
+                value={member?.age != null ? `${member.age} ans` : null}
+              />
+              <InfoRow
+                icon="briefcase-outline"
+                label="Profession"
+                value={member?.profession}
+              />
+              <InfoRow
+                icon="ribbon-outline"
+                label="Fonction"
+                value={member?.position}
+              />
+            </View>
+
+            <SectionHeader title="Localisation" />
+            <View style={styles.card}>
+              <InfoRow
+                icon="map-outline"
+                label="Province"
+                value={member?.province?.name ?? params.province}
+              />
+              <InfoRow
+                icon="business-outline"
+                label="Ville"
+                value={member?.city?.name}
+              />
+              <InfoRow
+                icon="navigate-outline"
+                label="Commune"
+                value={member?.commune?.name ?? params.commune}
+              />
+              <InfoRow
+                icon="home-outline"
+                label="Structure"
+                value={
+                  member?.structure?.name ??
+                  params.structure ??
+                  null
+                }
+              />
+            </View>
+
+            {(member?.phone || member?.email || member?.card) && (
+              <>
+                <SectionHeader title="Coordonnées & carte" />
+                <View style={styles.card}>
+                  {member?.phone ? (
+                    <InfoRow icon="call-outline" label="Téléphone" value={member.phone} />
+                  ) : null}
+                  {member?.email ? (
+                    <InfoRow icon="mail-outline" label="E-mail" value={member.email} />
+                  ) : null}
+                  {member?.card?.card_number ? (
+                    <InfoRow
+                      icon="card-outline"
+                      label="N° carte"
+                      value={member.card.card_number}
+                    />
+                  ) : null}
+                  {member?.card?.expires_at ? (
+                    <InfoRow
+                      icon="time-outline"
+                      label="Expiration"
+                      value={new Date(member.card.expires_at).toLocaleDateString('fr-FR')}
+                    />
+                  ) : null}
+                  <InfoRow
+                    icon="finger-print-outline"
+                    label="Empreintes"
+                    value={
+                      member?.fingerprint_enrolled
+                        ? `${member.fingerprints_count ?? 1} enregistrée(s)`
+                        : 'Non enregistrée'
+                    }
+                  />
+                </View>
+              </>
+            )}
+
+            <View style={{ height: 8 }} />
             <BigButton
-              label="Confirmer présence"
-              tone="success"
-              loading={saving}
-              onPress={() => void confirmPresence()}
+              label="Nouvelle vérification"
+              onPress={() =>
+                router.replace({
+                  pathname: '/(agent)/(tabs)/verifier',
+                  params: { mode: 'identity', fresh: '1' },
+                })
+              }
             />
+            <View style={{ height: 10 }} />
+            <BigButton label="Retour" tone="neutral" onPress={() => router.back()} />
           </>
-        ) : null}
-        <View style={{ height: 10 }} />
-        <BigButton label="Retour" tone="neutral" onPress={() => router.back()} />
+        )}
       </ScrollView>
     </View>
   );
@@ -190,31 +282,87 @@ export default function FicheMembreScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: JP.bg },
   content: { paddingHorizontal: 16, paddingTop: 8 },
-  card: {
+  heroCard: {
     backgroundColor: JP.white,
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: JP.border,
-    padding: 16,
-    marginBottom: 8,
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  hero: { alignItems: 'center', marginBottom: 12 },
-  photo: { width: 96, height: 96, borderRadius: 24, marginBottom: 12 },
+  photo: {
+    width: 140,
+    height: 140,
+    borderRadius: 32,
+    marginBottom: 14,
+    borderWidth: 3,
+    borderColor: JP.brandLight,
+  },
   photoFallback: {
     backgroundColor: JP.brandLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  photoInitials: { fontSize: 36, fontWeight: '800', color: JP.brand },
-  name: { fontSize: 22, fontWeight: '800', color: JP.text, textAlign: 'center' },
-  code: { marginTop: 4, fontFamily: 'monospace', color: JP.muted, fontWeight: '700' },
+  photoInitials: { fontSize: 48, fontWeight: '800', color: JP.brand },
+  name: { fontSize: 22, fontWeight: '900', color: JP.text, textAlign: 'center' },
+  code: {
+    marginTop: 4,
+    fontFamily: 'monospace',
+    color: JP.muted,
+    fontWeight: '700',
+    fontSize: 14,
+  },
   badges: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginTop: 12,
+    marginTop: 14,
     justifyContent: 'center',
   },
-  meta: { color: JP.muted, fontSize: 13, marginTop: 4, fontWeight: '600' },
-  activityTitle: { fontWeight: '800', color: JP.text, fontSize: 14 },
+  card: {
+    backgroundColor: JP.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: JP.border,
+    padding: 12,
+    marginBottom: 8,
+    gap: 4,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: JP.border,
+  },
+  infoIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: JP.brandLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: JP.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  infoValue: {
+    marginTop: 2,
+    fontSize: 14,
+    fontWeight: '700',
+    color: JP.text,
+  },
+  error: {
+    color: JP.danger,
+    fontWeight: '700',
+    fontSize: 13,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
 });
