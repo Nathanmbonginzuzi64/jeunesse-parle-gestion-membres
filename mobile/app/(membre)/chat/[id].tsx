@@ -47,8 +47,15 @@ const CHAT_EMOJIS = [
   '😀', '😂', '🥰', '😍', '🤩', '😎', '🙏', '👏',
   '👍', '❤️', '🔥', '🎉', '💯', '✨', '🙌', '💪',
   '😢', '😮', '🤔', '👀', '✅', '⭐', '🌟', '💙',
-  '👋', '🤝', '📝', '📎', '📍', '⏰', '✅', '❗',
+  '👋', '🤝', '📝', '📎', '📍', '⏰', '🆗', '❗',
 ];
+
+function formatRecordingDuration(totalSeconds: number) {
+  const safe = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
 
 type ListRow =
   | { type: 'day'; key: string; label: string }
@@ -72,6 +79,7 @@ export default function MembreChatScreen() {
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
 
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(audioRecorder);
@@ -91,6 +99,19 @@ export default function MembreChatScreen() {
       onHide.remove();
     };
   }, []);
+
+  useEffect(() => {
+    if (!recorderState.isRecording) {
+      setRecordingSeconds(0);
+      return;
+    }
+    setRecordingSeconds(0);
+    const startedAt = Date.now();
+    const tick = setInterval(() => {
+      setRecordingSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 250);
+    return () => clearInterval(tick);
+  }, [recorderState.isRecording]);
 
   const load = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -376,7 +397,11 @@ export default function MembreChatScreen() {
   const title = conversation ? chatTitle(conversation) : 'Conversation';
   const subtitle =
     conversation?.peer?.role ||
-    (recorderState.isRecording ? 'Enregistrement…' : id ? `#${id}` : '');
+    (recorderState.isRecording
+      ? `Enregistrement ${formatRecordingDuration(recordingSeconds)}`
+      : id
+        ? `#${id}`
+        : '');
 
   const composerBottomPad =
     Platform.OS === 'android'
@@ -502,7 +527,11 @@ export default function MembreChatScreen() {
             ) : null}
 
             {recorderState.isRecording ? (
-              <Text style={styles.recording}>Enregistrement vocal… appuyez sur ■ pour envoyer</Text>
+              <View style={styles.recordingBar}>
+                <View style={styles.recordingDot} />
+                <Text style={styles.recordingTimer}>{formatRecordingDuration(recordingSeconds)}</Text>
+                <Text style={styles.recording}>Enregistrement… appuyez sur ■ pour envoyer</Text>
+              </View>
             ) : null}
 
             {emojiOpen ? (
@@ -512,9 +541,9 @@ export default function MembreChatScreen() {
                 contentContainerStyle={styles.emojiRow}
                 keyboardShouldPersistTaps="handled"
               >
-                {CHAT_EMOJIS.map((emoji) => (
+                {CHAT_EMOJIS.map((emoji, index) => (
                   <Pressable
-                    key={emoji}
+                    key={`emoji-${index}-${emoji}`}
                     onPress={() => setBody((current) => `${current}${emoji}`)}
                     style={styles.emojiItem}
                   >
@@ -571,17 +600,24 @@ export default function MembreChatScreen() {
                   onPress={() => void toggleRecord()}
                   style={[
                     styles.send,
-                    recorderState.isRecording && { backgroundColor: JP.danger },
+                    recorderState.isRecording && styles.sendRecording,
                   ]}
                   accessibilityLabel={
-                    recorderState.isRecording ? 'Arrêter et envoyer' : 'Message vocal'
+                    recorderState.isRecording
+                      ? `Arrêter et envoyer (${formatRecordingDuration(recordingSeconds)})`
+                      : 'Message vocal'
                   }
                 >
-                  <Ionicons
-                    name={recorderState.isRecording ? 'stop' : 'mic'}
-                    size={20}
-                    color={JP.white}
-                  />
+                  {recorderState.isRecording ? (
+                    <View style={styles.sendRecordingInner}>
+                      <Ionicons name="stop" size={14} color={JP.white} />
+                      <Text style={styles.sendRecordingLabel}>
+                        {formatRecordingDuration(recordingSeconds)}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Ionicons name="mic" size={20} color={JP.white} />
+                  )}
                 </Pressable>
               )}
             </View>
@@ -683,12 +719,49 @@ const styles = StyleSheet.create({
   pendingImage: { width: 56, height: 56, borderRadius: 8 },
   pendingFile: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   pendingName: { flex: 1, fontSize: 12, fontWeight: '700', color: JP.text },
+  recordingBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+    paddingHorizontal: 4,
+  },
+  recordingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: JP.danger,
+  },
+  recordingTimer: {
+    minWidth: 48,
+    color: JP.danger,
+    fontSize: 14,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
   recording: {
+    flex: 1,
     color: JP.danger,
     fontSize: 12,
     fontWeight: '700',
-    marginBottom: 6,
-    paddingHorizontal: 4,
+  },
+  sendRecording: {
+    backgroundColor: JP.danger,
+    minWidth: 64,
+    height: 44,
+    borderRadius: 22,
+    paddingHorizontal: 10,
+  },
+  sendRecordingInner: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 1,
+  },
+  sendRecordingLabel: {
+    color: JP.white,
+    fontSize: 10,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
   },
   emojiRow: { gap: 4, paddingVertical: 6, paddingHorizontal: 2 },
   emojiItem: {
