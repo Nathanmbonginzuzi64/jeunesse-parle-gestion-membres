@@ -389,11 +389,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 2,
     borderColor: JP.brandLight,
-  },
-  photoFallback: {
-    backgroundColor: JP.brandLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
   },
   profileName: { fontSize: 18, fontWeight: '900', color: JP.text },
   profileMeta: { marginTop: 2, fontSize: 13, fontWeight: '700', color: JP.brand },

@@ -209,12 +209,7 @@ const styles = StyleSheet.create({
   searchWrap: { paddingHorizontal: 16, paddingBottom: 8 },
   list: { paddingHorizontal: 16, paddingTop: 4, gap: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar: { width: 48, height: 48, borderRadius: 14 },
-  avatarFallback: {
-    backgroundColor: JP.brandLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  avatar: { width: 48, height: 48, borderRadius: 14, overflow: 'hidden' },
   name: { fontSize: 15, fontWeight: '800', color: JP.text },
   meta: { marginTop: 2, fontSize: 12, color: JP.muted, fontWeight: '600' },
   time: { marginTop: 4, fontSize: 11, color: JP.muted, fontWeight: '600' },
