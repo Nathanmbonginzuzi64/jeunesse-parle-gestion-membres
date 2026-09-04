@@ -174,73 +174,175 @@ export function useTerritories(
   const [communes, setCommunes] = useState<Commune[]>([]);
   const [quartiers, setQuartiers] = useState<Quartier[]>([]);
   const [avenues, setAvenues] = useState<Avenue[]>([]);
+  const [loadingProvinces, setLoadingProvinces] = useState(true);
+  const [territoryError, setTerritoryError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const asList = <T,>(payload: { data?: T[] } | T[] | null | undefined): T[] => {
+    if (Array.isArray(payload)) return payload;
+    if (payload && Array.isArray(payload.data)) return payload.data;
+    return [];
+  };
+
+  const loadTerritories = useCallback(async <T,>(
+    path: string,
+    query?: Record<string, string | number | boolean | null | undefined>,
+  ): Promise<T[]> => {
+    try {
+      const response = await api.public.get<{ data: T[] }>(path, query);
+      return asList<T>(response);
+    } catch (publicError) {
+      // Repli authentifié si la route publique échoue (CORS / réseau partiel).
+      try {
+        const response = await api.get<{ data: T[] }>(path, query);
+        return asList<T>(response);
+      } catch {
+        throw publicError instanceof ApiError
+          ? publicError
+          : new ApiError(0, "Impossible de charger le référentiel territorial.");
+      }
+    }
+  }, []);
 
   useEffect(() => {
-    api.public
-      .get<{ data: Province[] }>("/territories/provinces")
-      .then((response) => setProvinces(response.data))
-      .catch(() => setProvinces([]));
-  }, []);
+    let cancelled = false;
+    setLoadingProvinces(true);
+    setTerritoryError(null);
+    loadTerritories<Province>("/territories/provinces")
+      .then((rows) => {
+        if (!cancelled) {
+          setProvinces(rows);
+          if (rows.length === 0) {
+            setTerritoryError("Aucune province active trouvée. Vérifiez que l'API Laravel tourne.");
+          }
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setProvinces([]);
+          setTerritoryError(
+            error instanceof ApiError
+              ? error.message
+              : "Impossible de charger les provinces. Vérifiez NEXT_PUBLIC_API_URL et le serveur.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingProvinces(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadTerritories, reloadKey]);
 
   useEffect(() => {
     if (!provinceId) {
       setCities([]);
       return;
     }
-    api.public
-      .get<{ data: City[] }>("/territories/cities", { province_id: provinceId })
-      .then((response) => setCities(response.data))
-      .catch(() => setCities([]));
-  }, [provinceId]);
+    let cancelled = false;
+    loadTerritories<City>("/territories/cities", { province_id: provinceId })
+      .then((rows) => {
+        if (!cancelled) setCities(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setCities([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [provinceId, loadTerritories, reloadKey]);
 
   useEffect(() => {
     if (!cityId) {
       setDistricts([]);
       return;
     }
-    api.public
-      .get<{ data: District[] }>("/territories/districts", { city_id: cityId })
-      .then((response) => setDistricts(response.data))
-      .catch(() => setDistricts([]));
-  }, [cityId]);
+    let cancelled = false;
+    loadTerritories<District>("/territories/districts", { city_id: cityId })
+      .then((rows) => {
+        if (!cancelled) setDistricts(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setDistricts([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [cityId, loadTerritories, reloadKey]);
 
   useEffect(() => {
     if (!cityId) {
       setCommunes([]);
       return;
     }
-    api.public
-      .get<{ data: Commune[] }>("/territories/communes", {
-        city_id: cityId,
-        district_id: districtId ?? undefined,
+    let cancelled = false;
+    loadTerritories<Commune>("/territories/communes", {
+      city_id: cityId,
+      // Ne filtre par district que s'il est choisi (beaucoup de villes n'en ont pas).
+      district_id: districtId ?? undefined,
+    })
+      .then((rows) => {
+        if (!cancelled) setCommunes(rows);
       })
-      .then((response) => setCommunes(response.data))
-      .catch(() => setCommunes([]));
-  }, [cityId, districtId]);
+      .catch(() => {
+        if (!cancelled) setCommunes([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [cityId, districtId, loadTerritories, reloadKey]);
 
   useEffect(() => {
     if (!communeId) {
       setQuartiers([]);
       return;
     }
-    api.public
-      .get<{ data: Quartier[] }>("/territories/quartiers", { commune_id: communeId })
-      .then((response) => setQuartiers(response.data))
-      .catch(() => setQuartiers([]));
-  }, [communeId]);
+    let cancelled = false;
+    loadTerritories<Quartier>("/territories/quartiers", { commune_id: communeId })
+      .then((rows) => {
+        if (!cancelled) setQuartiers(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setQuartiers([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [communeId, loadTerritories, reloadKey]);
 
   useEffect(() => {
     if (!zoneId) {
       setAvenues([]);
       return;
     }
-    api.public
-      .get<{ data: Avenue[] }>("/territories/avenues", { zone_id: zoneId })
-      .then((response) => setAvenues(response.data))
-      .catch(() => setAvenues([]));
-  }, [zoneId]);
+    let cancelled = false;
+    loadTerritories<Avenue>("/territories/avenues", { zone_id: zoneId })
+      .then((rows) => {
+        if (!cancelled) setAvenues(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setAvenues([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [zoneId, loadTerritories, reloadKey]);
 
-  return { provinces, cities, districts, communes, quartiers, avenues, zones: quartiers };
+  const reload = useCallback(() => setReloadKey((key) => key + 1), []);
+
+  return {
+    provinces,
+    cities,
+    districts,
+    communes,
+    quartiers,
+    avenues,
+    zones: quartiers,
+    loadingProvinces,
+    territoryError,
+    reload,
+  };
 }
 
 export function usePublicStructures(provinceId?: number | null, cityId?: number | null) {

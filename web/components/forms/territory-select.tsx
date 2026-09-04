@@ -36,12 +36,16 @@ export function TerritorySelect({
   columns?: 1 | 2;
   levels?: { city?: boolean; district?: boolean; commune?: boolean; zone?: boolean };
 }) {
-  const { provinces, cities, districts, communes, quartiers } = useTerritories(
-    value.province_id,
-    value.city_id,
-    value.district_id,
-    value.commune_id,
-  );
+  const {
+    provinces,
+    cities,
+    districts,
+    communes,
+    quartiers,
+    loadingProvinces,
+    territoryError,
+    reload,
+  } = useTerritories(value.province_id, value.city_id, value.district_id, value.commune_id);
 
   const resetBelow = (partial: Partial<TerritoryValue>): TerritoryValue => ({
     province_id: partial.province_id ?? value.province_id,
@@ -51,13 +55,35 @@ export function TerritorySelect({
     zone_id: partial.zone_id ?? null,
   });
 
+  const provinceHint = loadingProvinces
+    ? "Chargement des provinces…"
+    : territoryError
+      ? territoryError
+      : provinces.length === 0
+        ? "Aucune province disponible"
+        : undefined;
+
   return (
     <div className={columns === 2 ? "grid gap-4 sm:grid-cols-2" : "space-y-4"}>
+      {territoryError && (
+        <div className="sm:col-span-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <span className="flex-1">{territoryError}</span>
+          <button
+            type="button"
+            onClick={reload}
+            className="font-medium text-amber-950 underline underline-offset-2"
+          >
+            Réessayer
+          </button>
+        </div>
+      )}
+
       <Select
         label="Province"
         required={required}
-        disabled={disabled || lockedProvince}
-        placeholder="Sélectionner une province"
+        disabled={disabled || lockedProvince || loadingProvinces}
+        placeholder={loadingProvinces ? "Chargement…" : "Sélectionner une province"}
+        hint={provinceHint && !territoryError ? provinceHint : undefined}
         error={errors.province_id}
         value={value.province_id ?? ""}
         onChange={(event) =>
@@ -77,6 +103,11 @@ export function TerritorySelect({
           label="Ville / Territoire"
           disabled={disabled || !value.province_id}
           placeholder={value.province_id ? "Sélectionner" : "Choisir d'abord la province"}
+          hint={
+            value.province_id && cities.length === 0
+              ? "Aucune ville active pour cette province"
+              : undefined
+          }
           error={errors.city_id}
           value={value.city_id ?? ""}
           onChange={(event) =>
@@ -90,11 +121,11 @@ export function TerritorySelect({
         />
       )}
 
-      {levels.district !== false && (
+      {levels.district !== false && value.city_id && districts.length > 0 && (
         <Select
           label="District"
           disabled={disabled || !value.city_id}
-          placeholder={value.city_id ? "Sélectionner" : "Choisir d'abord la ville"}
+          placeholder="Sélectionner (optionnel)"
           error={errors.district_id}
           value={value.district_id ?? ""}
           onChange={(event) =>
@@ -109,16 +140,27 @@ export function TerritorySelect({
         />
       )}
 
+      {levels.district !== false && value.city_id && districts.length === 0 && (
+        <p className="sm:col-span-2 text-xs text-slate-500">
+          Aucun district pour cette ville — passez directement à la commune.
+        </p>
+      )}
+
       {levels.commune !== false && (
         <Select
           label="Commune / Secteur"
           disabled={disabled || !value.city_id}
           placeholder={
-            value.district_id
-              ? "Sélectionner"
-              : value.city_id
-                ? "Choisir un district (optionnel)"
-                : "Choisir d'abord la ville"
+            value.city_id
+              ? communes.length > 0
+                ? "Sélectionner"
+                : "Aucune commune disponible"
+              : "Choisir d'abord la ville"
+          }
+          hint={
+            value.city_id && communes.length === 0
+              ? "Aucune commune active pour cette ville"
+              : undefined
           }
           error={errors.commune_id}
           value={value.commune_id ?? ""}
@@ -138,6 +180,11 @@ export function TerritorySelect({
           label="Quartier"
           disabled={disabled || !value.commune_id}
           placeholder={value.commune_id ? "Sélectionner" : "Choisir d'abord la commune"}
+          hint={
+            value.commune_id && quartiers.length === 0
+              ? "Aucun quartier actif pour cette commune"
+              : undefined
+          }
           error={errors.zone_id}
           value={value.zone_id ?? ""}
           onChange={(event) =>

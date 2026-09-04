@@ -14,7 +14,13 @@ return [
         explode(',', (string) env('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000')),
     ))),
 
-    'allowed_origins_patterns' => [],
+    /*
+     * En local, autorise tout port sur localhost / 127.0.0.1 (Next peut démarrer
+     * sur 3001, 3002…). En production, laisser vide et lister les origines exactes.
+     */
+    'allowed_origins_patterns' => env('APP_ENV') === 'local'
+        ? ['#^https?://(localhost|127\.0\.0\.1)(:\d+)?$#']
+        : [],
 
     'allowed_headers' => ['*'],
 

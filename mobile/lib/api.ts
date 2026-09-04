@@ -231,13 +231,13 @@ export class ApiError extends Error {
 }
 
 function messageFromPayload(data: Record<string, unknown>, fallback: string): string {
-  if (typeof data.message === 'string' && data.message.trim()) return data.message;
   const errors = data.errors as Record<string, string[]> | undefined;
   if (errors) {
     for (const messages of Object.values(errors)) {
       if (messages?.[0]) return messages[0];
     }
   }
+  if (typeof data.message === 'string' && data.message.trim()) return data.message;
   return fallback;
 }
 

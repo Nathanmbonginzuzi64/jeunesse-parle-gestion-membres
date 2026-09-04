@@ -86,7 +86,9 @@ export function Modal({
           </Button>
         </div>
 
-        <div className="max-h-[calc(100vh-14rem)] overflow-y-auto px-5 py-4">{children}</div>
+        <div className="max-h-[calc(100vh-14rem)] overflow-y-auto overflow-x-visible px-5 py-4 [&>*]:relative">
+          {children}
+        </div>
 
         {footer && (
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 px-5 py-3.5">

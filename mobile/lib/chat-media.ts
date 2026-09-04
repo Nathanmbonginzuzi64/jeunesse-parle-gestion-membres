@@ -38,6 +38,44 @@ export function toFormFile(file: PendingFile) {
   } as unknown as Blob;
 }
 
+/** Normalise un enregistrement expo-audio (uri souvent .m4a / .caf / .mp4). */
+export function pendingVoiceFromUri(uri: string): PendingFile {
+  const lower = uri.split('?')[0]?.toLowerCase() ?? '';
+  let ext = 'm4a';
+  let mime = 'audio/mp4';
+
+  if (lower.endsWith('.caf')) {
+    ext = 'caf';
+    mime = 'audio/x-caf';
+  } else if (lower.endsWith('.3gp') || lower.endsWith('.3gpp')) {
+    ext = '3gp';
+    mime = 'audio/3gpp';
+  } else if (lower.endsWith('.wav')) {
+    ext = 'wav';
+    mime = 'audio/wav';
+  } else if (lower.endsWith('.webm')) {
+    ext = 'webm';
+    mime = 'audio/webm';
+  } else if (lower.endsWith('.mp3')) {
+    ext = 'mp3';
+    mime = 'audio/mpeg';
+  } else if (lower.endsWith('.aac')) {
+    ext = 'aac';
+    mime = 'audio/aac';
+  } else if (lower.endsWith('.mp4')) {
+    // Conteneur AAC souvent étiqueté .mp4 sur Android
+    ext = 'm4a';
+    mime = 'audio/mp4';
+  }
+
+  return {
+    uri,
+    name: `message-vocal-${Date.now()}.${ext}`,
+    mime,
+    kind: 'audio',
+  };
+}
+
 export async function cacheProtectedUri(
   url: string | null | undefined,
   filename: string,

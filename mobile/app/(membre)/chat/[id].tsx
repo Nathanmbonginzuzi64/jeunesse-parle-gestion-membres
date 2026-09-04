@@ -38,6 +38,7 @@ import {
   toFormFile,
   type ChatMessage,
   type PendingFile,
+  pendingVoiceFromUri,
 } from '@/lib/chat-media';
 import { useBackgroundRefresh } from '@/lib/use-background-refresh';
 import { JP } from '@/constants/theme';
@@ -347,14 +348,11 @@ export default function MembreChatScreen() {
     try {
       if (recorderState.isRecording) {
         await audioRecorder.stop();
+        // Laisse le temps à expo-audio de finaliser le fichier avant lecture de l'URI.
+        await new Promise((resolve) => setTimeout(resolve, 120));
         const uri = audioRecorder.uri;
         if (uri) {
-          await send({
-            uri,
-            name: `message-vocal-${Date.now()}.m4a`,
-            mime: 'audio/mp4',
-            kind: 'audio',
-          });
+          await send(pendingVoiceFromUri(uri));
         }
         return;
       }

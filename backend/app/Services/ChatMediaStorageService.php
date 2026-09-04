@@ -23,7 +23,7 @@ class ChatMediaStorageService
         return [
             'path' => $path,
             'original_name' => Str::limit($file->getClientOriginalName(), 160, ''),
-            'mime' => $file->getMimeType() ?: 'application/octet-stream',
+            'mime' => $this->mimeFor($path, $file->getMimeType()),
             'size' => (int) $file->getSize(),
             'kind' => $kind,
         ];
@@ -44,25 +44,60 @@ class ChatMediaStorageService
             'jpg', 'jpeg' => 'image/jpeg',
             'pdf' => 'application/pdf',
             'mp3' => 'audio/mpeg',
-            'm4a' => 'audio/mp4',
+            'm4a', 'mp4' => 'audio/mp4',
+            'aac' => 'audio/aac',
             'ogg' => 'audio/ogg',
             'webm' => 'audio/webm',
             'wav' => 'audio/wav',
+            '3gp', '3gpp' => 'audio/3gpp',
+            'caf' => 'audio/x-caf',
             default => $fallback ?: 'application/octet-stream',
         };
     }
 
     private function kindOf(UploadedFile $file): string
     {
-        $mime = (string) $file->getMimeType();
+        $mime = strtolower((string) ($file->getMimeType() ?: ''));
+        $ext = strtolower((string) ($file->getClientOriginalExtension()
+            ?: pathinfo($file->getClientOriginalName(), PATHINFO_EXTENSION)));
 
         if (str_starts_with($mime, 'image/')) {
             return 'image';
         }
-        if (str_starts_with($mime, 'audio/')) {
+
+        /*
+         * Les enregistrements Expo / Android arrivent souvent en .m4a avec un MIME
+         * détecté comme video/mp4, audio/mp4, application/octet-stream, etc.
+         */
+        $audioMimes = [
+            'audio/mpeg',
+            'audio/mp3',
+            'audio/mp4',
+            'audio/x-m4a',
+            'audio/m4a',
+            'audio/aac',
+            'audio/ogg',
+            'audio/webm',
+            'audio/wav',
+            'audio/x-wav',
+            'audio/3gpp',
+            'audio/amr',
+            'audio/x-caf',
+            'video/mp4',
+            'video/3gpp',
+        ];
+        $audioExts = ['mp3', 'm4a', 'aac', 'ogg', 'oga', 'webm', 'wav', '3gp', '3gpp', 'caf', 'mp4'];
+
+        if (
+            str_starts_with($mime, 'audio/')
+            || in_array($mime, $audioMimes, true)
+            || ($mime === 'application/octet-stream' && in_array($ext, $audioExts, true))
+            || in_array($ext, $audioExts, true)
+        ) {
             return 'audio';
         }
-        if ($mime === 'application/pdf') {
+
+        if ($mime === 'application/pdf' || $ext === 'pdf') {
             return 'file';
         }
 
@@ -99,10 +134,13 @@ class ChatMediaStorageService
 
         return match (strtolower($file->getClientOriginalExtension())) {
             'mp3' => 'mp3',
-            'm4a' => 'm4a',
+            'm4a', 'mp4' => 'm4a',
+            'aac' => 'aac',
             'ogg', 'oga' => 'ogg',
             'webm' => 'webm',
             'wav' => 'wav',
+            '3gp', '3gpp' => '3gp',
+            'caf' => 'caf',
             default => 'm4a',
         };
     }
