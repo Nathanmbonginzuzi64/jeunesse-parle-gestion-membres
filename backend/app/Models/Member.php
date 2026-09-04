@@ -248,4 +248,39 @@ class Member extends Model
             && is_array($this->skills) && count($this->skills) > 0
             && is_array($this->interests) && count($this->interests) > 0;
     }
+
+    /** Le membre actif peut voir sa carte si le profil est complet ou si une carte a déjà été émise. */
+    public function canAccessOwnCard(): bool
+    {
+        if ($this->status?->value !== 'active' || empty($this->structure_id)) {
+            return false;
+        }
+
+        if ($this->hasCompletedProfile()) {
+            return true;
+        }
+
+        return $this->relationLoaded('activeCard')
+            ? $this->activeCard !== null
+            : $this->activeCard()->exists();
+    }
+
+    /**
+     * Profil complémentaire obligatoire seulement tant qu'aucune carte n'est disponible.
+     * Les dossiers déjà équipés d'une carte restent accessibles dans l'app.
+     */
+    public function needsComplementaryProfile(): bool
+    {
+        if ($this->status?->value !== 'active' || empty($this->structure_id)) {
+            return false;
+        }
+
+        if ($this->hasCompletedProfile()) {
+            return false;
+        }
+
+        return $this->relationLoaded('activeCard')
+            ? $this->activeCard === null
+            : ! $this->activeCard()->exists();
+    }
 }

@@ -19,6 +19,19 @@ export type NewsCommentItem = {
   replies?: NewsCommentItem[];
 };
 
+export type NewsLinkedActivity = {
+  id: number;
+  title: string;
+  code?: string | null;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  location?: string | null;
+  status?: string | null;
+  status_label?: string | null;
+  type_label?: string | null;
+  is_registered?: boolean;
+};
+
 export type NewsPostItem = {
   id: number;
   title: string;
@@ -33,6 +46,7 @@ export type NewsPostItem = {
   text_background?: string | Record<string, unknown> | null;
   author?: string | null;
   author_role?: string | null;
+  activity?: NewsLinkedActivity | null;
   views_count?: number;
   likes_count?: number;
   comments_count?: number;

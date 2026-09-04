@@ -11,7 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, getToken } from '@/lib/api';
 import { JP } from '@/constants/theme';
 
 export type AppNotification = {
@@ -102,6 +102,12 @@ export function NotificationsInboxModal({
     setLoading(true);
     setError(null);
     try {
+      const token = await getToken();
+      if (!token) {
+        setError('Session inactive. Reconnectez-vous pour voir vos notifications.');
+        setItems([]);
+        return;
+      }
       const response = await api.get<{ data: AppNotification[] }>('/notifications', {
         page: 1,
         per_page: 8,

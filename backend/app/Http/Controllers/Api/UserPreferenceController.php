@@ -31,7 +31,7 @@ class UserPreferenceController extends Controller
             'phone_visibility' => ['sometimes', Rule::in(['everyone', 'contacts', 'private'])],
             'email_visibility' => ['sometimes', Rule::in(['everyone', 'contacts', 'private'])],
             'theme' => ['sometimes', Rule::in(['light', 'dark', 'system'])],
-            'locale' => ['sometimes', Rule::in(['fr'])],
+            'locale' => ['sometimes', Rule::in(['fr', 'ln', 'en'])],
             'reduce_motion' => ['sometimes', 'boolean'],
             'auto_download_media' => ['sometimes', 'boolean'],
             'wifi_only_downloads' => ['sometimes', 'boolean'],

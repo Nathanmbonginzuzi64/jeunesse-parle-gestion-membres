@@ -31,7 +31,11 @@ class NewsController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = NewsPost::query()
-            ->with(['author:id,name,role_id', 'author.role:id,name', 'activity:id,title,code,starts_at,location'])
+            ->with([
+                'author:id,name,role_id',
+                'author.role:id,name',
+                'activity:id,title,code,starts_at,ends_at,location,status,type',
+            ])
             ->whereNull('deleted_at');
 
         if (! $this->canManage($request)) {
@@ -59,26 +63,43 @@ class NewsController extends Controller
             $query->where('created_at', '>', $request->input('since'));
         }
 
-        $posts = $query->latest()->paginate(min($request->integer('per_page', 15), 50));
+        $posts = $query->latest('created_at')->latest('id')->paginate(min($request->integer('per_page', 15), 50));
 
         $userId = $request->user()->id;
+        $memberId = $request->user()->member_id;
         $myReactions = NewsReaction::query()
             ->whereIn('news_post_id', $posts->getCollection()->pluck('id'))
             ->where('user_id', $userId)
             ->pluck('type', 'news_post_id');
 
+        $activityIds = $posts->getCollection()->pluck('activity_id')->filter()->unique()->values();
+        $registeredLookup = [];
+        if ($memberId && $activityIds->isNotEmpty()) {
+            $registeredLookup = array_fill_keys(
+                DB::table('activity_member')
+                    ->where('member_id', $memberId)
+                    ->whereIn('activity_id', $activityIds)
+                    ->pluck('activity_id')
+                    ->all(),
+                true,
+            );
+        }
+
         return response()->json([
             'data' => $posts->getCollection()->map(fn (NewsPost $post) => $this->formatPost(
                 $post,
-                $request->user()->member_id,
+                $memberId,
                 myReaction: $myReactions[$post->id] ?? null,
                 userId: $userId,
+                registeredActivityIds: $registeredLookup,
             )),
             'meta' => [
                 'current_page' => $posts->currentPage(),
                 'last_page' => $posts->lastPage(),
                 'per_page' => $posts->perPage(),
                 'total' => $posts->total(),
+                'from' => $posts->firstItem(),
+                'to' => $posts->lastItem(),
             ],
         ]);
     }
@@ -431,7 +452,7 @@ class NewsController extends Controller
         $newsPost->load([
             'author:id,name,role_id',
             'author.role:id,name',
-            'activity:id,title,code,starts_at,ends_at,location',
+            'activity:id,title,code,starts_at,ends_at,location,status,type',
             'comments' => fn ($q) => $q->whereNull('parent_id')
                 ->with([
                     'member:id,first_name,last_name',
@@ -447,8 +468,26 @@ class NewsController extends Controller
                 ->limit(100),
         ]);
 
+        $registeredLookup = [];
+        if ($memberId && $newsPost->activity_id) {
+            $registeredLookup = array_fill_keys(
+                DB::table('activity_member')
+                    ->where('member_id', $memberId)
+                    ->where('activity_id', $newsPost->activity_id)
+                    ->pluck('activity_id')
+                    ->all(),
+                true,
+            );
+        }
+
         return response()->json(['data' => [
-            ...$this->formatPost($newsPost, $memberId, detailed: true, userId: $userId),
+            ...$this->formatPost(
+                $newsPost,
+                $memberId,
+                detailed: true,
+                userId: $userId,
+                registeredActivityIds: $registeredLookup,
+            ),
             'comments' => $newsPost->comments->map(
                 fn (NewsComment $c) => $this->formatComment($c, withReplies: true, userId: $userId),
             ),
@@ -589,7 +628,14 @@ class NewsController extends Controller
         }
     }
 
-    private function formatPost(NewsPost $post, ?int $memberId = null, bool $detailed = false, ?string $myReaction = null, ?int $userId = null): array
+    private function formatPost(
+        NewsPost $post,
+        ?int $memberId = null,
+        bool $detailed = false,
+        ?string $myReaction = null,
+        ?int $userId = null,
+        ?array $registeredActivityIds = null,
+    ): array
     {
         $category = NewsCategory::tryFrom($post->category ?? 'general') ?? NewsCategory::General;
 
@@ -619,13 +665,7 @@ class NewsController extends Controller
             'text_background' => $this->parseTextBackground($post->external_url, $post->media_type),
             'author' => $post->author?->name,
             'author_role' => $post->author?->role?->name,
-            'activity' => $post->activity ? [
-                'id' => $post->activity->id,
-                'title' => $post->activity->title,
-                'code' => $post->activity->code,
-                'starts_at' => $post->activity->starts_at?->toIso8601String(),
-                'location' => $post->activity->location,
-            ] : null,
+            'activity' => $this->formatLinkedActivity($post, $memberId, $registeredActivityIds),
             'views_count' => $post->views_count,
             'likes_count' => $post->likes_count,
             'comments_count' => $post->comments_count,
@@ -640,6 +680,40 @@ class NewsController extends Controller
         }
 
         return $base;
+    }
+
+    /** Activité liée à une publication — pour inscription rapide côté mobile. */
+    private function formatLinkedActivity(
+        NewsPost $post,
+        ?int $memberId = null,
+        ?array $registeredActivityIds = null,
+    ): ?array {
+        $activity = $post->activity;
+        if (! $activity) {
+            return null;
+        }
+
+        $isRegistered = false;
+        if ($memberId) {
+            if ($registeredActivityIds !== null) {
+                $isRegistered = isset($registeredActivityIds[$activity->id]);
+            } else {
+                $isRegistered = $activity->members()->where('members.id', $memberId)->exists();
+            }
+        }
+
+        return [
+            'id' => $activity->id,
+            'title' => $activity->title,
+            'code' => $activity->code,
+            'starts_at' => $activity->starts_at?->toIso8601String(),
+            'ends_at' => $activity->ends_at?->toIso8601String(),
+            'location' => $activity->location,
+            'status' => $activity->status?->value,
+            'status_label' => $activity->status?->label(),
+            'type_label' => $activity->type?->label(),
+            'is_registered' => $isRegistered,
+        ];
     }
 
     private function formatComment(NewsComment $comment, bool $withReplies = false, ?int $userId = null): array

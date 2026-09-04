@@ -7,6 +7,9 @@ const API_URL_KEY = 'jp.apiBaseUrl';
 const TOKEN_KEY = 'jp.token';
 const PROBE_TIMEOUT_MS = 3500;
 
+/** Cache mémoire : SecureStore peut être lent / flaky juste après login. */
+let memoryToken: string | null | undefined = undefined;
+
 let resolvedBaseUrl: string | null = null;
 let resolveInFlight: Promise<string> | null = null;
 
@@ -239,18 +242,26 @@ function messageFromPayload(data: Record<string, unknown>, fallback: string): st
 }
 
 export async function getToken(): Promise<string | null> {
+  if (memoryToken !== undefined) return memoryToken;
   try {
-    return await SecureStore.getItemAsync(TOKEN_KEY);
+    memoryToken = await SecureStore.getItemAsync(TOKEN_KEY);
+    return memoryToken;
   } catch {
+    memoryToken = null;
     return null;
   }
 }
 
 export async function setToken(token: string | null): Promise<void> {
-  if (token) {
-    await SecureStore.setItemAsync(TOKEN_KEY, token);
-  } else {
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
+  memoryToken = token;
+  try {
+    if (token) {
+      await SecureStore.setItemAsync(TOKEN_KEY, token);
+    } else {
+      await SecureStore.deleteItemAsync(TOKEN_KEY);
+    }
+  } catch {
+    /* le cache mémoire reste la source de vérité pour la session courante */
   }
 }
 
@@ -344,9 +355,13 @@ async function request<T>(
   }
 
   if (response.status === 401 && !anonymous) {
-    await setToken(null);
-    onUnauthorized?.();
-    throw new ApiError(401, messageFromPayload(data, 'Session expirée.'), data);
+    // Ne déconnecte que si un jeton était réellement envoyé (évite les courses au démarrage).
+    const hadToken = Boolean(headers.Authorization);
+    if (hadToken) {
+      await setToken(null);
+      onUnauthorized?.();
+    }
+    throw new ApiError(401, messageFromPayload(data, 'Authentification requise.'), data);
   }
 
   if (!response.ok) {

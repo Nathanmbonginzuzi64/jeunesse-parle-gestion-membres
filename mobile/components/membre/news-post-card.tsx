@@ -13,6 +13,7 @@ import { NewsMediaBlock } from '@/components/membre/news-media';
 import { TextBackgroundBanner } from '@/components/membre/text-background-banner';
 import { NewsReactions } from '@/components/membre/news-reactions';
 import { NewsComments } from '@/components/membre/news-comments';
+import { NewsActivityLink } from '@/components/membre/news-activity-link';
 import { api, ApiError } from '@/lib/api';
 import { downloadNewsMedia } from '@/lib/news-download';
 import {
@@ -146,6 +147,14 @@ export function NewsPostCard({
         <View style={styles.media}>
           <NewsMediaBlock item={post} compact={compact} />
         </View>
+      ) : null}
+
+      {post.activity ? (
+        <NewsActivityLink
+          activity={post.activity}
+          compact={compact}
+          onRegistered={(activity) => patch({ activity })}
+        />
       ) : null}
 
       <View style={styles.stats}>

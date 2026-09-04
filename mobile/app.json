@@ -13,7 +13,8 @@
       "bundleIdentifier": "cd.jeunesseparle.mobile",
       "infoPlist": {
         "NSCameraUsageDescription": "Scanner les QR codes, prendre des photos et joindre des images dans JP Message.",
-        "NSPhotoLibraryUsageDescription": "Choisir une photo d’identité ou joindre une image dans JP Message.",
+        "NSPhotoLibraryUsageDescription": "Choisir une photo d’identité, joindre une image dans JP Message ou enregistrer votre carte membre.",
+        "NSPhotoLibraryAddUsageDescription": "Enregistrer le recto ou le verso de votre carte membre dans la galerie.",
         "NSMicrophoneUsageDescription": "Enregistrer un message vocal dans JP Message.",
         "NSFaceIDUsageDescription": "Jeunesse Parle utilise Face ID uniquement pour sécuriser votre connexion.",
         "NSAppTransportSecurity": {
@@ -25,7 +26,7 @@
     "android": {
       "package": "cd.jeunesseparle.mobile",
       "usesCleartextTraffic": true,
-      "softwareKeyboardLayoutMode": "resize",
+      "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "backgroundColor": "#0087D1",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -81,6 +82,14 @@
         "expo-local-authentication",
         {
           "faceIDPermission": "Jeunesse Parle utilise Face ID uniquement pour sécuriser votre connexion."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Autoriser Jeunesse Parle à enregistrer votre carte membre dans la galerie.",
+          "savePhotosPermission": "Autoriser Jeunesse Parle à enregistrer votre carte membre dans la galerie.",
+          "isAccessMediaLocationEnabled": false
         }
       ]
     ],

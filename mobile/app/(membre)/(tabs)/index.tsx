@@ -15,6 +15,7 @@ import { MemberCardPreview, type CardPreviewData } from '@/components/membre/car
 import { MembrePageHeader } from '@/components/membre/page-header';
 import { EmptyState, SectionHeader } from '@/components/membre/section';
 import { NewsMediaBlock } from '@/components/membre/news-media';
+import { NewsActivityLink } from '@/components/membre/news-activity-link';
 import { AuthenticatedImage } from '@/components/authenticated-image';
 import { useAuth } from '@/lib/auth';
 import { api, getToken, resolveMediaUrl, API_BASE_URL } from '@/lib/api';
@@ -47,6 +48,18 @@ type NewsRow = {
   external_url?: string | null;
   text_background?: string | Record<string, unknown> | null;
   author?: string | null;
+  activity?: {
+    id: number;
+    title: string;
+    code?: string | null;
+    starts_at?: string | null;
+    ends_at?: string | null;
+    location?: string | null;
+    status?: string | null;
+    status_label?: string | null;
+    type_label?: string | null;
+    is_registered?: boolean;
+  } | null;
 };
 
 function greetingForLocalTime(now = new Date()) {
@@ -115,7 +128,7 @@ export default function MembreAccueilScreen() {
       const [cardRes, actRes, newsRes, meRes] = await Promise.allSettled([
         api.get<{ render?: CardPreviewData }>(`/members/${user.member_id}/card`),
         api.get<{ data: ActivityRow[] }>('/activities/for-member', { tab: 'upcoming', per_page: 3 }),
-        api.get<{ data: NewsRow[] }>('/news', { per_page: 3 }),
+        api.get<{ data: NewsRow[] }>('/news', { per_page: 5 }),
         api.get<{ member?: { photo_url?: string | null } | null; user?: { photo_url?: string | null } }>(
           '/auth/me',
         ),
@@ -342,6 +355,22 @@ export default function MembreAccueilScreen() {
                     <View style={styles.newsMedia}>
                       <NewsMediaBlock item={item} compact />
                     </View>
+
+                    {item.activity ? (
+                      <View style={{ marginTop: 10 }}>
+                        <NewsActivityLink
+                          activity={item.activity}
+                          compact
+                          onRegistered={(activity) =>
+                            setNews((current) =>
+                              current.map((row) =>
+                                row.id === item.id ? { ...row, activity } : row,
+                              ),
+                            )
+                          }
+                        />
+                      </View>
+                    ) : null}
 
                     {item.media_type && item.media_type !== 'text' && (item.body || item.excerpt) ? (
                       <Text style={styles.newsExcerpt} numberOfLines={3}>

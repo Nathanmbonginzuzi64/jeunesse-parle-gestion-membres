@@ -77,7 +77,7 @@ class MemberPolicy
     public function viewCard(User $user, Member $member): bool
     {
         if ($member->isOwnedBy($user)) {
-            return $member->hasCompletedProfile();
+            return $member->canAccessOwnCard();
         }
 
         return $user->hasPermission(Permission::CardsView) && $member->isVisibleTo($user);

@@ -126,6 +126,79 @@ class MessagingService
         return $message;
     }
 
+    public function updateMessage(ChatMessage $message, User $actor, string $body): ChatMessage
+    {
+        abort_unless(
+            (int) $message->user_id === (int) $actor->id,
+            403,
+            "Vous n'avez pas l'autorisation d'effectuer cette action.",
+        );
+        abort_unless(! $message->trashed(), 422, 'Ce message a déjà été supprimé.');
+
+        $body = trim($body);
+        abort_unless($body !== '', 422, 'Le message ne peut pas être vide.');
+
+        $message->update([
+            'body' => $body,
+            'edited_at' => now(),
+            'type' => $message->attachments()->exists() ? $message->type : 'text',
+        ]);
+
+        $conversation = $message->conversation;
+        if ($conversation) {
+            $latest = ChatMessage::query()
+                ->where('conversation_id', $conversation->id)
+                ->latest('id')
+                ->first();
+            if ($latest && (int) $latest->id === (int) $message->id) {
+                $conversation->update([
+                    'last_message_preview' => mb_substr($body, 0, 180),
+                ]);
+            }
+        }
+
+        $this->audit->log('chat.message-updated', $message->conversation, mb_substr($body, 0, 120));
+
+        return $message->fresh(['author.member', 'attachments']);
+    }
+
+    public function deleteMessage(ChatMessage $message, User $actor): void
+    {
+        abort_unless(
+            (int) $message->user_id === (int) $actor->id,
+            403,
+            "Vous n'avez pas l'autorisation d'effectuer cette action.",
+        );
+        abort_unless(! $message->trashed(), 422, 'Ce message a déjà été supprimé.');
+
+        $conversation = $message->conversation;
+        $wasLatest = false;
+        if ($conversation) {
+            $latestId = ChatMessage::query()
+                ->where('conversation_id', $conversation->id)
+                ->latest('id')
+                ->value('id');
+            $wasLatest = (int) $latestId === (int) $message->id;
+        }
+
+        $message->delete();
+
+        if ($conversation && $wasLatest) {
+            $previous = ChatMessage::query()
+                ->where('conversation_id', $conversation->id)
+                ->latest('id')
+                ->first();
+            $conversation->update([
+                'last_message_at' => $previous?->created_at,
+                'last_message_preview' => $previous
+                    ? mb_substr((string) ($previous->body ?: '📎 Pièce jointe'), 0, 180)
+                    : null,
+            ]);
+        }
+
+        $this->audit->log('chat.message-deleted', $conversation, 'Message #'.$message->id);
+    }
+
     private function notifySuperAdmins(ChatConversation $conversation, User $actor, string $preview): void
     {
         $participantIds = $conversation->participants()->pluck('user_id')->all();

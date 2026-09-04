@@ -162,6 +162,33 @@ class MessagingController extends Controller
         ], 201);
     }
 
+    public function updateMessage(Request $request, ChatConversation $conversation, ChatMessage $message): JsonResponse
+    {
+        $this->authorize('send', $conversation);
+        abort_unless((int) $message->conversation_id === (int) $conversation->id, 404, 'Ressource introuvable.');
+
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:5000'],
+        ]);
+
+        $updated = $this->messaging->updateMessage($message, $request->user(), $validated['body']);
+
+        return response()->json([
+            'message' => 'Message modifié.',
+            'data' => $this->formatMessage($updated),
+        ]);
+    }
+
+    public function destroyMessage(Request $request, ChatConversation $conversation, ChatMessage $message): JsonResponse
+    {
+        $this->authorize('send', $conversation);
+        abort_unless((int) $message->conversation_id === (int) $conversation->id, 404, 'Ressource introuvable.');
+
+        $this->messaging->deleteMessage($message, $request->user());
+
+        return response()->json(['message' => 'Message supprimé.']);
+    }
+
     public function read(Request $request, ChatConversation $conversation): JsonResponse
     {
         $this->authorize('view', $conversation);

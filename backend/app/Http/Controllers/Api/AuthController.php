@@ -122,7 +122,10 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Connexion réussie.',
             'token' => $token,
-            'user' => new UserResource($user->load(['role.permissions', 'province', 'city', 'structure', 'member'])),
+            'user' => new UserResource($user->load([
+                'role.permissions', 'province', 'city', 'structure',
+                'member.structure', 'member.activeCard',
+            ])),
         ]);
     }
 
@@ -219,7 +222,10 @@ class AuthController extends Controller
                 ? 'Connexion biométrique réussie — vous devez changer votre mot de passe.'
                 : 'Connexion biométrique réussie.',
             'token' => $token,
-            'user' => new UserResource($user->load(['role.permissions', 'province', 'city', 'structure', 'member'])),
+            'user' => new UserResource($user->load([
+                'role.permissions', 'province', 'city', 'structure',
+                'member.structure', 'member.activeCard',
+            ])),
         ]);
     }
 

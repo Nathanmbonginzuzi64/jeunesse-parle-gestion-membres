@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Pressable,
   RefreshControl,
   StyleSheet,
+  Text,
   View,
 } from 'react-native';
 import { Screen } from '@/components/ui';
@@ -13,6 +15,8 @@ import { api, resolveMediaUrl } from '@/lib/api';
 import type { NewsPostItem } from '@/lib/news';
 import { useBackgroundRefresh } from '@/lib/use-background-refresh';
 import { JP } from '@/constants/theme';
+
+const PAGE_SIZE = 10;
 
 function mapPost(item: NewsPostItem): NewsPostItem {
   return {
@@ -28,28 +32,55 @@ function mapPost(item: NewsPostItem): NewsPostItem {
   };
 }
 
+type NewsMeta = {
+  current_page?: number;
+  last_page?: number;
+  per_page?: number;
+  total?: number;
+};
+
 export default function MembreActualitesScreen() {
   const [items, setItems] = useState<NewsPostItem[]>([]);
+  const [meta, setMeta] = useState<NewsMeta>({});
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  const load = useCallback(async (opts?: { silent?: boolean }) => {
+  const loadPage = useCallback(async (pageNumber: number, opts?: { silent?: boolean; append?: boolean }) => {
     const silent = Boolean(opts?.silent);
+    const append = Boolean(opts?.append);
     try {
-      const response = await api.get<{ data: NewsPostItem[] }>('/news', { per_page: 30 });
-      setItems((response.data ?? []).map(mapPost));
+      const response = await api.get<{ data: NewsPostItem[]; meta?: NewsMeta }>('/news', {
+        page: pageNumber,
+        per_page: PAGE_SIZE,
+      });
+      const mapped = (response.data ?? []).map(mapPost);
+      setMeta(response.meta ?? {});
+      setPage(pageNumber);
+      setItems((current) => (append ? [...current, ...mapped] : mapped));
     } catch {
-      if (!silent) setItems([]);
+      if (!silent && !append) setItems([]);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadPage(1);
+  }, [loadPage]);
 
-  useBackgroundRefresh(() => load({ silent: true }));
+  useBackgroundRefresh(() => loadPage(1, { silent: true }), { intervalMs: 20_000 });
+
+  const hasMore = (meta.current_page ?? page) < (meta.last_page ?? 1);
+  const total = meta.total ?? items.length;
+
+  async function onLoadMore() {
+    if (!hasMore || loadingMore) return;
+    setLoadingMore(true);
+    await loadPage(page + 1, { append: true });
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: '#EEF3F8' }}>
@@ -60,7 +91,9 @@ export default function MembreActualitesScreen() {
             ? 'Chargement…'
             : items.length === 0
               ? 'Aucune publication'
-              : `${items.length} publication${items.length > 1 ? 's' : ''}`
+              : `${items.length}${total > items.length ? ` / ${total}` : ''} publication${
+                  total > 1 ? 's' : ''
+                }`
         }
         icon="newspaper"
       />
@@ -72,7 +105,7 @@ export default function MembreActualitesScreen() {
             refreshing={refreshing}
             onRefresh={() => {
               setRefreshing(true);
-              void load().finally(() => setRefreshing(false));
+              void loadPage(1).finally(() => setRefreshing(false));
             }}
             tintColor={JP.brand}
           />
@@ -97,6 +130,24 @@ export default function MembreActualitesScreen() {
                 }
               />
             ))}
+
+            {hasMore ? (
+              <Pressable
+                style={[styles.moreBtn, loadingMore && { opacity: 0.7 }]}
+                onPress={() => void onLoadMore()}
+                disabled={loadingMore}
+              >
+                {loadingMore ? (
+                  <ActivityIndicator color={JP.brand} />
+                ) : (
+                  <Text style={styles.moreText}>
+                    Voir plus d’actualités ({Math.min(PAGE_SIZE, total - items.length)} suivantes)
+                  </Text>
+                )}
+              </Pressable>
+            ) : (
+              <Text style={styles.endText}>Fin des actualités</Text>
+            )}
           </View>
         )}
       </Screen>
@@ -106,4 +157,22 @@ export default function MembreActualitesScreen() {
 
 const styles = StyleSheet.create({
   list: { gap: 12 },
+  moreBtn: {
+    marginTop: 4,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: JP.brand,
+    backgroundColor: JP.white,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  moreText: { fontSize: 13, fontWeight: '800', color: JP.brand },
+  endText: {
+    marginTop: 4,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '600',
+    color: JP.muted,
+    paddingVertical: 8,
+  },
 });

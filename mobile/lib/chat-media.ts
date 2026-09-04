@@ -12,11 +12,13 @@ export type ChatAttachment = {
 
 export type ChatMessage = {
   id: number;
+  type?: string | null;
   body?: string | null;
   author?: string | null;
   author_id?: number | null;
   photo_url?: string | null;
   created_at?: string | null;
+  edited_at?: string | null;
   attachments?: ChatAttachment[];
 };
 

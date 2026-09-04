@@ -56,9 +56,7 @@ class UserResource extends JsonResource
                     return false;
                 }
 
-                return $member->status?->value === 'active'
-                    && filled($member->structure_id)
-                    && ! $member->hasCompletedProfile();
+                return $member->needsComplementaryProfile();
             }),
             'can_view_card' => $this->whenLoaded('member', function () {
                 $member = $this->member;
@@ -66,9 +64,7 @@ class UserResource extends JsonResource
                     return false;
                 }
 
-                return $member->status?->value === 'active'
-                    && filled($member->structure_id)
-                    && $member->hasCompletedProfile();
+                return $member->canAccessOwnCard();
             }),
             'fingerprint_enrolled' => app(\App\Services\BiometricService::class)->userIsEnrolled($this->resource),
             'permissions' => $this->when(

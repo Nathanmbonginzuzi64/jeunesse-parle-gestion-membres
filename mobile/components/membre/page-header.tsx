@@ -4,7 +4,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NotificationsInboxModal } from '@/components/membre/notifications-inbox-modal';
-import { api } from '@/lib/api';
+import { api, getToken } from '@/lib/api';
 import { useBackgroundRefresh } from '@/lib/use-background-refresh';
 import { JP } from '@/constants/theme';
 
@@ -39,6 +39,8 @@ export function MembrePageHeader({
   const loadUnread = useCallback(async () => {
     if (!showNotifications) return;
     try {
+      const token = await getToken();
+      if (!token) return;
       const res = await api.get<{ count?: number }>('/notifications/unread-count');
       setUnread(res.count ?? 0);
     } catch {

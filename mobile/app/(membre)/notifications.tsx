@@ -11,7 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { MembrePageHeader } from '@/components/membre/page-header';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, getToken } from '@/lib/api';
 import { useBackgroundRefresh } from '@/lib/use-background-refresh';
 import { JP } from '@/constants/theme';
 
@@ -94,6 +94,14 @@ export default function MembreNotificationsScreen() {
     const silent = Boolean(opts?.silent);
     if (!silent) setError(null);
     try {
+      const token = await getToken();
+      if (!token) {
+        if (!silent) {
+          setError('Session inactive. Reconnectez-vous pour voir vos notifications.');
+          setItems([]);
+        }
+        return;
+      }
       const [listRes, countRes] = await Promise.all([
         api.get<{ data: AppNotification[] }>('/notifications', { page: 1, per_page: 40 }),
         api.get<{ count?: number }>('/notifications/unread-count'),

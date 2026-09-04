@@ -237,6 +237,10 @@ Route::middleware(['auth:sanctum', 'account.active', 'session.timeout', 'mainten
         Route::get('chats/{conversation}', [MessagingController::class, 'show']);
         Route::get('chats/{conversation}/messages', [MessagingController::class, 'messages']);
         Route::post('chats/{conversation}/messages', [MessagingController::class, 'send'])->middleware('throttle:40,1');
+        Route::put('chats/{conversation}/messages/{message}', [MessagingController::class, 'updateMessage'])
+            ->middleware('throttle:40,1');
+        Route::delete('chats/{conversation}/messages/{message}', [MessagingController::class, 'destroyMessage'])
+            ->middleware('throttle:40,1');
         Route::post('chats/{conversation}/read', [MessagingController::class, 'read']);
         Route::get('{jpMessage}', [JpMessageController::class, 'show']);
         Route::post('{jpMessage}/replies', [JpMessageController::class, 'reply']);

@@ -3,11 +3,11 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -58,6 +58,7 @@ export default function MembreChatScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<ListRow>>(null);
+  const inputRef = useRef<TextInput>(null);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversation, setConversation] = useState<ChatConversationItem | null>(null);
@@ -68,9 +69,27 @@ export default function MembreChatScreen() {
   const [canSend, setCanSend] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(audioRecorder);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const onShow = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+      requestAnimationFrame(() => {
+        listRef.current?.scrollToEnd({ animated: true });
+      });
+    });
+    const onHide = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+    return () => {
+      onShow.remove();
+      onHide.remove();
+    };
+  }, []);
 
   const load = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -140,6 +159,24 @@ export default function MembreChatScreen() {
     setSending(true);
     setError(null);
     try {
+      if (editingId) {
+        const response = await api.put<{ data: ChatMessage }>(
+          `/jp-messages/chats/${id}/messages/${editingId}`,
+          { body: text },
+        );
+        if (response.data) {
+          setMessages((current) =>
+            current.map((item) => (item.id === editingId ? response.data : item)),
+          );
+        } else {
+          await load({ silent: true });
+        }
+        setEditingId(null);
+        setBody('');
+        setEmojiOpen(false);
+        return;
+      }
+
       const form = new FormData();
       if (text) form.append('body', text);
       if (attachment) {
@@ -164,20 +201,88 @@ export default function MembreChatScreen() {
     }
   }
 
+  function startEdit(message: ChatMessage) {
+    if (!message.body || message.type === 'deleted') return;
+    setEditingId(message.id);
+    setBody(message.body);
+    setPending(null);
+    setEmojiOpen(false);
+    inputRef.current?.focus();
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setBody('');
+  }
+
+  function confirmDelete(message: ChatMessage) {
+    Alert.alert('Supprimer', 'Supprimer ce message pour tout le monde ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Supprimer',
+        style: 'destructive',
+        onPress: () => void deleteMessage(message.id),
+      },
+    ]);
+  }
+
+  async function deleteMessage(messageId: number) {
+    if (!id) return;
+    try {
+      await api.delete(`/jp-messages/chats/${id}/messages/${messageId}`);
+      setMessages((current) => current.filter((item) => item.id !== messageId));
+      if (editingId === messageId) cancelEdit();
+    } catch (err) {
+      Alert.alert(
+        'Suppression',
+        err instanceof ApiError ? err.message : 'Impossible de supprimer ce message.',
+      );
+    }
+  }
+
+  function onMessageLongPress(message: ChatMessage, mine: boolean) {
+    const buttons: {
+      text: string;
+      style?: 'cancel' | 'destructive' | 'default';
+      onPress?: () => void;
+    }[] = [];
+
+    if (message.body) {
+      buttons.push({
+        text: 'Copier',
+        onPress: () => {
+          void import('expo-clipboard').then((Clipboard) =>
+            Clipboard.setStringAsync(message.body || ''),
+          );
+        },
+      });
+    }
+
+    if (mine && message.type !== 'deleted') {
+      if (message.body) {
+        buttons.push({ text: 'Modifier', onPress: () => startEdit(message) });
+      }
+      buttons.push({
+        text: 'Supprimer',
+        style: 'destructive',
+        onPress: () => confirmDelete(message),
+      });
+    }
+
+    buttons.push({ text: 'Annuler', style: 'cancel' });
+    if (buttons.length <= 1) return;
+    Alert.alert('Message', undefined, buttons);
+  }
+
   function pickAttachment() {
+    if (editingId) {
+      Alert.alert('Modification', 'Terminez ou annulez la modification avant de joindre un fichier.');
+      return;
+    }
     Alert.alert('Joindre', 'Choisissez une pièce jointe', [
-      {
-        text: 'Photo',
-        onPress: () => void pickImage('library'),
-      },
-      {
-        text: 'Caméra',
-        onPress: () => void pickImage('camera'),
-      },
-      {
-        text: 'Document',
-        onPress: () => void pickDocument(),
-      },
+      { text: 'Photo', onPress: () => void pickImage('library') },
+      { text: 'Caméra', onPress: () => void pickImage('camera') },
+      { text: 'Document', onPress: () => void pickDocument() },
       { text: 'Annuler', style: 'cancel' },
     ]);
   }
@@ -238,7 +343,7 @@ export default function MembreChatScreen() {
   }
 
   async function toggleRecord() {
-    if (!canSend) return;
+    if (!canSend || editingId) return;
     try {
       if (recorderState.isRecording) {
         await audioRecorder.stop();
@@ -275,6 +380,11 @@ export default function MembreChatScreen() {
     conversation?.peer?.role ||
     (recorderState.isRecording ? 'Enregistrement…' : id ? `#${id}` : '');
 
+  const composerBottomPad =
+    Platform.OS === 'android'
+      ? Math.max(keyboardHeight, Math.max(insets.bottom, 8))
+      : Math.max(insets.bottom, 8);
+
   if (loading) {
     return (
       <View style={{ flex: 1, backgroundColor: '#E5DDD5' }}>
@@ -304,7 +414,7 @@ export default function MembreChatScreen() {
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={insets.top + 72}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 64 : 0}
       >
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -313,6 +423,8 @@ export default function MembreChatScreen() {
           data={rows}
           keyExtractor={(item) => item.key}
           contentContainerStyle={{ padding: 12, paddingBottom: 16 }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
           renderItem={({ item }) => {
             if (item.type === 'day') {
@@ -324,14 +436,16 @@ export default function MembreChatScreen() {
             }
             const message = item.message;
             const mine = message.author_id === user?.id;
+            const editing = editingId === message.id;
             return (
               <Pressable
-                onLongPress={() => {
-                  if (message.body) {
-                    void Share.share({ message: message.body });
-                  }
-                }}
-                style={[styles.bubble, mine ? styles.mine : styles.theirs]}
+                onLongPress={() => onMessageLongPress(message, mine)}
+                delayLongPress={280}
+                style={[
+                  styles.bubble,
+                  mine ? styles.mine : styles.theirs,
+                  editing && styles.editingBubble,
+                ]}
               >
                 {!mine && message.author ? (
                   <Text style={styles.author}>{message.author}</Text>
@@ -343,6 +457,7 @@ export default function MembreChatScreen() {
                   <ChatAttachmentView key={file.id} file={file} inverted={false} />
                 ))}
                 <Text style={[styles.time, mine && styles.timeMine]}>
+                  {message.edited_at ? 'modifié · ' : ''}
                   {formatMessageTime(message.created_at)}
                   {mine ? ' ✓' : ''}
                 </Text>
@@ -355,7 +470,17 @@ export default function MembreChatScreen() {
         />
 
         {canSend ? (
-          <View style={[styles.composerWrap, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+          <View style={[styles.composerWrap, { paddingBottom: composerBottomPad }]}>
+            {editingId ? (
+              <View style={styles.editBanner}>
+                <Ionicons name="pencil" size={16} color={JP.brand} />
+                <Text style={styles.editBannerText}>Modification du message</Text>
+                <Pressable onPress={cancelEdit} hitSlop={8}>
+                  <Ionicons name="close" size={18} color={JP.muted} />
+                </Pressable>
+              </View>
+            ) : null}
+
             {pending ? (
               <View style={styles.pending}>
                 {pending.kind === 'image' ? (
@@ -387,6 +512,7 @@ export default function MembreChatScreen() {
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.emojiRow}
+                keyboardShouldPersistTaps="handled"
               >
                 {CHAT_EMOJIS.map((emoji) => (
                   <Pressable
@@ -420,21 +546,27 @@ export default function MembreChatScreen() {
                 <Ionicons name="attach" size={24} color={JP.muted} />
               </Pressable>
               <TextInput
+                ref={inputRef}
                 style={styles.input}
-                placeholder="Message"
+                placeholder={editingId ? 'Modifier le message…' : 'Message'}
                 placeholderTextColor={JP.muted}
                 value={body}
                 onChangeText={setBody}
                 multiline
-                onFocus={() => setEmojiOpen(false)}
+                onFocus={() => {
+                  setEmojiOpen(false);
+                  requestAnimationFrame(() => {
+                    listRef.current?.scrollToEnd({ animated: true });
+                  });
+                }}
               />
-              {body.trim() || pending ? (
+              {body.trim() || pending || editingId ? (
                 <Pressable
                   onPress={() => void send()}
-                  disabled={sending}
+                  disabled={sending || (editingId ? !body.trim() : false)}
                   style={[styles.send, sending && { opacity: 0.5 }]}
                 >
-                  <Ionicons name="send" size={18} color={JP.white} />
+                  <Ionicons name={editingId ? 'checkmark' : 'send'} size={18} color={JP.white} />
                 </Pressable>
               ) : (
                 <Pressable
@@ -509,6 +641,10 @@ const styles = StyleSheet.create({
     backgroundColor: JP.white,
     borderTopLeftRadius: 4,
   },
+  editingBubble: {
+    borderWidth: 1.5,
+    borderColor: JP.brand,
+  },
   author: { fontSize: 11, fontWeight: '800', color: JP.brand, marginBottom: 3 },
   body: { fontSize: 15, color: '#111B21', lineHeight: 21 },
   time: {
@@ -526,6 +662,17 @@ const styles = StyleSheet.create({
     paddingTop: 6,
     paddingHorizontal: 8,
   },
+  editBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: JP.brandLight,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 6,
+  },
+  editBannerText: { flex: 1, fontSize: 12, fontWeight: '700', color: JP.brandDark },
   pending: {
     flexDirection: 'row',
     alignItems: 'center',

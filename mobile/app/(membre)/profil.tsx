@@ -10,10 +10,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { useRouter } from 'expo-router';
 import { BigButton, Field, Screen } from '@/components/ui';
+import { MemberCardPreview, type CardPreviewData } from '@/components/membre/card-preview';
 import { MembrePageHeader } from '@/components/membre/page-header';
 import { useAuth } from '@/lib/auth';
-import { api, ApiError, getToken } from '@/lib/api';
+import { api, ApiError, getToken, resolveMediaUrl } from '@/lib/api';
 import { syncBiometricCredentials } from '@/lib/biometric-auth';
 import { JP, type JpColors } from '@/constants/theme';
 import type { PickedPhoto } from '@/components/photo-field';
@@ -52,9 +54,11 @@ function passwordRules(value: string) {
 
 export default function MembreProfilScreen() {
   const { user, refresh } = useAuth();
+  const router = useRouter();
   const styles = useMemo(() => makeStyles(JP), []);
 
   const [member, setMember] = useState<MemberProfile | null>(null);
+  const [card, setCard] = useState<CardPreviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [authHeader, setAuthHeader] = useState<Record<string, string> | undefined>();
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -80,8 +84,47 @@ export default function MembreProfilScreen() {
       setEmail(me.user?.email || me.member?.email || user?.email || '');
       setPhone(me.user?.phone || me.member?.phone || user?.phone || '');
       setPhotoPreview(me.member?.photo_url || me.user?.photo_url || user?.photo_url || null);
+
+      if (user?.member_id) {
+        try {
+          const cardRes = await api.get<{ render?: CardPreviewData | null }>(
+            `/members/${user.member_id}/card`,
+          );
+          const render = cardRes.render ?? null;
+          setCard(
+            render
+              ? {
+                  ...render,
+                  photo_url: resolveMediaUrl(render.photo_url),
+                  member_code: render.member_code || user.member_code || undefined,
+                }
+              : {
+                  full_name: me.user?.name || user.name,
+                  member_code: user.member_code ?? undefined,
+                  structure: user.member_structure_name ?? undefined,
+                  card_status_label: 'CARTE VALIDE',
+                  photo_url: resolveMediaUrl(
+                    me.member?.photo_url || me.user?.photo_url || user.photo_url,
+                  ),
+                },
+          );
+        } catch {
+          setCard({
+            full_name: me.user?.name || user?.name,
+            member_code: user?.member_code ?? undefined,
+            structure: user?.member_structure_name ?? undefined,
+            card_status_label: 'CARTE VALIDE',
+            photo_url: resolveMediaUrl(
+              me.member?.photo_url || me.user?.photo_url || user?.photo_url,
+            ),
+          });
+        }
+      } else {
+        setCard(null);
+      }
     } catch {
       setMember(null);
+      setCard(null);
     } finally {
       setLoading(false);
     }
@@ -254,6 +297,18 @@ export default function MembreProfilScreen() {
               <Text style={styles.code}>{user?.member_code}</Text>
               <Text style={styles.hint}>Touchez la photo pour la modifier</Text>
             </View>
+
+            {card ? (
+              <>
+                <Text style={styles.section}>Ma carte</Text>
+                <MemberCardPreview
+                  card={card}
+                  fallbackPhotoUrl={photoPreview}
+                  onPress={() => router.push('/(membre)/ma-carte')}
+                />
+                <View style={{ height: 16 }} />
+              </>
+            ) : null}
 
             <Text style={styles.section}>Informations du compte</Text>
             <Field label="Nom complet" value={name} onChangeText={setName} />
