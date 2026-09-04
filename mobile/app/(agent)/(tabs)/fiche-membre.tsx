@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +11,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AuthenticatedImage } from '@/components/authenticated-image';
 import { MembrePageHeader } from '@/components/membre/page-header';
 import { SectionHeader } from '@/components/membre/section';
 import { MemberCardVisual } from '@/components/membre/member-card-visual';
@@ -145,7 +145,9 @@ export default function FicheMembreScreen() {
   const name = member?.full_name ?? params.fullName ?? 'Membre';
   const code = member?.member_code ?? params.memberCode ?? '—';
   const photo =
-    resolveMediaUrl(member?.photo_url ?? params.photoUrl) ?? null;
+    resolveMediaUrl(member?.photo_url ?? params.photoUrl) ??
+    resolveMediaUrl(cardRender?.photo_url) ??
+    null;
   const statusLabel = member?.status_label ?? params.statusLabel ?? 'Membre';
   const cardStatus = member?.card?.status_label ?? params.cardStatus;
 
@@ -168,15 +170,12 @@ export default function FicheMembreScreen() {
         ) : (
           <>
             <View style={styles.heroCard}>
-              {photo ? (
-                <Image source={{ uri: photo }} style={styles.photo} />
-              ) : (
-                <View style={[styles.photo, styles.photoFallback]}>
-                  <Text style={styles.photoInitials}>
-                    {name.slice(0, 1).toUpperCase()}
-                  </Text>
-                </View>
-              )}
+              <AuthenticatedImage
+                uri={photo}
+                memberCode={code !== '—' ? code : null}
+                style={styles.photo}
+                fallbackLetter={name}
+              />
               <Text style={styles.name}>{name}</Text>
               <Text style={styles.code}>{code}</Text>
               <View style={styles.badges}>
@@ -369,13 +368,8 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     borderWidth: 3,
     borderColor: JP.brandLight,
+    overflow: 'hidden',
   },
-  photoFallback: {
-    backgroundColor: JP.brandLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  photoInitials: { fontSize: 48, fontWeight: '800', color: JP.brand },
   name: { fontSize: 22, fontWeight: '900', color: JP.text, textAlign: 'center' },
   code: {
     marginTop: 4,
