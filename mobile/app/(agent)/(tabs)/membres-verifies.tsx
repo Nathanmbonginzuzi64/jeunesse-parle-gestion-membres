@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -11,6 +10,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { AuthenticatedImage } from '@/components/authenticated-image';
 import { MembrePageHeader } from '@/components/membre/page-header';
 import { EmptyState } from '@/components/membre/section';
 import { AgentListCard } from '@/components/agent/agent-ui';
@@ -169,16 +169,12 @@ export default function MembresVerifiesScreen() {
             }
           >
             <View style={styles.row}>
-              {item.photo_url ? (
-                <Image
-                  source={{ uri: resolveMediaUrl(item.photo_url) ?? undefined }}
-                  style={styles.avatar}
-                />
-              ) : (
-                <View style={[styles.avatar, styles.avatarFallback]}>
-                  <Ionicons name="person" size={20} color={JP.muted} />
-                </View>
-              )}
+              <AuthenticatedImage
+                uri={resolveMediaUrl(item.photo_url)}
+                memberCode={item.member_code}
+                style={styles.avatar}
+                fallbackLetter={item.full_name ?? '?'}
+              />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.name} numberOfLines={1}>
                   {item.full_name ?? 'Membre'}

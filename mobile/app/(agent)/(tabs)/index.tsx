@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Image,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -11,6 +10,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AuthenticatedImage } from '@/components/authenticated-image';
 import { MembrePageHeader } from '@/components/membre/page-header';
 import { EmptyState, SectionHeader } from '@/components/membre/section';
 import { AgentActionTile, AgentListCard } from '@/components/agent/agent-ui';
@@ -133,13 +133,12 @@ export default function AgentHomeScreen() {
       {/* Carte profil fixe : le scroll passe en dessous */}
       <View style={styles.stickyProfile}>
         <View style={styles.profileCard}>
-          {photo ? (
-            <Image source={{ uri: photo }} style={styles.photo} />
-          ) : (
-            <View style={[styles.photo, styles.photoFallback]}>
-              <Ionicons name="person" size={42} color={JP.muted} />
-            </View>
-          )}
+          <AuthenticatedImage
+            uri={photo}
+            memberCode={dashboard?.agent.member_code ?? user?.member_code}
+            style={styles.photo}
+            fallbackLetter={user?.name ?? 'A'}
+          />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={styles.profileName} numberOfLines={2}>
               {user?.name ?? 'Agent'}
