@@ -58,7 +58,7 @@ export function AgentPresentsPanel() {
     [page, mineOnly, debouncedQ],
   );
   const feed = useApi<AgentPresentsFeed>("/attendance/agent-presents", query, {
-    refreshInterval: 5_000,
+    refreshInterval: 2_500,
   });
 
   const ongoing = feed.data?.ongoing ?? [];

@@ -91,7 +91,7 @@ export default function MemberAttendancesPage() {
   const feed = useApi<MemberAttendancesResponse>(
     member ? "/attendances/for-member" : null,
     query,
-    { refreshInterval: 20_000 },
+    { refreshInterval: 3_000 },
   );
 
   if (!member) {

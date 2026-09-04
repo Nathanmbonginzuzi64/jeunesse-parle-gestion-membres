@@ -141,6 +141,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     );
   }
 
+  const upper = method.toUpperCase();
+  if (upper !== "GET" && upper !== "HEAD" && upper !== "OPTIONS") {
+    void import("./realtime").then(({ notifyRealtimeRefresh }) => {
+      notifyRealtimeRefresh(`${upper} ${path}`);
+    });
+  }
+
   return data as T;
 }
 
@@ -196,6 +203,9 @@ export function uploadFormData<T>(
 
       if (xhr.status >= 200 && xhr.status < 300) {
         onProgress?.(100);
+        void import("./realtime").then(({ notifyRealtimeRefresh }) => {
+          notifyRealtimeRefresh(`UPLOAD ${path}`);
+        });
         resolve(data as T);
         return;
       }

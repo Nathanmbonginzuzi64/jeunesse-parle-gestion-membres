@@ -53,7 +53,7 @@ function VerifiedMembersTool() {
   const feed = useApi<{ data: VerifiedMember[]; meta: Paginated<unknown>["meta"] }>(
     "/verifications/members",
     { page, per_page: 25, q: debouncedQ || undefined },
-    { refreshInterval: 8_000 },
+    { refreshInterval: 2_500 },
   );
 
   const rows = feed.data?.data ?? [];

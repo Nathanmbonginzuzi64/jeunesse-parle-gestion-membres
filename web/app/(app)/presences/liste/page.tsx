@@ -51,7 +51,7 @@ function AdvancedPresentsTool() {
   );
 
   const feed = useApi<AgentPresentsFeed>("/attendance/agent-presents", query, {
-    refreshInterval: 5_000,
+    refreshInterval: 2_500,
   });
 
   const rows = feed.data?.data ?? [];

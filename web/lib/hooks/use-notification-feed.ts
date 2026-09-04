@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { getFastPollMs, subscribeRealtimeRefresh } from "@/lib/realtime";
 import type { AppNotification } from "@/lib/types";
 
-const POLL_MS = 5_000;
+const POLL_MS = getFastPollMs();
 
 export function useNotificationFeed(options?: { enabled?: boolean; onNew?: (items: AppNotification[]) => void }) {
   const enabled = options?.enabled ?? true;
@@ -58,7 +59,15 @@ export function useNotificationFeed(options?: { enabled?: boolean; onNew?: (item
       void pollSince();
     }, POLL_MS);
 
-    return () => clearInterval(interval);
+    const unsubscribe = subscribeRealtimeRefresh(() => {
+      void refreshCount();
+      void pollSince();
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, [enabled, pollSince, refreshCount]);
 
   return {

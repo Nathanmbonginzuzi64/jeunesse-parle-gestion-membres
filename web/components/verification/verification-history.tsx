@@ -90,7 +90,7 @@ export function ServerVerificationHistory({
   const history = useApi<{ data: VerificationLogRow[]; meta: Paginated<unknown>["meta"] }>(
     "/verifications/history",
     query,
-    { refreshInterval: 5_000 },
+    { refreshInterval: 2_500 },
   );
 
   const meta = history.data?.meta;

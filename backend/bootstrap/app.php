@@ -35,6 +35,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'maintenance' => EnsureNotInMaintenance::class,
             'session.timeout' => EnforceSessionTimeout::class,
         ]);
+
+        $middleware->appendToGroup('api', [
+            \App\Http\Middleware\PreventApiResponseCaching::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         /*

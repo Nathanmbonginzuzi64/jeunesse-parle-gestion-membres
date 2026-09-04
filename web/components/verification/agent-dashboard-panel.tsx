@@ -49,7 +49,7 @@ type AgentDashboard = {
 export function AgentDashboardPanel() {
   const { user } = useAuth();
   const dash = useApi<AgentDashboard>("/agent/dashboard", {}, {
-    refreshInterval: 8_000,
+    refreshInterval: 2_500,
   });
 
   if (!dash.data && dash.loading) return null;

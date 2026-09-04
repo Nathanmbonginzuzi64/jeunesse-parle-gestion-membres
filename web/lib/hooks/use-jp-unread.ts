@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { getFastPollMs, subscribeRealtimeRefresh } from "@/lib/realtime";
 
-const POLL_MS = 5_000;
+const POLL_MS = getFastPollMs();
 
 export function useJpUnread() {
   const [count, setCount] = useState(0);
@@ -24,15 +25,12 @@ export function useJpUnread() {
       void refresh();
     }, POLL_MS);
     const onNotif = () => void refresh();
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void refresh();
-    };
+    const unsubscribe = subscribeRealtimeRefresh(() => void refresh());
     window.addEventListener("jp:notifications", onNotif);
-    document.addEventListener("visibilitychange", onVisible);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener("jp:notifications", onNotif);
-      document.removeEventListener("visibilitychange", onVisible);
+      unsubscribe();
     };
   }, [refresh]);
 

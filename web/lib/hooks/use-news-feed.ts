@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { getFastPollMs, subscribeRealtimeRefresh } from "@/lib/realtime";
 import type { NewsPostItem } from "@/lib/news/constants";
 
-const POLL_MS = 5_000;
+const POLL_MS = getFastPollMs();
 
 interface NewsFeedMeta {
   current_page: number;
@@ -142,13 +143,10 @@ export function useNewsFeed(options: UseNewsFeedOptions = {}) {
   useEffect(() => {
     if (!enabled) return;
     const interval = setInterval(() => void pollNew(), POLL_MS);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void pollNew();
-    };
-    document.addEventListener("visibilitychange", onVisible);
+    const unsubscribe = subscribeRealtimeRefresh(() => void pollNew());
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVisible);
+      unsubscribe();
     };
   }, [enabled, pollNew]);
 

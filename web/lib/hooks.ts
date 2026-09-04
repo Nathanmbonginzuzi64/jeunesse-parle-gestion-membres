@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, fetchProtectedImage } from "./api";
+import { getFastPollMs, subscribeRealtimeRefresh } from "./realtime";
 import type { City, Commune, District, Province, Quartier, Avenue, References } from "./types";
 
 interface FetchState<T> {
@@ -12,13 +13,14 @@ interface FetchState<T> {
 
 export type UseApiOptions = {
   /**
-   * Intervalle de refresh silencieux en ms (défaut 5000).
+   * Intervalle de refresh silencieux en ms (défaut ~2,5 s, objectif < 5 s).
    * `false` pour désactiver. Ne bascule jamais `loading` pendant le poll.
    */
   refreshInterval?: number | false;
 };
 
-const DEFAULT_REFRESH_MS = 5_000;
+/** Polling rapide pour que tous les portails web restent à jour sous 5 secondes. */
+const DEFAULT_REFRESH_MS = getFastPollMs();
 
 function sameData(a: unknown, b: unknown) {
   if (a === b) return true;
@@ -49,7 +51,7 @@ export function useApi<T>(
   const refreshInterval =
     options?.refreshInterval === false
       ? false
-      : (options?.refreshInterval ?? DEFAULT_REFRESH_MS);
+      : Math.min(options?.refreshInterval ?? DEFAULT_REFRESH_MS, DEFAULT_REFRESH_MS * 2);
   const dataRef = useRef<T | null>(null);
   dataRef.current = state.data;
 
@@ -105,17 +107,16 @@ export function useApi<T>(
       }
     };
 
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void tick();
-    };
+    // Premier poll immédiat pour ne pas attendre un cycle complet.
+    void tick();
 
     const timer = window.setInterval(() => void tick(), refreshInterval);
-    document.addEventListener("visibilitychange", onVisible);
+    const unsubscribe = subscribeRealtimeRefresh(() => void tick());
 
     return () => {
       cancelled = true;
       window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisible);
+      unsubscribe();
     };
   }, [path, serialized, refreshInterval]);
 

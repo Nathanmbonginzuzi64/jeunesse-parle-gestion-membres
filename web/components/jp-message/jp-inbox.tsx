@@ -98,7 +98,7 @@ export function JpInbox({
   }, [loadLists]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => void loadLists(true), 5000);
+    const timer = window.setInterval(() => void loadLists(true), 2500);
     return () => window.clearInterval(timer);
   }, [loadLists]);
 
@@ -547,7 +547,7 @@ function ChatThread({
 
   useEffect(() => {
     void load();
-    const timer = window.setInterval(() => void load(true), 4000);
+    const timer = window.setInterval(() => void load(true), 2500);
     return () => window.clearInterval(timer);
   }, [load]);
 

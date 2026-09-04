@@ -254,7 +254,7 @@ export function ActivityLiveLocationPanel({
     };
 
     sync();
-    const timer = setInterval(sync, 15_000);
+    const timer = setInterval(sync, 3_000);
     return () => clearInterval(timer);
   }, [sharing, canManage, activity.id]);
 
