@@ -1,8 +1,8 @@
 /**
  * Client HTTP unique vers l'API.
  *
- * En mode design (`NEXT_PUBLIC_USE_MOCKS` différent de `false`), aucune requête
- * n'est envoyée à Laravel : un jeu de données local alimente l'interface.
+ * En mode design (`NEXT_PUBLIC_USE_MOCKS=true`), aucune requête n'est envoyée
+ * à Laravel : un jeu de données local alimente l'interface.
  */
 
 import { USE_MOCKS } from "./config";

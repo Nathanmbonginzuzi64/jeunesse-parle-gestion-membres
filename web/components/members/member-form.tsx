@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { TerritorySelect } from "@/components/forms/territory-select";
 import { TagInput } from "@/components/forms/tag-input";
 import { PhotoField } from "@/components/members/photo-field";
@@ -250,6 +250,54 @@ function isBiometryStep(mode: MemberFormMode, step: number) {
   return false;
 }
 
+function normalizePhoneInput(phone: string): string {
+  return phone.replace(/[\s().-]+/g, "");
+}
+
+function isValidPhone(phone: string): boolean {
+  return /^\+?[0-9]{9,15}$/.test(normalizePhoneInput(phone));
+}
+
+function passwordMeetsPolicy(password: string): boolean {
+  return password.length >= 8 && /[A-Za-z]/.test(password) && /[0-9]/.test(password);
+}
+
+function validateRegisterStep(
+  step: number,
+  values: MemberFormValues,
+): { field?: string; message: string } | null {
+  if (step === 0) {
+    if (!values.last_name.trim()) return { field: "last_name", message: "Le nom est obligatoire." };
+    if (!values.first_name.trim()) return { field: "first_name", message: "Le prénom est obligatoire." };
+    if (!values.gender) return { field: "gender", message: "Indiquez votre sexe." };
+    if (!values.birth_date) {
+      return { field: "birth_date", message: "La date de naissance est obligatoire." };
+    }
+  }
+  if (step === 1) {
+    if (!values.phone.trim()) return { field: "phone", message: "Le téléphone est obligatoire." };
+    if (!isValidPhone(values.phone)) {
+      return {
+        field: "phone",
+        message: "Le téléphone doit contenir entre 9 et 15 chiffres (ex. +243…).",
+      };
+    }
+    if (values.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim())) {
+      return { field: "email", message: "L'adresse e-mail n'est pas valide." };
+    }
+  }
+  if (step === 2 && !values.province_id) {
+    return { field: "province_id", message: "Sélectionnez votre province." };
+  }
+  if (step === 7 && !values.consent_given) {
+    return {
+      field: "consent_given",
+      message: "Acceptez le traitement de vos données pour continuer.",
+    };
+  }
+  return null;
+}
+
 export function MemberForm({
   mode,
   initial,
@@ -258,6 +306,8 @@ export function MemberForm({
   duplicates,
   lockedProvince,
   submitLabel,
+  initialStep = 0,
+  focusToken,
   onSubmit,
 }: {
   mode: MemberFormMode;
@@ -267,18 +317,41 @@ export function MemberForm({
   duplicates?: DuplicateMatch[];
   lockedProvince?: boolean;
   submitLabel: string;
+  /** Étape de départ (ex. après erreur API). */
+  initialStep?: number;
+  /** Incrémenté pour forcer le retour à initialStep sans remonter le formulaire. */
+  focusToken?: number;
   onSubmit: (values: MemberFormValues) => Promise<void> | void;
 }) {
   const references = useReferences();
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(() => Math.max(0, initialStep));
   const [values, setValues] = useState<MemberFormValues>(initial ?? EMPTY_MEMBER_FORM);
   const [biometryError, setBiometryError] = useState<string | null>(null);
   const [portalError, setPortalError] = useState<string | null>(null);
+  const [stepError, setStepError] = useState<string | null>(null);
+  const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
   const structures = usePublicStructures(values.province_id, values.city_id);
   const steps = STEPS[mode];
+  const fieldErrors = { ...localErrors, ...errors };
+
+  useEffect(() => {
+    if (focusToken === undefined) return;
+    if (initialStep >= 0 && initialStep < steps.length) {
+      setStep(initialStep);
+    }
+  }, [focusToken, initialStep, steps.length]);
 
   function patch(partial: Partial<MemberFormValues>) {
     setValues((current) => ({ ...current, ...partial }));
+    setStepError(null);
+    const cleared = Object.keys(partial);
+    if (cleared.length) {
+      setLocalErrors((current) => {
+        const next = { ...current };
+        for (const key of cleared) delete next[key];
+        return next;
+      });
+    }
   }
 
   const fullName = useMemo(
@@ -296,6 +369,15 @@ export function MemberForm({
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (step < steps.length - 1) {
+      if (mode === "register") {
+        const invalid = validateRegisterStep(step, values);
+        if (invalid) {
+          setStepError(invalid.message);
+          if (invalid.field) setLocalErrors({ [invalid.field]: invalid.message });
+          return;
+        }
+      }
+
       if (isPortalAccessStep(mode, step)) {
         const requiresPassword = mode === "register" || mode === "create" || !values.has_portal_account;
         const hasPasswordInput = Boolean(values.password || values.password_confirmation);
@@ -306,8 +388,8 @@ export function MemberForm({
         }
 
         if (hasPasswordInput || requiresPassword) {
-          if (!values.password || values.password.length < 8) {
-            setPortalError("Le mot de passe doit contenir au moins 8 caractères.");
+          if (!passwordMeetsPolicy(values.password)) {
+            setPortalError("Le mot de passe doit contenir au moins 8 caractères, avec des lettres et des chiffres.");
             return;
           }
           if (values.password !== values.password_confirmation) {
@@ -333,7 +415,14 @@ export function MemberForm({
       }
       setPortalError(null);
       setBiometryError(null);
+      setStepError(null);
+      setLocalErrors({});
       setStep((current) => current + 1);
+      return;
+    }
+    if (mode === "register" && !values.consent_given) {
+      setStepError("Acceptez le traitement de vos données pour envoyer la demande.");
+      setStep(7);
       return;
     }
     if (
@@ -355,7 +444,17 @@ export function MemberForm({
       setStep(steps.findIndex((_, i) => isBiometryStep(mode, i)));
       return;
     }
-    await onSubmit(values);
+    if (mode === "register" || mode === "create") {
+      if (!passwordMeetsPolicy(values.password) || values.password !== values.password_confirmation) {
+        setPortalError("Vérifiez le mot de passe (8 caractères min., lettres et chiffres).");
+        setStep(5);
+        return;
+      }
+    }
+    await onSubmit({
+      ...values,
+      phone: normalizePhoneInput(values.phone),
+    });
   }
 
   return (
@@ -368,7 +467,7 @@ export function MemberForm({
             name={fullName}
             previewUrl={values.photo_url}
             onChange={(photo) => patch({ photo })}
-            error={errors.photo}
+            error={fieldErrors.photo}
           />
           <div className="sm:col-span-2 grid gap-4 sm:grid-cols-3">
             <Input
@@ -376,20 +475,20 @@ export function MemberForm({
               required
               value={values.last_name}
               onChange={(event) => patch({ last_name: event.target.value })}
-              error={errors.last_name}
+              error={fieldErrors.last_name}
             />
             <Input
               label="Postnom"
               value={values.middle_name}
               onChange={(event) => patch({ middle_name: event.target.value })}
-              error={errors.middle_name}
+              error={fieldErrors.middle_name}
             />
             <Input
               label="Prénom"
               required
               value={values.first_name}
               onChange={(event) => patch({ first_name: event.target.value })}
-              error={errors.first_name}
+              error={fieldErrors.first_name}
             />
           </div>
           <Select
@@ -402,7 +501,7 @@ export function MemberForm({
               { value: "M", label: "Masculin" },
               { value: "F", label: "Féminin" },
             ]}
-            error={errors.gender}
+            error={fieldErrors.gender}
           />
           <Input
             label="Date de naissance"
@@ -410,13 +509,13 @@ export function MemberForm({
             required={mode === "register"}
             value={values.birth_date}
             onChange={(event) => patch({ birth_date: event.target.value })}
-            error={errors.birth_date}
+            error={fieldErrors.birth_date}
           />
           <Input
             label="Lieu de naissance"
             value={values.birth_place}
             onChange={(event) => patch({ birth_place: event.target.value })}
-            error={errors.birth_place}
+            error={fieldErrors.birth_place}
             wrapperClassName="sm:col-span-2"
           />
         </div>
@@ -430,14 +529,14 @@ export function MemberForm({
             value={values.phone}
             onChange={(event) => patch({ phone: event.target.value })}
             placeholder="+243 …"
-            error={errors.phone}
+            error={fieldErrors.phone}
           />
           {mode !== "register" && mode !== "create" && (
             <Input
               label="Téléphone secondaire"
               value={values.phone_alt}
               onChange={(event) => patch({ phone_alt: event.target.value })}
-              error={errors.phone_alt}
+              error={fieldErrors.phone_alt}
             />
           )}
           <Input
@@ -445,13 +544,13 @@ export function MemberForm({
             type="email"
             value={values.email}
             onChange={(event) => patch({ email: event.target.value })}
-            error={errors.email}
+            error={fieldErrors.email}
           />
           <Input
             label="Adresse"
             value={values.address}
             onChange={(event) => patch({ address: event.target.value })}
-            error={errors.address}
+            error={fieldErrors.address}
             wrapperClassName="sm:col-span-2"
           />
         </div>
@@ -470,19 +569,19 @@ export function MemberForm({
               zone_id: values.zone_id,
             }}
             onChange={(territory) => patch({ ...territory, structure_id: null, avenue_id: null })}
-            errors={errors}
+            errors={fieldErrors}
           />
           <MemberAvenueField
             zoneId={values.zone_id}
             value={values.avenue_id}
             onChange={(avenue_id) => patch({ avenue_id })}
-            error={errors.avenue_id}
+            error={fieldErrors.avenue_id}
           />
           <Input
             label="Numéro d'habitation"
             value={values.house_number}
             onChange={(event) => patch({ house_number: event.target.value })}
-            error={errors.house_number}
+            error={fieldErrors.house_number}
             placeholder="Ex. 12, parcelle B"
           />
           <Select
@@ -494,7 +593,7 @@ export function MemberForm({
               patch({ structure_id: event.target.value ? Number(event.target.value) : null })
             }
             options={structures.map((structure) => ({ value: structure.id, label: structure.name }))}
-            error={errors.structure_id}
+            error={fieldErrors.structure_id}
           />
         </div>
       )}
@@ -507,7 +606,7 @@ export function MemberForm({
             value={values.education_level}
             onChange={(event) => patch({ education_level: event.target.value })}
             options={(references?.education_levels ?? []).map((level) => ({ value: level, label: level }))}
-            error={errors.education_level}
+            error={fieldErrors.education_level}
           />
           <Select
             label="Situation professionnelle"
@@ -518,19 +617,19 @@ export function MemberForm({
               value: status,
               label: status,
             }))}
-            error={errors.employment_status}
+            error={fieldErrors.employment_status}
           />
           <Input
             label="Profession"
             value={values.profession}
             onChange={(event) => patch({ profession: event.target.value })}
-            error={errors.profession}
+            error={fieldErrors.profession}
           />
           <Input
             label="Domaine d'activité"
             value={values.activity_domain}
             onChange={(event) => patch({ activity_domain: event.target.value })}
-            error={errors.activity_domain}
+            error={fieldErrors.activity_domain}
           />
         </div>
       )}
@@ -542,14 +641,14 @@ export function MemberForm({
             value={values.skills}
             onChange={(skills) => patch({ skills })}
             suggestions={SKILL_SUGGESTIONS}
-            error={errors.skills}
+            error={fieldErrors.skills}
           />
           <TagInput
             label="Centres d'intérêt"
             value={values.interests}
             onChange={(interests) => patch({ interests })}
             suggestions={INTEREST_SUGGESTIONS}
-            error={errors.interests}
+            error={fieldErrors.interests}
           />
         </div>
       )}
@@ -560,34 +659,34 @@ export function MemberForm({
             label="Fonction"
             value={values.position}
             onChange={(event) => patch({ position: event.target.value })}
-            error={errors.position}
+            error={fieldErrors.position}
           />
           <Input
             label="Date d'adhésion"
             type="date"
             value={values.joined_at}
             onChange={(event) => patch({ joined_at: event.target.value })}
-            error={errors.joined_at}
+            error={fieldErrors.joined_at}
           />
           <TagInput
             label="Compétences"
             value={values.skills}
             onChange={(skills) => patch({ skills })}
             suggestions={SKILL_SUGGESTIONS}
-            error={errors.skills}
+            error={fieldErrors.skills}
           />
           <TagInput
             label="Centres d'intérêt"
             value={values.interests}
             onChange={(interests) => patch({ interests })}
             suggestions={INTEREST_SUGGESTIONS}
-            error={errors.interests}
+            error={fieldErrors.interests}
           />
           <Textarea
             label="Notes internes"
             value={values.notes}
             onChange={(event) => patch({ notes: event.target.value })}
-            error={errors.notes}
+            error={fieldErrors.notes}
             wrapperClassName="sm:col-span-2"
           />
         </div>
@@ -626,7 +725,7 @@ export function MemberForm({
                 patch({ password: event.target.value });
                 setPortalError(null);
               }}
-              error={errors.password ?? portalError ?? undefined}
+              error={fieldErrors.password ?? portalError ?? undefined}
             />
             <Input
               label="Confirmation"
@@ -637,7 +736,7 @@ export function MemberForm({
                 patch({ password_confirmation: event.target.value });
                 setPortalError(null);
               }}
-              error={errors.password_confirmation}
+              error={fieldErrors.password_confirmation}
             />
           </div>
           <PasswordStrength password={values.password} />
@@ -659,7 +758,7 @@ export function MemberForm({
             }}
             displayName={biometricDisplayName}
             userName={biometricUserName}
-            error={biometryError ?? errors.webauthn_enrollment}
+            error={biometryError ?? fieldErrors.webauthn_enrollment}
           />
           <FingerprintCaptureField
             value={values.fingerprints}
@@ -668,7 +767,7 @@ export function MemberForm({
               setBiometryError(null);
             }}
             memberSeed={memberSeed}
-            error={errors.fingerprints}
+            error={fieldErrors.fingerprints}
           />
         </div>
       )}
@@ -689,7 +788,7 @@ export function MemberForm({
             label="J'accepte le traitement de mes données pour l'adhésion à Jeunesse Parle."
             description="Seules les informations nécessaires à l'identification et à la mobilisation sont collectées."
           />
-          {errors.consent_given && <p className="text-xs text-red-600">{errors.consent_given}</p>}
+          {fieldErrors.consent_given && <p className="text-xs text-red-600">{fieldErrors.consent_given}</p>}
         </div>
       )}
 
@@ -722,7 +821,7 @@ export function MemberForm({
             }}
             displayName={biometricDisplayName}
             userName={biometricUserName}
-            error={biometryError ?? errors.webauthn_enrollment}
+            error={biometryError ?? fieldErrors.webauthn_enrollment}
           />
           <FingerprintCaptureField
             value={values.fingerprints}
@@ -731,7 +830,7 @@ export function MemberForm({
               setBiometryError(null);
             }}
             memberSeed={memberSeed}
-            error={errors.fingerprints}
+            error={fieldErrors.fingerprints}
           />
         </div>
       )}
@@ -789,7 +888,7 @@ export function MemberForm({
                 }}
                 displayName={biometricDisplayName}
                 userName={biometricUserName}
-                error={biometryError ?? errors.webauthn_enrollment}
+                error={biometryError ?? fieldErrors.webauthn_enrollment}
               />
               <FingerprintCaptureField
                 value={values.fingerprints}
@@ -798,7 +897,7 @@ export function MemberForm({
                   setBiometryError(null);
                 }}
                 memberSeed={memberSeed}
-                error={errors.fingerprints}
+                error={fieldErrors.fingerprints}
               />
             </>
           )}
@@ -826,6 +925,12 @@ export function MemberForm({
               label="Je confirme qu'il s'agit d'une nouvelle personne."
             />
           </div>
+        </Alert>
+      )}
+
+      {stepError && (
+        <Alert tone="error" title="Complétez cette étape">
+          {stepError}
         </Alert>
       )}
 
