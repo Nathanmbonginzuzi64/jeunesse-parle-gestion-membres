@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MembrePageHeader } from '@/components/membre/page-header';
 import { EmptyState } from '@/components/membre/section';
 import { AgentChip, AgentListCard } from '@/components/agent/agent-ui';
+import { AgentSearchBar } from '@/components/agent/agent-search';
 import { BigButton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import type { AttendanceSheet, AttendanceSheetRow } from '@/lib/agent-types';
@@ -42,6 +43,13 @@ export default function FeuillePresenceScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'present' | 'not_recorded'>('present');
+  const [q, setQ] = useState('');
+  const [debouncedQ, setDebouncedQ] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQ(q.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [q]);
 
   const load = useCallback(
     async (pageNumber = 1, append = false, opts?: { silent?: boolean }) => {
@@ -68,6 +76,7 @@ export default function FeuillePresenceScreen() {
           {
             page: pageNumber,
             per_page: 30,
+            q: debouncedQ || undefined,
             status:
               filter === 'all' ? undefined : filter === 'present' ? 'present' : 'not_recorded',
             recorded_only: filter === 'present' ? 1 : undefined,
@@ -90,7 +99,7 @@ export default function FeuillePresenceScreen() {
         setLoadingMore(false);
       }
     },
-    [activityId, can, filter],
+    [activityId, can, filter, debouncedQ],
   );
 
   useEffect(() => {
@@ -134,6 +143,12 @@ export default function FeuillePresenceScreen() {
             />
           ))}
         </View>
+
+        <AgentSearchBar
+          value={q}
+          onChangeText={setQ}
+          placeholder="Rechercher sur la feuille…"
+        />
 
         {can(PERMISSIONS.attendanceRecord) && activityId ? (
           <View style={styles.actions}>
@@ -206,7 +221,21 @@ export default function FeuillePresenceScreen() {
             ) : null
           }
           renderItem={({ item }) => (
-            <AgentListCard>
+            <AgentListCard
+              onPress={() =>
+                router.push({
+                  pathname: '/(agent)/(tabs)/fiche-membre',
+                  params: {
+                    memberId: String(item.member_id),
+                    memberCode: item.member_code,
+                    fullName: item.full_name,
+                    photoUrl: item.photo_url ?? '',
+                    structure: item.structure ?? '',
+                    activityId: activityId ? String(activityId) : '',
+                  },
+                })
+              }
+            >
               <View style={styles.row}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.name}>{item.full_name}</Text>
@@ -273,7 +302,7 @@ function Kpi({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: JP.bg },
-  pad: { paddingHorizontal: 16, paddingTop: 4 },
+  pad: { paddingHorizontal: 16, paddingTop: 4, gap: 10 },
   list: { paddingHorizontal: 16, paddingTop: 8 },
   kpis: { flexDirection: 'row', gap: 8 },
   kpi: {

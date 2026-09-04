@@ -165,10 +165,12 @@ class AttendanceController extends Controller
             'date' => ['nullable', 'date'],
             'activity_id' => ['nullable', 'integer', 'exists:activities,id'],
             'mine_only' => ['nullable', 'boolean'],
+            'q' => ['nullable', 'string', 'max:120'],
         ]);
 
         $mineOnly = $request->boolean('mine_only', true);
         $perPage = min((int) ($filters['per_page'] ?? 25), 100);
+        $search = isset($filters['q']) ? trim((string) $filters['q']) : '';
 
         $presentStatuses = [
             AttendanceStatus::Present->value,
@@ -188,10 +190,19 @@ class AttendanceController extends Controller
             ->limit(20)
             ->get();
 
-        $ongoing = $ongoingActivities->map(function (Activity $activity) use ($user, $mineOnly, $presentStatuses) {
+        $ongoing = $ongoingActivities->map(function (Activity $activity) use ($user, $mineOnly, $presentStatuses, $search) {
             $base = $activity->attendances()
                 ->whereIn('status', $presentStatuses)
-                ->when($mineOnly, fn (Builder $q) => $q->where('recorded_by', $user->id));
+                ->when($mineOnly, fn (Builder $q) => $q->where('recorded_by', $user->id))
+                ->when($search !== '', function (Builder $q) use ($search) {
+                    $term = '%'.mb_strtolower($search).'%';
+                    $q->whereHas('member', function (Builder $member) use ($term) {
+                        $member->whereRaw('LOWER(member_code) LIKE ?', [$term])
+                            ->orWhereRaw('LOWER(first_name) LIKE ?', [$term])
+                            ->orWhereRaw('LOWER(last_name) LIKE ?', [$term])
+                            ->orWhereRaw('LOWER(middle_name) LIKE ?', [$term]);
+                    });
+                });
 
             $presentCount = (clone $base)->count();
 
@@ -229,6 +240,15 @@ class AttendanceController extends Controller
             ->when($filters['activity_id'] ?? null, fn (Builder $q, $id) => $q->where('activity_id', $id))
             ->when($filters['date'] ?? null, function (Builder $q) use ($filters) {
                 $q->whereDate('recorded_at', Carbon::parse($filters['date'])->toDateString());
+            })
+            ->when($search !== '', function (Builder $q) use ($search) {
+                $term = '%'.mb_strtolower($search).'%';
+                $q->whereHas('member', function (Builder $member) use ($term) {
+                    $member->whereRaw('LOWER(member_code) LIKE ?', [$term])
+                        ->orWhereRaw('LOWER(first_name) LIKE ?', [$term])
+                        ->orWhereRaw('LOWER(last_name) LIKE ?', [$term])
+                        ->orWhereRaw('LOWER(middle_name) LIKE ?', [$term]);
+                });
             })
             ->with([
                 'member:id,member_code,last_name,middle_name,first_name,photo_path,structure_id',

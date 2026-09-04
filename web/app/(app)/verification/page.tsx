@@ -10,6 +10,7 @@ import {
   QrCode,
   ScanLine,
   ShieldCheck,
+  Users,
 } from "lucide-react";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
 import { DashboardSection } from "@/components/dashboard/dashboard-section";
@@ -23,6 +24,7 @@ import {
   ServerVerificationHistory,
   type VerificationHistoryEntry,
 } from "@/components/verification/verification-history";
+import { AgentDashboardPanel } from "@/components/verification/agent-dashboard-panel";
 import { VerificationResultPanel } from "@/components/verification/verification-result-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -172,6 +174,10 @@ function VerificationTool() {
         <VerificationHero sessionCount={history.length} />
       </DashboardAnimate>
 
+      <DashboardAnimate delay={40}>
+        <AgentDashboardPanel />
+      </DashboardAnimate>
+
       {kpis && (
         <DashboardAnimate delay={60}>
           <div className={cn(dashboardCardGrid, "sm:grid-cols-2 lg:grid-cols-4")}>
@@ -311,6 +317,13 @@ function VerificationTool() {
           tone="emerald"
         >
           <div className={cn(dashboardCardGrid, "sm:grid-cols-2 lg:grid-cols-4")}>
+            <QuickLinkCard
+              href="/verification/membres"
+              icon={Users}
+              title="Membres vérifiés"
+              description="Liste avec recherche des contrôles réussis"
+              tone="emerald"
+            />
             <QuickLinkCard
               href="/scan"
               icon={ScanLine}

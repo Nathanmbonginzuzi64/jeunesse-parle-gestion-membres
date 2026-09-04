@@ -86,6 +86,13 @@ function AttendanceHub() {
       <DashboardAnimate delay={100}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <QuickLinkCard
+            href="/presences/liste"
+            icon={ScanLine}
+            title="Liste présence pro"
+            description="Recherche avancée et détail membre"
+            tone="brand"
+          />
+          <QuickLinkCard
             href="/scan"
             icon={ScanLine}
             title="Scanner un membre"

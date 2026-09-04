@@ -177,6 +177,11 @@ export function canSeeSettingsSection(
 ): boolean {
   if (!user) return false;
 
+  const isAgent = user.role?.slug === ROLE_SLUGS.agentVerification;
+  if (isAgent) {
+    return ["profil", "securite", "biometrie", "appareils", "aide", "a-propos"].includes(item.id);
+  }
+
   switch (item.id) {
     case "ma-carte":
       return Boolean(user.member_id);

@@ -27,6 +27,7 @@ export default function AgentLayout() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="profil" />
       <Stack.Screen name="ma-carte" />
+      <Stack.Screen name="securite" />
     </Stack>
   );
 }

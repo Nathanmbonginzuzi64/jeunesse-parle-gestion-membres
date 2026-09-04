@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { MembrePageHeader } from '@/components/membre/page-header';
 import { EmptyState } from '@/components/membre/section';
 import { AgentChip, AgentListCard } from '@/components/agent/agent-ui';
+import { AgentSearchBar } from '@/components/agent/agent-search';
 import { BigButton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import type { VerificationHistoryItem } from '@/lib/agent-types';
@@ -39,11 +40,18 @@ export default function HistoriqueScreen() {
   const [meta, setMeta] = useState<Meta>({});
   const [page, setPage] = useState(1);
   const [resultFilter, setResultFilter] = useState<'all' | 'valid' | 'rejected'>('all');
+  const [q, setQ] = useState('');
+  const [debouncedQ, setDebouncedQ] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const canVerify = can(PERMISSIONS.cardsVerify);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQ(q.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [q]);
 
   const loadPage = useCallback(
     async (pageNumber: number, opts?: { append?: boolean; silent?: boolean }) => {
@@ -68,6 +76,7 @@ export default function HistoriqueScreen() {
           {
             page: pageNumber,
             per_page: PAGE_SIZE,
+            q: debouncedQ || undefined,
             result:
               resultFilter === 'all'
                 ? undefined
@@ -93,7 +102,7 @@ export default function HistoriqueScreen() {
         setLoadingMore(false);
       }
     },
-    [canVerify, resultFilter],
+    [canVerify, resultFilter, debouncedQ],
   );
 
   useFocusEffect(
@@ -135,6 +144,19 @@ export default function HistoriqueScreen() {
           onPress={startNewVerification}
           disabled={!canVerify}
         />
+        <AgentSearchBar
+          value={q}
+          onChangeText={setQ}
+          placeholder="Rechercher un membre vérifié…"
+        />
+        <Pressable
+          style={styles.linkRow}
+          onPress={() => router.push('/(agent)/(tabs)/membres-verifies')}
+        >
+          <Ionicons name="people-outline" size={16} color={JP.brand} />
+          <Text style={styles.linkText}>Voir la liste des membres vérifiés</Text>
+          <Ionicons name="chevron-forward" size={16} color={JP.brand} />
+        </Pressable>
         <View style={styles.filters}>
           {(
             [
@@ -261,6 +283,13 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: JP.bg },
   toolbar: { paddingHorizontal: 16, paddingTop: 4, gap: 10 },
   filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  linkText: { flex: 1, fontSize: 13, fontWeight: '700', color: JP.brand },
   pad: { padding: 16 },
   list: { paddingHorizontal: 16, paddingTop: 8 },
   row: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },

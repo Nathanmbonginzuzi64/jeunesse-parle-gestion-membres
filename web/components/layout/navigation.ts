@@ -94,6 +94,10 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Vérification",
         icon: ScanLine,
         permissions: [PERMISSIONS.cardsVerify],
+        children: [
+          { href: "/verification", label: "Contrôle", icon: ScanLine, exact: true },
+          { href: "/verification/membres", label: "Membres vérifiés", icon: Users },
+        ],
       },
       {
         href: "/structures",
@@ -117,6 +121,10 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Présences",
         icon: CheckSquare,
         permissions: [PERMISSIONS.attendanceView],
+        children: [
+          { href: "/presences", label: "Hub", icon: CheckSquare, exact: true },
+          { href: "/presences/liste", label: "Liste avancée", icon: Users },
+        ],
       },
       { href: "/notifications", label: "Notifications", icon: Bell },
       {

@@ -62,6 +62,7 @@ export default function AgentTabsLayout() {
       <Tabs.Screen name="empreinte" options={{ href: null, title: 'Empreinte' }} />
       <Tabs.Screen name="fiche-membre" options={{ href: null, title: 'Fiche membre' }} />
       <Tabs.Screen name="feuille" options={{ href: null, title: 'Feuille de présence' }} />
+      <Tabs.Screen name="membres-verifies" options={{ href: null, title: 'Membres vérifiés' }} />
     </Tabs>
   );
 }

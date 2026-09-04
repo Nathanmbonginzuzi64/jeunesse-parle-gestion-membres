@@ -62,6 +62,15 @@ export default function VerifierScreen() {
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<MemberHit[]>([]);
+  const [verifiedHits, setVerifiedHits] = useState<
+    Array<{
+      member_id: number;
+      member_code: string | null;
+      full_name: string | null;
+      photo_url?: string | null;
+      structure?: string | null;
+    }>
+  >([]);
   const [activities, setActivities] = useState<ActivityRow[]>([]);
   const [activityId, setActivityId] = useState<number | null>(
     params.activityId ? Number(params.activityId) : null,
@@ -102,6 +111,32 @@ export default function VerifierScreen() {
     enabled: canRecord,
     intervalMs: 8000,
   });
+
+  useEffect(() => {
+    if (mode !== 'identity' || !canVerify) return;
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const response = await api.get<{
+            data: Array<{
+              member_id: number;
+              member_code: string | null;
+              full_name: string | null;
+              photo_url?: string | null;
+              structure?: string | null;
+            }>;
+          }>('/verifications/members', {
+            q: q.trim() || undefined,
+            per_page: 8,
+          });
+          setVerifiedHits(response.data ?? []);
+        } catch {
+          setVerifiedHits([]);
+        }
+      })();
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [q, mode, canVerify]);
 
   useEffect(() => {
     if (params.activityId) {
@@ -294,6 +329,52 @@ export default function VerifierScreen() {
             </View>
             <View style={{ height: 14 }} />
             <VerificationResultCard result={result} error={error} />
+
+            <SectionHeader
+              title="Membres déjà vérifiés"
+              actionLabel="Liste"
+              onAction={() => router.push('/(agent)/(tabs)/membres-verifies')}
+            />
+            <Field
+              label="Recherche"
+              placeholder="Nom ou code JP-RDC…"
+              value={q}
+              onChangeText={setQ}
+              autoCapitalize="none"
+            />
+            {verifiedHits.length > 0 ? (
+              verifiedHits.map((member) => (
+                <AgentListCard
+                  key={member.member_id}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(agent)/(tabs)/fiche-membre',
+                      params: {
+                        memberId: String(member.member_id),
+                        memberCode: member.member_code ?? '',
+                        fullName: member.full_name ?? '',
+                        photoUrl: member.photo_url ?? '',
+                        structure: member.structure ?? '',
+                      },
+                    })
+                  }
+                >
+                  <Text style={styles.activityTitle}>{member.full_name ?? 'Membre'}</Text>
+                  <Text style={styles.meta}>
+                    {member.member_code ?? '—'}
+                    {member.structure ? ` · ${member.structure}` : ''}
+                  </Text>
+                </AgentListCard>
+              ))
+            ) : (
+              <Pressable
+                style={styles.linkRow}
+                onPress={() => router.push('/(agent)/(tabs)/membres-verifies')}
+              >
+                <Text style={styles.linkText}>Ouvrir la liste des membres vérifiés</Text>
+                <Text style={styles.linkChevron}>→</Text>
+              </Pressable>
+            )}
           </>
         ) : null}
 

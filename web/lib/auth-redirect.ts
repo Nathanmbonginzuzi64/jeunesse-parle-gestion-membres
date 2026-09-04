@@ -8,5 +8,9 @@ export function getPostLoginPath(user: AuthUser): string {
   if (user.must_confirm_biometric) {
     return "/parametres/biometrie?onboarding=1";
   }
-  return user.role?.slug === ROLE_SLUGS.membre ? "/mon-espace" : "/tableau-de-bord";
+  return user.role?.slug === ROLE_SLUGS.membre
+    ? "/mon-espace"
+    : user.role?.slug === ROLE_SLUGS.agentVerification
+      ? "/verification"
+      : "/tableau-de-bord";
 }

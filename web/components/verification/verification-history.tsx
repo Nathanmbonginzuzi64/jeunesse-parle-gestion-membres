@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Plus, ScanLine } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { Input } from "@/components/ui/field";
 import { Alert, EmptyState, TableSkeleton } from "@/components/ui/feedback";
 import { Pagination } from "@/components/ui/table";
 import { useApi } from "@/lib/hooks";
@@ -65,10 +67,23 @@ export function ServerVerificationHistory({
   onNewVerification: () => void;
 }) {
   const [page, setPage] = useState(1);
+  const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
   const [resultFilter, setResultFilter] = useState<"all" | "valid" | "rejected">("all");
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQ(q.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [q]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQ, resultFilter]);
+
   const query = {
     page,
     per_page: 15,
+    q: debouncedQ || undefined,
     result:
       resultFilter === "all" ? undefined : resultFilter === "valid" ? "valid" : "rejected",
   };
@@ -85,15 +100,28 @@ export function ServerVerificationHistory({
     <Card>
       <CardHeader
         title="Historique des vérifications"
-        description="Journal paginé de vos contrôles (serveur)"
+        description="Journal paginé avec recherche des membres déjà contrôlés"
         action={
-          <Button type="button" size="sm" onClick={onNewVerification}>
-            <Plus className="h-4 w-4" />
-            Nouvelle vérification
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/verification/membres">
+              <Button type="button" size="sm" variant="outline">
+                Membres vérifiés
+              </Button>
+            </Link>
+            <Button type="button" size="sm" onClick={onNewVerification}>
+              <Plus className="h-4 w-4" />
+              Nouvelle vérification
+            </Button>
+          </div>
         }
       />
       <CardBody className="space-y-4">
+        <Input
+          type="search"
+          placeholder="Rechercher un membre déjà vérifié…"
+          value={q}
+          onChange={(event) => setQ(event.target.value)}
+        />
         <div className="flex flex-wrap gap-2">
           {(
             [
@@ -166,13 +194,22 @@ export function ServerVerificationHistory({
                     <Badge tone={ok ? "success" : "danger"} className="shrink-0">
                       {ok ? "Valide" : row.result}
                     </Badge>
-                    <button
-                      type="button"
-                      onClick={onNewVerification}
-                      className="text-[11px] font-medium text-brand-700 hover:underline"
-                    >
-                      Nouvelle vérif.
-                    </button>
+                    {row.member?.id ? (
+                      <Link
+                        href={`/membres/${row.member.id}`}
+                        className="text-[11px] font-medium text-brand-700 hover:underline"
+                      >
+                        Détail
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={onNewVerification}
+                        className="text-[11px] font-medium text-brand-700 hover:underline"
+                      >
+                        Nouvelle vérif.
+                      </button>
+                    )}
                   </div>
                 </div>
               );

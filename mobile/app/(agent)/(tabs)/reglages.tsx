@@ -23,6 +23,12 @@ export default function ReglagesScreen() {
   ];
 
   const accountLinks = [
+    {
+      href: '/(agent)/securite',
+      label: 'Paramètres (limité)',
+      icon: 'shield-checkmark-outline' as const,
+      hint: 'Mot de passe · empreinte · profil',
+    },
     hasMember
       ? {
           href: '/(agent)/profil',
@@ -37,6 +43,14 @@ export default function ReglagesScreen() {
           label: 'Ma carte',
           icon: 'card-outline' as const,
           hint: 'QR et téléchargement',
+        }
+      : null,
+    can(PERMISSIONS.cardsVerify)
+      ? {
+          href: '/(agent)/(tabs)/membres-verifies',
+          label: 'Membres vérifiés',
+          icon: 'people-outline' as const,
+          hint: 'Liste avec recherche',
         }
       : null,
   ].filter(Boolean) as Array<{
@@ -58,37 +72,23 @@ export default function ReglagesScreen() {
         style={{ backgroundColor: JP.bg, paddingTop: 8 }}
         contentContainerStyle={{ paddingBottom: 28 }}
       >
-        {accountLinks.length > 0 ? (
-          <>
-            <SectionHeader title="Mon compte" />
-            <View style={styles.list}>
-              {accountLinks.map((item) => (
-                <Pressable
-                  key={item.href}
-                  style={styles.row}
-                  onPress={() => router.push(item.href as never)}
-                >
-                  <AgentIconBadge icon={item.icon} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.rowLabel}>{item.label}</Text>
-                    <Text style={styles.rowHint}>{item.hint}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={JP.muted} />
-                </Pressable>
-              ))}
-            </View>
-          </>
-        ) : (
-          <>
-            <SectionHeader title="Mon compte" />
-            <View style={styles.card}>
-              <Text style={styles.meta}>
-                Aucun dossier membre lié. Demandez à un administrateur de rattacher votre compte
-                pour afficher le profil et la carte.
-              </Text>
-            </View>
-          </>
-        )}
+        <SectionHeader title="Mon compte" />
+        <View style={styles.list}>
+          {accountLinks.map((item) => (
+            <Pressable
+              key={item.href}
+              style={styles.row}
+              onPress={() => router.push(item.href as never)}
+            >
+              <AgentIconBadge icon={item.icon} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowLabel}>{item.label}</Text>
+                <Text style={styles.rowHint}>{item.hint}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={JP.muted} />
+            </Pressable>
+          ))}
+        </View>
 
         <SectionHeader title="Compte" />
         <View style={styles.card}>

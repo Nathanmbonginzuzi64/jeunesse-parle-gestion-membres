@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   CalendarDays,
@@ -12,6 +12,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { Input } from "@/components/ui/field";
 import { Alert, EmptyState, TableSkeleton } from "@/components/ui/feedback";
 import { Pagination } from "@/components/ui/table";
 import { useApi } from "@/lib/hooks";
@@ -35,13 +36,26 @@ function formatDayLabel(date: string) {
 export function AgentPresentsPanel() {
   const [page, setPage] = useState(1);
   const [mineOnly, setMineOnly] = useState(true);
+  const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQ(q.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [q]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQ, mineOnly]);
+
   const query = useMemo(
     () => ({
       page,
       per_page: 20,
       mine_only: mineOnly ? 1 : 0,
+      q: debouncedQ || undefined,
     }),
-    [page, mineOnly],
+    [page, mineOnly, debouncedQ],
   );
   const feed = useApi<AgentPresentsFeed>("/attendance/agent-presents", query, {
     refreshInterval: 5_000,
@@ -56,23 +70,37 @@ export function AgentPresentsPanel() {
       <Card>
         <CardHeader
           title="Présents scannés"
-          description="Événements en cours et historique détaillé par date"
+          description="Liste avancée avec recherche et détail membre"
           action={
-            <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
-              <input
-                type="checkbox"
-                checked={mineOnly}
-                onChange={(event) => {
-                  setMineOnly(event.target.checked);
-                  setPage(1);
-                }}
-                className="rounded border-slate-300"
-              />
-              Mes scans uniquement
-            </label>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link href="/presences/liste">
+                <Button size="sm" variant="outline">
+                  Liste pro
+                </Button>
+              </Link>
+              <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={mineOnly}
+                  onChange={(event) => {
+                    setMineOnly(event.target.checked);
+                    setPage(1);
+                  }}
+                  className="rounded border-slate-300"
+                />
+                Mes scans uniquement
+              </label>
+            </div>
           }
         />
         <CardBody className="space-y-5">
+          <Input
+            type="search"
+            placeholder="Rechercher un présent (nom, code JP-RDC)…"
+            value={q}
+            onChange={(event) => setQ(event.target.value)}
+          />
+
           {feed.error ? <Alert tone="danger">{feed.error}</Alert> : null}
           {feed.loading && !feed.data ? <TableSkeleton rows={4} /> : null}
 
@@ -147,7 +175,17 @@ export function AgentPresentsPanel() {
                               {row.recorded_at ? ` · ${formatDateTime(row.recorded_at)}` : ""}
                             </p>
                           </div>
-                          <Badge tone="success">{row.status_label ?? "Présent"}</Badge>
+                          <div className="flex flex-col items-end gap-1">
+                            <Badge tone="success">{row.status_label ?? "Présent"}</Badge>
+                            {row.member?.id ? (
+                              <Link
+                                href={`/membres/${row.member.id}`}
+                                className="text-[11px] font-medium text-brand-700 hover:underline"
+                              >
+                                Détail
+                              </Link>
+                            ) : null}
+                          </div>
                         </li>
                       ))}
                     </ul>
@@ -190,7 +228,14 @@ export function AgentPresentsPanel() {
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         <Badge tone="success">{row.status_label ?? "Présent"}</Badge>
-                        {row.activity?.id ? (
+                        {row.member?.id ? (
+                          <Link
+                            href={`/membres/${row.member.id}`}
+                            className="text-[11px] font-medium text-brand-700 hover:underline"
+                          >
+                            Détail
+                          </Link>
+                        ) : row.activity?.id ? (
                           <Link
                             href={`/presences/${row.activity.id}`}
                             className="text-[11px] font-medium text-brand-700 hover:underline"

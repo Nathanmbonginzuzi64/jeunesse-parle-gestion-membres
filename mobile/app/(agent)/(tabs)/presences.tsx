@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MembrePageHeader } from '@/components/membre/page-header';
 import { EmptyState, SectionHeader } from '@/components/membre/section';
 import { AgentListCard } from '@/components/agent/agent-ui';
+import { AgentSearchBar } from '@/components/agent/agent-search';
 import { api, ApiError } from '@/lib/api';
 import type {
   AgentOngoingActivity,
@@ -67,12 +68,19 @@ export default function PresencesScreen() {
   const [meta, setMeta] = useState<AgentPresentsResponse['meta'] | null>(null);
   const [page, setPage] = useState(1);
   const [mineOnly, setMineOnly] = useState(true);
+  const [q, setQ] = useState('');
+  const [debouncedQ, setDebouncedQ] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const canView = can(PERMISSIONS.attendanceView) || can(PERMISSIONS.attendanceRecord);
   const canRecord = can(PERMISSIONS.attendanceRecord);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQ(q.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [q]);
 
   const load = useCallback(
     async (pageNumber = 1, append = false, opts?: { silent?: boolean }) => {
@@ -95,6 +103,7 @@ export default function PresencesScreen() {
             page: pageNumber,
             per_page: 25,
             mine_only: mineOnly ? 1 : 0,
+            q: debouncedQ || undefined,
           }),
           pageNumber === 1
             ? api.get<{
@@ -132,7 +141,7 @@ export default function PresencesScreen() {
         setLoadingMore(false);
       }
     },
-    [canView, mineOnly],
+    [canView, mineOnly, debouncedQ],
   );
 
   useFocusEffect(
@@ -178,17 +187,24 @@ export default function PresencesScreen() {
     <View style={styles.screen}>
       <MembrePageHeader
         title="Présences"
-        subtitle="Événements en cours · présents scannés par date"
+        subtitle="Liste avancée · recherche · détail membre"
         icon="checkmark-done-outline"
       />
 
-      <View style={styles.switchRow}>
-        <Text style={styles.switchLabel}>Mes scans uniquement</Text>
-        <Switch
-          value={mineOnly}
-          onValueChange={setMineOnly}
-          trackColor={{ true: JP.brand, false: JP.border }}
+      <View style={styles.toolbar}>
+        <AgentSearchBar
+          value={q}
+          onChangeText={setQ}
+          placeholder="Rechercher un présent (nom, code)…"
         />
+        <View style={styles.switchRow}>
+          <Text style={styles.switchLabel}>Mes scans uniquement</Text>
+          <Switch
+            value={mineOnly}
+            onValueChange={setMineOnly}
+            trackColor={{ true: JP.brand, false: JP.border }}
+          />
+        </View>
       </View>
 
       {!canView ? (
@@ -317,17 +333,31 @@ export default function PresencesScreen() {
               const row = item.data;
               return (
                 <AgentListCard
-                  onPress={() =>
-                    row.activity?.id
-                      ? router.push({
-                          pathname: '/(agent)/(tabs)/feuille',
-                          params: {
-                            activityId: String(row.activity.id),
-                            activityTitle: row.activity.title,
-                          },
-                        })
-                      : undefined
-                  }
+                  onPress={() => {
+                    if (row.member?.id) {
+                      router.push({
+                        pathname: '/(agent)/(tabs)/fiche-membre',
+                        params: {
+                          memberId: String(row.member.id),
+                          memberCode: row.member.member_code,
+                          fullName: row.member.full_name,
+                          photoUrl: row.member.photo_url ?? '',
+                          structure: row.member.structure ?? '',
+                          activityId: row.activity?.id ? String(row.activity.id) : '',
+                        },
+                      });
+                      return;
+                    }
+                    if (row.activity?.id) {
+                      router.push({
+                        pathname: '/(agent)/(tabs)/feuille',
+                        params: {
+                          activityId: String(row.activity.id),
+                          activityTitle: row.activity.title,
+                        },
+                      });
+                    }
+                  }}
                 >
                   <Text style={styles.title}>{row.member?.full_name ?? 'Membre'}</Text>
                   <Text style={styles.meta}>
@@ -340,6 +370,7 @@ export default function PresencesScreen() {
                     {` · ${formatTime(row.recorded_at)}`}
                   </Text>
                   <Text style={styles.statusOk}>{row.status_label ?? 'Présent'}</Text>
+                  <Text style={styles.link}>Voir le détail membre</Text>
                 </AgentListCard>
               );
             }
@@ -387,10 +418,8 @@ function mergeByDate(
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: JP.bg },
+  toolbar: { paddingHorizontal: 16, paddingTop: 4, gap: 8 },
   switchRow: {
-    marginHorizontal: 16,
-    marginTop: 4,
-    marginBottom: 4,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 14,
