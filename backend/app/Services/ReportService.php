@@ -146,7 +146,7 @@ class ReportService
 
     public function memberProfile(User $user, Member $member): array
     {
-        abort_unless($member->isVisibleTo($user), 403);
+        abort_unless($member->isVisibleTo($user), 403, "Vous n'avez pas l'autorisation d'effectuer cette action.");
 
         $member->load([
             'province', 'city', 'commune.district', 'zone',
@@ -264,7 +264,7 @@ class ReportService
 
     public function activityDetail(User $user, Activity $activity): array
     {
-        abort_unless($activity->isVisibleTo($user), 403);
+        abort_unless($activity->isVisibleTo($user), 403, "Vous n'avez pas l'autorisation d'effectuer cette action.");
 
         $activity->load(['province', 'city', 'commune', 'structure', 'organizer']);
         $activity->loadCount(['members', 'attendances']);
@@ -439,7 +439,7 @@ class ReportService
 
     public function attendanceByMember(User $user, Member $member): array
     {
-        abort_unless($member->isVisibleTo($user), 403);
+        abort_unless($member->isVisibleTo($user), 403, "Vous n'avez pas l'autorisation d'effectuer cette action.");
 
         $records = $member->attendances()
             ->with('activity:id,title,type,starts_at,location')
@@ -478,7 +478,7 @@ class ReportService
 
     public function users(User $user, array $filters = []): array
     {
-        abort_unless($user->hasPermission(\App\Enums\Permission::UsersView), 403);
+        abort_unless($user->hasPermission(\App\Enums\Permission::UsersView), 403, "Vous n'avez pas l'autorisation d'effectuer cette action.");
 
         $base = User::query()->with('role:id,name,slug');
 
@@ -536,7 +536,7 @@ class ReportService
 
     public function roles(User $user): array
     {
-        abort_unless($user->hasPermission(\App\Enums\Permission::UsersView), 403);
+        abort_unless($user->hasPermission(\App\Enums\Permission::UsersView), 403, "Vous n'avez pas l'autorisation d'effectuer cette action.");
 
         return [
             'data' => Role::query()

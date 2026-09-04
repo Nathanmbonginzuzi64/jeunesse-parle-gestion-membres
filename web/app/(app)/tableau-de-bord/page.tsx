@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import {
-  Activity,
+  Activity as ActivityIcon,
   BadgeCheck,
   CalendarPlus,
   CreditCard,
@@ -44,7 +44,14 @@ import { Alert, EmptyState, Skeleton } from "@/components/ui/feedback";
 import { useAuth } from "@/lib/auth";
 import { useApi } from "@/lib/hooks";
 import { PERMISSIONS, type PermissionSlug } from "@/lib/permissions";
-import type { StatisticsCharts, StatisticsOverview } from "@/lib/types";
+import type {
+  Activity,
+  Member,
+  MemberCard,
+  Paginated,
+  StatisticsCharts,
+  StatisticsOverview,
+} from "@/lib/types";
 import { formatNumber, cn } from "@/lib/utils";
 
 function buildScopeLabel(scope?: StatisticsOverview["scope"]) {
@@ -139,6 +146,100 @@ function DashboardSkeleton() {
   );
 }
 
+function AgentDashboard({
+  firstName,
+  roleLabel,
+}: {
+  firstName: string;
+  roleLabel?: string | null;
+}) {
+  const activities = useApi<Paginated<Activity>>("/activities/for-attendance", { per_page: 50 });
+  const members = useApi<Paginated<Member>>("/members", { per_page: 1 });
+  const cards = useApi<Paginated<MemberCard>>("/cards", { status: "active", per_page: 1 });
+
+  const list = activities.data?.data ?? [];
+  const expected = list.reduce((sum, a) => sum + (a.participants_count ?? 0), 0);
+  const present = list.reduce((sum, a) => sum + (a.attendances_count ?? 0), 0);
+  const averageRate =
+    expected > 0 ? Math.round((present / expected) * 100) : 0;
+
+  return (
+    <div>
+      <DashboardWelcomeBanner
+        firstName={firstName}
+        subtitle="Vos indicateurs de vérification et de présence."
+        roleLabel={roleLabel}
+      />
+
+      <DashboardAnimate delay={80}>
+        <div className={cn(dashboardCardGrid, "sm:grid-cols-2 lg:grid-cols-4")}>
+          <KpiCard
+            label="Activités à pointer"
+            value={activities.loading ? "…" : list.length}
+            icon={ActivityIcon}
+            tone="info"
+            href="/presences"
+          />
+          <KpiCard
+            label="Présences enregistrées"
+            value={activities.loading ? "…" : present}
+            icon={ScanLine}
+            tone="success"
+            href="/scan"
+          />
+          <KpiCard
+            label="Taux de présence"
+            value={activities.loading ? "…" : `${averageRate} %`}
+            icon={UserCheck}
+            tone="warning"
+          />
+          <KpiCard
+            label="Membres (périmètre)"
+            value={members.loading ? "…" : (members.data?.meta.total ?? 0)}
+            icon={Users}
+            tone="neutral"
+            href="/membres"
+          />
+        </div>
+      </DashboardAnimate>
+
+      <DashboardAnimate delay={140} className="mt-4">
+        <div className={cn(dashboardCardGrid, "sm:grid-cols-2 lg:grid-cols-3")}>
+          <KpiCard
+            label="Cartes actives"
+            value={cards.loading ? "…" : (cards.data?.meta.total ?? 0)}
+            icon={CreditCard}
+            tone="success"
+            href="/cartes"
+          />
+          <QuickLinkCard
+            href="/verification"
+            icon={ScanLine}
+            title="Vérifier une carte"
+            description="Scan QR ou saisie manuelle"
+            tone="emerald"
+          />
+          <QuickLinkCard
+            href="/presences"
+            icon={ActivityIcon}
+            title="Présences"
+            description="Liste des activités à pointer"
+            tone="amber"
+          />
+        </div>
+      </DashboardAnimate>
+
+      {(activities.error || members.error || cards.error) && (
+        <DashboardAnimate delay={180} className="mt-4">
+          <Alert tone="warning">
+            Certaines données n’ont pas pu être chargées. Vérifiez votre connexion puis réessayez.
+          </Alert>
+        </DashboardAnimate>
+      )}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { can, user, member, isMemberOnly } = useAuth();
   const statsEnabled = can(PERMISSIONS.statisticsView);
@@ -190,26 +291,7 @@ export default function DashboardPage() {
   }
 
   if (!statsEnabled) {
-    return (
-      <div>
-        <DashboardWelcomeBanner
-          firstName={firstName}
-          subtitle="Accédez aux outils de vérification et de présence."
-          roleLabel={user?.role?.name}
-        />
-        <DashboardAnimate delay={120}>
-          <Alert tone="info">
-            Accédez à la vérification des cartes et aux présences depuis le menu latéral.
-          </Alert>
-        </DashboardAnimate>
-        <DashboardAnimate delay={200} className="mt-4">
-          <div className={cn(dashboardCardGrid, "sm:grid-cols-2")}>
-            <QuickLinkCard href="/verification" icon={ScanLine} title="Vérifier une carte" description="Scan ou saisie manuelle" tone="emerald" />
-            <QuickLinkCard href="/presences" icon={Activity} title="Présences" description="Suivi des participations" tone="amber" />
-          </div>
-        </DashboardAnimate>
-      </div>
-    );
+    return <AgentDashboard firstName={firstName} roleLabel={user?.role?.name} />;
   }
 
   if (overview.loading && !overview.data) {
@@ -349,7 +431,7 @@ export default function DashboardPage() {
           <KpiCard
             label="Activités à venir"
             value={kpis?.activities.upcoming ?? 0}
-            icon={Activity}
+            icon={ActivityIcon}
             tone="warning"
             href="/activites"
             hint={`${formatNumber(kpis?.coverage.structures ?? 0)} structures`}
@@ -426,7 +508,7 @@ export default function DashboardPage() {
           <KpiCard
             label="Activités totales"
             value={kpis?.activities.total ?? 0}
-            icon={Activity}
+            icon={ActivityIcon}
             href="/activites"
           />
         </div>

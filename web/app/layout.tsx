@@ -19,6 +19,15 @@ export const metadata: Metadata = {
   applicationName: "Jeunesse Parle",
   manifest: "/manifest.webmanifest",
   robots: { index: false, follow: false },
+  icons: {
+    icon: [
+      { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/favicon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/logo.png", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    shortcut: ["/icons/favicon-32.png"],
+  },
 };
 
 export const viewport: Viewport = {

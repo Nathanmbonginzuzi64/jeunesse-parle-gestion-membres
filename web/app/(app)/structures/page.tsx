@@ -32,6 +32,7 @@ import { KpiCard, dashboardCardGrid } from "@/components/ui/kpi";
 import { Pagination } from "@/components/ui/table";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { api, ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useApi, useDebounced } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useToast } from "@/components/ui/toast";
@@ -48,7 +49,10 @@ export default function StructuresPage() {
 
 function StructuresHub() {
   const toast = useToast();
-  const stats = useApi<StatisticsOverview>("/statistics");
+  const { can } = useAuth();
+  const stats = useApi<StatisticsOverview>(
+    can(PERMISSIONS.statisticsView) ? "/statistics" : null,
+  );
   const [view, setView] = useState<StructuresView>("tree");
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");

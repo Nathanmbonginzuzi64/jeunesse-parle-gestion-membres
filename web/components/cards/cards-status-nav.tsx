@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
 import { useApi } from "@/lib/hooks";
-import type { MemberCard, Paginated, StatisticsOverview } from "@/lib/types";
+import type { MemberCard, Paginated } from "@/lib/types";
 
 export interface CardRow extends MemberCard {
   member_id: number;
@@ -41,7 +41,6 @@ export function CardsStatusNav() {
   const current = searchParams.get("status") ?? "";
   const base = pathname.startsWith("/cartes/galerie") ? "/cartes/galerie" : "/cartes";
   const allCards = useApi<Paginated<CardRow>>("/cards", { per_page: 200 });
-  const stats = useApi<StatisticsOverview>("/statistics");
 
   const items = allCards.data?.data ?? [];
   const counts = allCards.data
@@ -59,7 +58,7 @@ export function CardsStatusNav() {
       {CARD_STATUS_VIEWS.map((view) => {
         const active = current === view.id;
         const Icon = view.icon;
-        const count = view.id === "" ? counts?.total ?? stats.data?.kpis.cards.active : counts?.[view.id];
+        const count = view.id === "" ? counts?.total : counts?.[view.id];
 
         return (
           <Link

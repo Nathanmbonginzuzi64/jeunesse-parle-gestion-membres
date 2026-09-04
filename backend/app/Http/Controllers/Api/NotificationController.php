@@ -74,7 +74,11 @@ class NotificationController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        abort_unless($request->user()->hasPermission(Permission::NotificationsSend), 403);
+        abort_unless(
+            $request->user()->hasPermission(Permission::NotificationsSend),
+            403,
+            "Vous n'avez pas l'autorisation d'effectuer cette action.",
+        );
 
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:180'],
@@ -117,7 +121,11 @@ class NotificationController extends Controller
 
     public function stats(Request $request): JsonResponse
     {
-        abort_unless($request->user()->hasPermission(Permission::StatisticsView), 403);
+        abort_unless(
+            $request->user()->hasPermission(Permission::StatisticsView),
+            403,
+            "Vous n'avez pas l'autorisation d'effectuer cette action.",
+        );
 
         $from = now()->subDays(30);
 

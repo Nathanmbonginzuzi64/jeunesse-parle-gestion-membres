@@ -21,11 +21,10 @@ import {
   isBiometricHardwareAvailable,
   isBiometricLoginEnabled,
 } from '@/lib/biometric-auth';
-import { useTheme } from '@/lib/theme-context';
+import { JP } from '@/constants/theme';
 
 export default function ConnexionScreen() {
   const { login, postLoginPath } = useAuth();
-  const { colors: JP } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [loginValue, setLoginValue] = useState('');

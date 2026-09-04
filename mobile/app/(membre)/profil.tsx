@@ -15,8 +15,7 @@ import { MembrePageHeader } from '@/components/membre/page-header';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, getToken } from '@/lib/api';
 import { syncBiometricCredentials } from '@/lib/biometric-auth';
-import { useTheme } from '@/lib/theme-context';
-import type { JpColors } from '@/constants/theme';
+import { JP, type JpColors } from '@/constants/theme';
 import type { PickedPhoto } from '@/components/photo-field';
 
 type MemberProfile = {
@@ -53,8 +52,7 @@ function passwordRules(value: string) {
 
 export default function MembreProfilScreen() {
   const { user, refresh } = useAuth();
-  const { colors: JP } = useTheme();
-  const styles = useMemo(() => makeStyles(JP), [JP]);
+  const styles = useMemo(() => makeStyles(JP), []);
 
   const [member, setMember] = useState<MemberProfile | null>(null);
   const [loading, setLoading] = useState(true);

@@ -49,7 +49,7 @@ export default function ScanPage() {
 
 function ScanTool() {
   const toast = useToast();
-  const activities = useApi<Paginated<Activity>>("/activities", { tab: "upcoming", per_page: 50 });
+  const activities = useApi<Paginated<Activity>>("/activities/for-attendance", { per_page: 50 });
   const [activityId, setActivityId] = useState("");
   const [mode, setMode] = useState<ScanMode>("biometric");
   const [loading, setLoading] = useState(false);

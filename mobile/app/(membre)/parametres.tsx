@@ -13,12 +13,10 @@ import {
   isBiometricHardwareAvailable,
   isBiometricLoginEnabled,
 } from '@/lib/biometric-auth';
-import { useTheme } from '@/lib/theme-context';
-import type { JpColors } from '@/constants/theme';
+import { JP, type JpColors } from '@/constants/theme';
 
 export default function MembreParametresScreen() {
   const { logout, user, login } = useAuth();
-  const { colors: JP, isDark, toggleDark } = useTheme();
   const router = useRouter();
   const [bioEnabled, setBioEnabled] = useState(false);
   const [bioAvailable, setBioAvailable] = useState(false);
@@ -119,13 +117,6 @@ export default function MembreParametresScreen() {
               onPress={() => void onToggleBiometric()}
             />
           ) : null}
-          <Row
-            JP={JP}
-            icon={isDark ? 'sunny-outline' : 'moon-outline'}
-            label="Mode sombre"
-            value={isDark ? 'Oui' : 'Non'}
-            onPress={toggleDark}
-          />
           <Row
             JP={JP}
             icon="lock-closed-outline"

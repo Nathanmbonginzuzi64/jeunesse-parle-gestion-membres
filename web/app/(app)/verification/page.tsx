@@ -29,6 +29,7 @@ import { KpiCard, dashboardCardGrid } from "@/components/ui/kpi";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { api, ApiError } from "@/lib/api";
 import { extractTokenFromQr } from "@/lib/form";
+import { useAuth } from "@/lib/auth";
 import { useApi } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { StatisticsOverview, VerificationResult } from "@/lib/types";
@@ -45,7 +46,10 @@ export default function VerificationPage() {
 }
 
 function VerificationTool() {
-  const stats = useApi<StatisticsOverview>("/statistics");
+  const { can } = useAuth();
+  const stats = useApi<StatisticsOverview>(
+    can(PERMISSIONS.statisticsView) ? "/statistics" : null,
+  );
   const [mode, setMode] = useState<VerifyMode>("qr");
   const [loading, setLoading] = useState(false);
   const [biometricOpen, setBiometricOpen] = useState(false);

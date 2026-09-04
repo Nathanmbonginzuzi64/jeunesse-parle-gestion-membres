@@ -11,7 +11,7 @@ import {
   Users,
 } from "lucide-react";
 import { AttendanceHero } from "@/components/attendance/attendance-hero";
-import { RequirePermission } from "@/components/auth/require-permission";
+import { RequirePermission, Can } from "@/components/auth/require-permission";
 import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
 import { QuickLinkCard } from "@/components/dashboard/quick-link-card";
 import { ActivityStatusBadge } from "@/components/ui/badge";
@@ -38,7 +38,9 @@ export default function AttendanceHubPage() {
 
 function AttendanceHub() {
   const [view, setView] = useState<ViewMode>("table");
-  const { data, loading, error } = useApi<Paginated<Activity>>("/activities", { per_page: 50 });
+  const { data, loading, error } = useApi<Paginated<Activity>>("/activities/for-attendance", {
+    per_page: 50,
+  });
 
   const stats = useMemo(() => {
     const list = data?.data ?? [];
@@ -60,7 +62,7 @@ function AttendanceHub() {
 
   return (
     <div className="space-y-6">
-      <Breadcrumb items={[{ href: "/activites", label: "Mobilisation" }, { label: "Présences" }]} />
+      <Breadcrumb items={[{ href: "/presences", label: "Présences" }]} />
 
       <DashboardAnimate>
         <AttendanceHero
@@ -73,7 +75,7 @@ function AttendanceHub() {
 
       <DashboardAnimate delay={60}>
         <div className={cn(dashboardCardGrid, "sm:grid-cols-2 lg:grid-cols-4")}>
-          <KpiCard label="Activités suivies" value={stats.activitiesCount} icon={ClipboardCheck} tone="info" href="/activites" />
+          <KpiCard label="Activités suivies" value={stats.activitiesCount} icon={ClipboardCheck} tone="info" href="/presences" />
           <KpiCard label="Participants attendus" value={stats.expected} icon={Users} tone="neutral" />
           <KpiCard label="Présences enregistrées" value={stats.present} icon={ScanLine} tone="success" />
           <KpiCard label="Taux moyen" value={`${stats.averageRate} %`} icon={Percent} tone="warning" />
@@ -89,13 +91,15 @@ function AttendanceHub() {
             description="Enregistrer une présence via QR"
             tone="brand"
           />
-          <QuickLinkCard
-            href="/activites"
-            icon={ClipboardCheck}
-            title="Programme d'activités"
-            description="Ouvrir une feuille de présence"
-            tone="emerald"
-          />
+          <Can permission={PERMISSIONS.activitiesView}>
+            <QuickLinkCard
+              href="/activites"
+              icon={ClipboardCheck}
+              title="Programme d'activités"
+              description="Ouvrir une feuille de présence"
+              tone="emerald"
+            />
+          </Can>
           <QuickLinkCard
             href="/verification"
             icon={Users}

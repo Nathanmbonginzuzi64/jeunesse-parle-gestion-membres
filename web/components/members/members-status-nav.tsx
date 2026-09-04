@@ -11,7 +11,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
+import { useAuth } from "@/lib/auth";
 import { useApi } from "@/lib/hooks";
+import { PERMISSIONS } from "@/lib/permissions";
 import type { StatisticsOverview } from "@/lib/types";
 
 export const MEMBER_STATUS_VIEWS = [
@@ -65,7 +67,10 @@ export function getMemberStatusView(status: string) {
 export function MembersStatusNav() {
   const searchParams = useSearchParams();
   const current = searchParams.get("status") ?? "";
-  const stats = useApi<StatisticsOverview>("/statistics");
+  const { can } = useAuth();
+  const stats = useApi<StatisticsOverview>(
+    can(PERMISSIONS.statisticsView) ? "/statistics" : null,
+  );
 
   const counts = stats.data
     ? {

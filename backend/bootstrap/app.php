@@ -12,6 +12,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
@@ -57,9 +58,17 @@ return Application::configure(basePath: dirname(__DIR__))
                     'status' => 401,
                     'body' => ['message' => 'Authentification requise.'],
                 ],
-                $e instanceof AuthorizationException => [
+                $e instanceof AuthorizationException, $e instanceof AccessDeniedHttpException => [
                     'status' => 403,
-                    'body' => ['message' => "Vous n'avez pas l'autorisation d'effectuer cette action."],
+                    'body' => [
+                        'message' => (
+                            $e->getMessage()
+                            && ! str_contains(strtolower($e->getMessage()), 'unauthorized')
+                            && $e->getMessage() !== 'This action is unauthorized.'
+                        )
+                            ? $e->getMessage()
+                            : "Vous n'avez pas l'autorisation d'effectuer cette action.",
+                    ],
                 ],
                 $e instanceof ModelNotFoundException, $e instanceof NotFoundHttpException => [
                     'status' => 404,
@@ -71,7 +80,18 @@ return Application::configure(basePath: dirname(__DIR__))
                 ],
                 $e instanceof HttpExceptionInterface => [
                     'status' => $e->getStatusCode(),
-                    'body' => ['message' => $e->getMessage() ?: 'Une erreur est survenue.'],
+                    'body' => [
+                        'message' => (
+                            $e->getMessage()
+                            && ! str_contains(strtolower($e->getMessage()), 'unauthorized')
+                        )
+                            ? $e->getMessage()
+                            : (
+                                $e->getStatusCode() === 403
+                                    ? "Vous n'avez pas l'autorisation d'effectuer cette action."
+                                    : 'Une erreur est survenue.'
+                            ),
+                    ],
                 ],
                 default => [
                     'status' => 500,

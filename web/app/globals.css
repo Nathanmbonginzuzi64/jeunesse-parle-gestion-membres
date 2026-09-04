@@ -3,7 +3,7 @@
 /*
   Design system Jeunesse Parle.
   Bleu institutionnel, jaune et rouge du drapeau — utilisés avec sobriété
-  sur une base neutre. Les tokens dark préparent un thème ultérieur.
+  sur une base neutre.
 */
 @theme {
   --color-brand-50: #e7f4fb;
@@ -42,15 +42,6 @@
   --muted: #667085;
   --border: #e4e7ec;
   --ring: #0087d1;
-}
-
-.dark {
-  --background: #07111c;
-  --surface: #0e1a28;
-  --foreground: #e8eef5;
-  --muted: #94a3b8;
-  --border: #1e3348;
-  --ring: #3ca6de;
 }
 
 * {

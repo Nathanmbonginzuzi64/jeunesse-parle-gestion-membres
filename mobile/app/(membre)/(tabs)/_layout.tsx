@@ -1,10 +1,8 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@/lib/theme-context';
+import { JP } from '@/constants/theme';
 
 export default function MembreTabsLayout() {
-  const { colors: JP } = useTheme();
-
   return (
     <Tabs
       screenOptions={{

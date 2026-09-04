@@ -7,11 +7,11 @@ import { cn } from "@/lib/utils";
 export function Logo({ className, size = 36 }: { className?: string; size?: number }) {
   return (
     <img
-      src="/logo.jpeg"
+      src="/logo.png"
       alt="La Jeunesse Parle"
       width={size}
       height={size}
-      className={cn("shrink-0 rounded-full object-cover ring-1 ring-white/30", className)}
+      className={cn("shrink-0 object-contain", className)}
     />
   );
 }

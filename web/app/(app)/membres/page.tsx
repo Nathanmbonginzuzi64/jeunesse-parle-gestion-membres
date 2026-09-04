@@ -33,6 +33,7 @@ import { ConfirmDialog } from "@/components/ui/modal";
 import { TerritorySelect } from "@/components/forms/territory-select";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { api, downloadFile, ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useApi, useDebounced, useReferences } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { Member, Paginated, StatisticsOverview } from "@/lib/types";
@@ -58,6 +59,7 @@ export default function MembersPage() {
 
 function MembersList() {
   const toast = useToast();
+  const { can } = useAuth();
   const router = useRouter();
   const references = useReferences();
   const searchParams = useSearchParams();
@@ -127,7 +129,9 @@ function MembersList() {
     [page, debouncedQ, statusFilter, gender, profession, skill, ageMin, ageMax, from, to, territory, sort, direction, searchParams],
   );
 
-  const stats = useApi<StatisticsOverview>("/statistics");
+  const stats = useApi<StatisticsOverview>(
+    can(PERMISSIONS.statisticsView) ? "/statistics" : null,
+  );
   const { data, loading, error, reload } = useApi<Paginated<Member>>("/members", query);
 
   function resetFilters() {

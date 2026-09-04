@@ -28,6 +28,7 @@ import { ConfirmDialog } from "@/components/ui/modal";
 import { Pagination } from "@/components/ui/table";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { api, ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useApi } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useToast } from "@/components/ui/toast";
@@ -54,6 +55,7 @@ export default function CardsPage() {
 
 function CardsList() {
   const toast = useToast();
+  const { can } = useAuth();
   const searchParams = useSearchParams();
   const statusFilter = searchParams.get("status") ?? "";
   const view = getCardStatusView(statusFilter);
@@ -66,7 +68,9 @@ function CardsList() {
     setPage(1);
   }, [statusFilter]);
 
-  const stats = useApi<StatisticsOverview>("/statistics");
+  const stats = useApi<StatisticsOverview>(
+    can(PERMISSIONS.statisticsView) ? "/statistics" : null,
+  );
   const { data, loading, error, reload } = useApi<Paginated<CardRow>>("/cards", {
     status: statusFilter || undefined,
     page,

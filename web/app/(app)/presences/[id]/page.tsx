@@ -35,6 +35,7 @@ import { Pagination } from "@/components/ui/table";
 import { api, ApiError, downloadFile } from "@/lib/api";
 import { extractTokenFromQr } from "@/lib/form";
 import { useApi, useDebounced } from "@/lib/hooks";
+import { useAuth } from "@/lib/auth";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useToast } from "@/components/ui/toast";
 import type { AttendanceSheet, VerificationResult } from "@/lib/types";
@@ -62,6 +63,8 @@ export default function ActivityAttendancePage() {
 function AttendanceSheetPage() {
   const params = useParams<{ id: string }>();
   const toast = useToast();
+  const { can } = useAuth();
+  const canViewActivity = can(PERMISSIONS.activitiesView);
   const [exporting, setExporting] = useState(false);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(25);
@@ -214,9 +217,10 @@ function AttendanceSheetPage() {
     <div className="space-y-6">
       <Breadcrumb
         items={[
-          { href: "/activites", label: "Mobilisation" },
           { href: "/presences", label: "Présences" },
-          { href: `/activites/${params.id}`, label: data.activity.title },
+          ...(canViewActivity
+            ? [{ href: `/activites/${params.id}`, label: data.activity.title }]
+            : [{ label: data.activity.title }]),
           { label: "Feuille de présence" },
         ]}
       />
@@ -391,11 +395,19 @@ function AttendanceSheetPage() {
                 <Download className="mr-2 h-4 w-4" />
                 Export CSV
               </Button>
-              <Link href={`/activites/${params.id}`}>
-                <Button variant="ghost" size="sm">
-                  Retour activité
-                </Button>
-              </Link>
+              {canViewActivity ? (
+                <Link href={`/activites/${params.id}`}>
+                  <Button variant="ghost" size="sm">
+                    Retour activité
+                  </Button>
+                </Link>
+              ) : (
+                <Link href="/presences">
+                  <Button variant="ghost" size="sm">
+                    Retour présences
+                  </Button>
+                </Link>
+              )}
             </div>
           }
         />

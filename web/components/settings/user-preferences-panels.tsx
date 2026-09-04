@@ -17,7 +17,7 @@ export interface UserPreferences {
   photo_visibility: "everyone" | "contacts" | "private";
   phone_visibility: "everyone" | "contacts" | "private";
   email_visibility: "everyone" | "contacts" | "private";
-  theme: "light" | "dark" | "system";
+  theme: "light";
   locale: "fr";
   reduce_motion: boolean;
   auto_download_media: boolean;
@@ -32,7 +32,7 @@ const DEFAULT_PREFS: UserPreferences = {
   photo_visibility: "contacts",
   phone_visibility: "private",
   email_visibility: "private",
-  theme: "system",
+  theme: "light",
   locale: "fr",
   reduce_motion: false,
   auto_download_media: true,
@@ -63,7 +63,7 @@ export function useUserPreferences() {
   useEffect(() => {
     api
       .get<{ data: UserPreferences }>("/user-preferences")
-      .then((response) => setPrefs({ ...DEFAULT_PREFS, ...response.data }))
+      .then((response) => setPrefs({ ...DEFAULT_PREFS, ...response.data, theme: "light" }))
       .catch((caught) => setError(caught instanceof ApiError ? caught.message : "Chargement impossible."))
       .finally(() => setLoading(false));
   }, []);
@@ -76,7 +76,7 @@ export function useUserPreferences() {
       const response = await api.put<{ message: string; data: UserPreferences }>("/user-preferences", next);
       setPrefs({ ...DEFAULT_PREFS, ...response.data });
       toast.success(response.message);
-      applyTheme(response.data.theme, response.data.reduce_motion);
+      applyTheme("light", response.data.reduce_motion);
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : "Enregistrement impossible.");
     } finally {
@@ -87,14 +87,11 @@ export function useUserPreferences() {
   return { prefs, loading, saving, error, save, setPrefs };
 }
 
-export function applyTheme(theme: UserPreferences["theme"], reduceMotion?: boolean) {
+export function applyTheme(_theme?: UserPreferences["theme"], reduceMotion?: boolean) {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  const dark =
-    theme === "dark" ||
-    (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  root.classList.toggle("dark", dark);
-  root.dataset.theme = theme;
+  root.classList.remove("dark");
+  root.dataset.theme = "light";
   if (reduceMotion !== undefined) {
     root.dataset.reduceMotion = reduceMotion ? "1" : "0";
   }
@@ -244,29 +241,13 @@ export function AppearancePreferencesPanel() {
       <Card>
         <CardHeader title="Apparence" />
         <CardBody className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                ["light", "Mode clair"],
-                ["dark", "Mode sombre"],
-                ["system", "Mode système"],
-              ] as const
-            ).map(([id, label]) => (
-              <Button
-                key={id}
-                type="button"
-                size="sm"
-                variant={prefs.theme === id ? "primary" : "outline"}
-                onClick={() => void save({ ...prefs, theme: id })}
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
+          <p className="text-sm text-slate-700">
+            Thème : <span className="font-semibold text-slate-900">Mode clair</span>
+          </p>
           <Switch
             label="Réduire les animations"
             checked={prefs.reduce_motion}
-            onChange={(checked) => void save({ ...prefs, reduce_motion: checked })}
+            onChange={(checked) => void save({ ...prefs, theme: "light", reduce_motion: checked })}
           />
           {saving ? <p className="text-xs text-slate-400">Enregistrement…</p> : null}
         </CardBody>
