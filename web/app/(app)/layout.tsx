@@ -55,10 +55,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </Suspense>
 
       <div className="lg:pl-[17.5rem] print:pl-0">
-        <div className="no-print">
+        <div className="no-print fixed inset-x-0 top-0 z-30 lg:left-[17.5rem]">
           <Topbar onOpenMenu={() => setMenuOpen(true)} />
         </div>
-        <main className="animate-fade-in mx-auto w-full max-w-[110rem] px-4 py-6 sm:px-6 lg:px-8 print:max-w-none print:p-0">
+        <main className="animate-fade-in mx-auto w-full max-w-[110rem] px-4 pt-[4.5rem] pb-6 sm:px-6 lg:px-8 print:max-w-none print:p-0 print:pt-0">
           {user.must_change_password && (
             <Alert tone="warning" className="mb-4 no-print" title="Première connexion — mot de passe">
               <Link href="/compte/mot-de-passe?onboarding=1" className="font-medium underline">

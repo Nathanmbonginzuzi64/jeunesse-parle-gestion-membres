@@ -4,7 +4,34 @@
 
 import { cn } from "@/lib/utils";
 
-export function Logo({ className, size = 36 }: { className?: string; size?: number }) {
+export function Logo({
+  className,
+  size = 36,
+  framed = false,
+}: {
+  className?: string;
+  size?: number;
+  /** Fond bleu (badge logo du site public). */
+  framed?: boolean;
+}) {
+  if (framed) {
+    return (
+      <span
+        className={cn(
+          "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-xl bg-brand-700 p-1.5 shadow-sm ring-1 ring-brand-800/25",
+          className,
+        )}
+        style={{ width: size, height: size }}
+      >
+        <img
+          src="/logo.png"
+          alt="La Jeunesse Parle"
+          className="h-full w-full object-contain"
+        />
+      </span>
+    );
+  }
+
   return (
     <img
       src="/logo.png"
@@ -21,15 +48,17 @@ export function BrandMark({
   subtitle = "Gestion des membres",
   size = 40,
   inverted = false,
+  framed = false,
 }: {
   className?: string;
   subtitle?: string | null;
   size?: number;
   inverted?: boolean;
+  framed?: boolean;
 }) {
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
-      <Logo size={size} />
+      <Logo size={size} framed={framed} />
       <div className="min-w-0 leading-tight">
         <p
           className={cn(

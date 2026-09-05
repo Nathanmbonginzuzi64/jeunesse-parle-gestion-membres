@@ -49,7 +49,7 @@ export function SiteHeader() {
       <div className="h-0.5 bg-gradient-to-r from-flag-blue via-gold-500 to-flag-red" />
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-2 px-3 sm:px-4 lg:h-16">
         <Link href="/" onClick={() => setOpen(false)} className="min-w-0 shrink">
-          <BrandMark subtitle="République Démocratique du Congo" />
+          <BrandMark subtitle="République Démocratique du Congo" framed />
         </Link>
 
         <nav className="hidden items-center gap-0.5 2xl:flex">
@@ -150,7 +150,7 @@ export function SiteFooter() {
     <footer className="mt-auto border-t border-slate-200 bg-gradient-to-b from-white to-slate-50">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <BrandMark subtitle="Gestion des membres" />
+          <BrandMark subtitle="Gestion des membres" framed />
           <p className="mt-3 text-sm leading-relaxed text-slate-500">
             Plateforme nationale d’inscription, d’identification et de mobilisation de la jeunesse congolaise.
           </p>
