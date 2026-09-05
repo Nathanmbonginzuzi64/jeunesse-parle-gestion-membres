@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { PERMISSIONS } from "@/lib/permissions";
 
+export type ReportTone = "brand" | "sky" | "emerald" | "rose" | "violet" | "amber";
+
 export interface ReportCatalogItem {
   id: string;
   href: string;
@@ -18,7 +20,9 @@ export interface ReportCatalogItem {
   description: string;
   icon: LucideIcon;
   permission?: string;
-  badge?: string;
+  /** Affiche un libellé discret « Export PDF » sous la description. */
+  exportHint?: boolean;
+  tone?: ReportTone;
 }
 
 export const REPORT_CATALOG: ReportCatalogItem[] = [
@@ -29,6 +33,7 @@ export const REPORT_CATALOG: ReportCatalogItem[] = [
     description: "KPI nationaux, graphiques d'évolution, répartition démographique et couverture territoriale.",
     icon: BarChart3,
     permission: PERMISSIONS.statisticsView,
+    tone: "brand",
   },
   {
     id: "members",
@@ -37,7 +42,8 @@ export const REPORT_CATALOG: ReportCatalogItem[] = [
     description: "Liste hiérarchique RDC → Avenue avec statut carte, biométrie et export PDF.",
     icon: Users,
     permission: PERMISSIONS.statisticsView,
-    badge: "PDF",
+    exportHint: true,
+    tone: "sky",
   },
   {
     id: "activities",
@@ -46,7 +52,8 @@ export const REPORT_CATALOG: ReportCatalogItem[] = [
     description: "Activités, participants, présences et classification par type — export PDF.",
     icon: Activity,
     permission: PERMISSIONS.statisticsView,
-    badge: "PDF",
+    exportHint: true,
+    tone: "emerald",
   },
   {
     id: "cards",
@@ -55,7 +62,8 @@ export const REPORT_CATALOG: ReportCatalogItem[] = [
     description: "Cartes générées, actives, expirées, suspendues et historique par membre — PDF.",
     icon: CreditCard,
     permission: PERMISSIONS.statisticsView,
-    badge: "PDF",
+    exportHint: true,
+    tone: "violet",
   },
   {
     id: "attendance",
@@ -64,7 +72,8 @@ export const REPORT_CATALOG: ReportCatalogItem[] = [
     description: "Taux de participation global et analyse par type d'activité — export PDF.",
     icon: UserCheck,
     permission: PERMISSIONS.statisticsView,
-    badge: "PDF",
+    exportHint: true,
+    tone: "rose",
   },
   {
     id: "users",
@@ -73,7 +82,8 @@ export const REPORT_CATALOG: ReportCatalogItem[] = [
     description: "Comptes actifs, suspendus, rôles et dernières connexions — PDF.",
     icon: Users,
     permission: PERMISSIONS.usersView,
-    badge: "PDF",
+    exportHint: true,
+    tone: "sky",
   },
   {
     id: "roles",
@@ -82,7 +92,8 @@ export const REPORT_CATALOG: ReportCatalogItem[] = [
     description: "Matrice RBAC — modules accessibles et actions autorisées par rôle — PDF.",
     icon: Shield,
     permission: PERMISSIONS.usersView,
-    badge: "PDF",
+    exportHint: true,
+    tone: "amber",
   },
   {
     id: "news",
@@ -91,7 +102,8 @@ export const REPORT_CATALOG: ReportCatalogItem[] = [
     description: "Publications, vues, likes, commentaires et engagement — export PDF.",
     icon: Newspaper,
     permission: PERMISSIONS.statisticsView,
-    badge: "PDF",
+    exportHint: true,
+    tone: "rose",
   },
   {
     id: "exports",
@@ -100,7 +112,8 @@ export const REPORT_CATALOG: ReportCatalogItem[] = [
     description: "Synthèse nationale, territoire, mobilisation et profil démographique — PDF officiel.",
     icon: FileText,
     permission: PERMISSIONS.statisticsView,
-    badge: "PDF",
+    exportHint: true,
+    tone: "brand",
   },
   {
     id: "audit",
@@ -109,5 +122,42 @@ export const REPORT_CATALOG: ReportCatalogItem[] = [
     description: "Traçabilité complète — connexions, modifications, exports et vérifications.",
     icon: Shield,
     permission: PERMISSIONS.auditView,
+    tone: "violet",
   },
 ];
+
+export const REPORT_TONE_STYLES: Record<
+  ReportTone,
+  { icon: string; soft: string; ring: string }
+> = {
+  brand: {
+    icon: "bg-brand-50 text-brand-700 ring-brand-100",
+    soft: "group-hover:border-brand-300",
+    ring: "ring-brand-100",
+  },
+  sky: {
+    icon: "bg-sky-50 text-sky-700 ring-sky-100",
+    soft: "group-hover:border-sky-300",
+    ring: "ring-sky-100",
+  },
+  emerald: {
+    icon: "bg-emerald-50 text-emerald-700 ring-emerald-100",
+    soft: "group-hover:border-emerald-300",
+    ring: "ring-emerald-100",
+  },
+  rose: {
+    icon: "bg-rose-50 text-rose-700 ring-rose-100",
+    soft: "group-hover:border-rose-300",
+    ring: "ring-rose-100",
+  },
+  violet: {
+    icon: "bg-violet-50 text-violet-700 ring-violet-100",
+    soft: "group-hover:border-violet-300",
+    ring: "ring-violet-100",
+  },
+  amber: {
+    icon: "bg-amber-50 text-amber-800 ring-amber-100",
+    soft: "group-hover:border-amber-300",
+    ring: "ring-amber-100",
+  },
+};

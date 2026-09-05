@@ -2,14 +2,21 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CreditCard } from "lucide-react";
+import {
+  Ban,
+  CheckCircle2,
+  CreditCard,
+  RefreshCw,
+  ShieldAlert,
+  TimerOff,
+} from "lucide-react";
 import { RequirePermission } from "@/components/auth/require-permission";
-import { DashboardAnimate } from "@/components/dashboard/dashboard-animate";
 import { CardsPdfDocument } from "@/components/reports/analytics-pdf-document";
+import { ReportPageHeader } from "@/components/reports/report-page-header";
 import { ReportPdfExportButton } from "@/components/reports/report-pdf-export-button";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { CardStatusBadge } from "@/components/ui/badge";
-import { Card, CardBody } from "@/components/ui/card";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Alert, EmptyState, TableSkeleton } from "@/components/ui/feedback";
 import { KpiCard, dashboardCardGrid } from "@/components/ui/kpi";
 import { Pagination } from "@/components/ui/table";
@@ -18,7 +25,7 @@ import { useAuth } from "@/lib/auth";
 import type { CardsReportResponse } from "@/lib/reports/api-types";
 import { fetchAllReportPages } from "@/lib/reports/fetch-all-pages";
 import { PERMISSIONS } from "@/lib/permissions";
-import { formatNumber } from "@/lib/utils";
+import { formatCompactCount, formatNumber } from "@/lib/utils";
 
 export default function CardsReportPage() {
   return (
@@ -39,7 +46,7 @@ function CardsReport() {
   const summary = data?.summary;
 
   return (
-    <>
+    <div className="space-y-6 pb-10">
       <Breadcrumb
         items={[
           { href: "/tableau-de-bord", label: "Pilotage" },
@@ -48,14 +55,11 @@ function CardsReport() {
         ]}
       />
 
-      <DashboardAnimate>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">Rapport des cartes</h1>
-            <p className="mt-1 text-sm text-slate-600">
-              Vue globale et détail par membre — actives, expirées, suspendues, perdues, remplacées.
-            </p>
-          </div>
+      <ReportPageHeader
+        icon={CreditCard}
+        title="Rapport des cartes"
+        description="Vue globale et détail par membre — actives, expirées, suspendues, perdues, remplacées."
+        actions={
           <ReportPdfExportButton
             reportId="cartes"
             disabled={!data?.data.length}
@@ -67,21 +71,29 @@ function CardsReport() {
               return <CardsPdfDocument data={full as CardsReportResponse} generatedBy={user?.name} />;
             }}
           />
-        </div>
-      </DashboardAnimate>
+        }
+      />
 
       {summary ? (
         <div className={dashboardCardGrid}>
-          <KpiCard label="Total cartes" value={formatNumber(summary.total)} icon={CreditCard} />
-          <KpiCard label="Actives" value={formatNumber(summary.active)} icon={CreditCard} />
-          <KpiCard label="Expirées" value={formatNumber(summary.expired)} icon={CreditCard} />
-          <KpiCard label="Suspendues" value={formatNumber(summary.suspended)} icon={CreditCard} />
-          <KpiCard label="Perdues" value={formatNumber(summary.lost)} icon={CreditCard} />
-          <KpiCard label="Remplacées" value={formatNumber(summary.replaced)} icon={CreditCard} />
+          <KpiCard label="Total cartes" value={formatCompactCount(summary.total)} icon={CreditCard} tone="info" />
+          <KpiCard label="Actives" value={formatCompactCount(summary.active)} icon={CheckCircle2} tone="success" />
+          <KpiCard label="Expirées" value={formatCompactCount(summary.expired)} icon={TimerOff} tone="warning" />
+          <KpiCard label="Suspendues" value={formatCompactCount(summary.suspended)} icon={Ban} tone="danger" />
+          <KpiCard label="Perdues" value={formatCompactCount(summary.lost)} icon={ShieldAlert} tone="danger" />
+          <KpiCard label="Remplacées" value={formatCompactCount(summary.replaced)} icon={RefreshCw} tone="neutral" />
         </div>
       ) : null}
 
-      <Card className="mt-4">
+      <Card className="overflow-hidden rounded-2xl border-slate-200/80 shadow-sm">
+        <CardHeader
+          title="Détail des cartes"
+          description={
+            data?.meta
+              ? `${formatNumber(data.meta.total)} carte(s) au total`
+              : "Liste paginée des cartes émises"
+          }
+        />
         <CardBody className="p-0">
           {error ? (
             <Alert tone="danger" className="m-4">
@@ -95,7 +107,7 @@ function CardsReport() {
             <>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                  <thead className="bg-slate-50 text-xs font-semibold tracking-wide text-slate-500 uppercase">
                     <tr>
                       <th className="px-4 py-3">Membre</th>
                       <th className="px-4 py-3">N° carte</th>
@@ -106,12 +118,12 @@ function CardsReport() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {data.data.map((row) => (
-                      <tr key={row.id}>
+                      <tr key={row.id} className="transition hover:bg-slate-50/80">
                         <td className="px-4 py-3">
                           {row.member ? (
                             <Link
                               href={`/rapports/membres/${row.member.member_code}`}
-                              className="text-brand-700 hover:underline"
+                              className="font-medium text-brand-700 hover:underline"
                             >
                               {row.member.full_name}
                             </Link>
@@ -119,9 +131,9 @@ function CardsReport() {
                             "—"
                           )}
                         </td>
-                        <td className="px-4 py-3 font-mono text-xs">{row.card_number}</td>
-                        <td className="px-4 py-3">{row.issued_at ?? "—"}</td>
-                        <td className="px-4 py-3">{row.expires_at ?? "—"}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-slate-700">{row.card_number}</td>
+                        <td className="px-4 py-3 text-slate-600">{row.issued_at ?? "—"}</td>
+                        <td className="px-4 py-3 text-slate-600">{row.expires_at ?? "—"}</td>
                         <td className="px-4 py-3">
                           <CardStatusBadge status={row.status} label={row.status_label} />
                         </td>
@@ -133,12 +145,15 @@ function CardsReport() {
               <Pagination
                 page={data.meta.current_page}
                 lastPage={data.meta.last_page}
-                onPageChange={setPage}
+                total={data.meta.total}
+                perPage={data.meta.per_page}
+                onChange={setPage}
+                label="cartes"
               />
             </>
           )}
         </CardBody>
       </Card>
-    </>
+    </div>
   );
 }
