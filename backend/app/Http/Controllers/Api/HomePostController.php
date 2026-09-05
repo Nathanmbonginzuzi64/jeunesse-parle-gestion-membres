@@ -70,9 +70,13 @@ class HomePostController extends Controller
         abort_unless($this->isPubliclyVisible($homePost), 404);
 
         $visitorKey = $this->visitorKey($request);
-        $this->recordView($homePost, $visitorKey, $request->ip());
+        $silent = $request->boolean('silent')
+            || strtolower((string) $request->header('X-Silent-Refresh', '')) === '1';
 
-        $homePost->refresh();
+        if (! $silent) {
+            $this->recordView($homePost, $visitorKey, $request->ip());
+            $homePost->refresh();
+        }
 
         $comments = HomePostComment::query()
             ->where('home_post_id', $homePost->id)

@@ -106,10 +106,16 @@ export async function getPublicHomePosts(limit = 50): Promise<HomePost[]> {
 
 export async function getPublicHomePost(
   id: number | string,
+  options?: { silent?: boolean },
 ): Promise<(HomePost & { comments?: HomePostComment[] }) | null> {
   try {
-    const response = await fetch(`${API_BASE_URL}/public/home-posts/${id}`, {
-      headers: visitorHeaders(),
+    const silent = Boolean(options?.silent);
+    const url = `${API_BASE_URL}/public/home-posts/${id}${silent ? "?silent=1" : ""}`;
+    const response = await fetch(url, {
+      headers: {
+        ...visitorHeaders(),
+        ...(silent ? { "X-Silent-Refresh": "1" } : {}),
+      },
       cache: "no-store",
     });
     if (!response.ok) return null;
