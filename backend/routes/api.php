@@ -83,9 +83,11 @@ Route::get('public/stats', [StatisticsController::class, 'publicLanding'])->midd
 Route::prefix('public/home-posts')->group(function () {
     Route::get('/', [HomePostController::class, 'publicIndex'])->middleware('throttle:180,1');
     Route::get('{homePost}/image', [HomePostController::class, 'publicImage'])->middleware('throttle:180,1');
+    Route::get('{homePost}/comments', [HomePostController::class, 'publicComments'])->middleware('throttle:180,1');
     Route::get('{homePost}', [HomePostController::class, 'publicShow'])->middleware('throttle:180,1');
     Route::post('{homePost}/like', [HomePostController::class, 'publicLike'])->middleware('throttle:60,1');
     Route::post('{homePost}/comments', [HomePostController::class, 'publicComment'])->middleware('throttle:30,1');
+    Route::post('{homePost}/share', [HomePostController::class, 'publicShare'])->middleware('throttle:30,1');
 });
 
 Route::prefix('territories')->group(function () {

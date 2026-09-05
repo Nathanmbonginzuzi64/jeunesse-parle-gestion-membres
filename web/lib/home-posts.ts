@@ -12,6 +12,7 @@ export interface HomePost {
   views_count?: number;
   likes_count?: number;
   comments_count?: number;
+  shares_count?: number;
   liked_by_me?: boolean;
   is_published?: boolean;
   sort_order?: number;
@@ -22,9 +23,12 @@ export interface HomePost {
 
 export interface HomePostComment {
   id: number;
+  parent_id?: number | null;
   author_name: string;
   body: string;
   created_at: string | null;
+  replies?: HomePostComment[];
+  replies_count?: number;
 }
 
 export interface HomePostsPage {
@@ -35,6 +39,12 @@ export interface HomePostsPage {
     per_page: number;
     total: number;
   };
+}
+
+export interface HomePostCommentsPage {
+  data: HomePostComment[];
+  meta: HomePostsPage["meta"];
+  comments_count: number;
 }
 
 const VISITOR_KEY = "jp.visitor";
@@ -98,7 +108,6 @@ export async function getPublicHomePostsPage(
   }
 }
 
-/** @deprecated Préférer getPublicHomePostsPage */
 export async function getPublicHomePosts(limit = 50): Promise<HomePost[]> {
   const page = await getPublicHomePostsPage(1, Math.min(limit, 48));
   return page.data;
@@ -107,7 +116,7 @@ export async function getPublicHomePosts(limit = 50): Promise<HomePost[]> {
 export async function getPublicHomePost(
   id: number | string,
   options?: { silent?: boolean },
-): Promise<(HomePost & { comments?: HomePostComment[] }) | null> {
+): Promise<HomePost | null> {
   try {
     const silent = Boolean(options?.silent);
     const url = `${API_BASE_URL}/public/home-posts/${id}${silent ? "?silent=1" : ""}`;
@@ -119,10 +128,51 @@ export async function getPublicHomePost(
       cache: "no-store",
     });
     if (!response.ok) return null;
-    const payload = (await response.json()) as { data?: HomePost & { comments?: HomePostComment[] } };
+    const payload = (await response.json()) as { data?: HomePost };
     return payload.data ?? null;
   } catch {
     return null;
+  }
+}
+
+export async function getPublicHomePostComments(
+  id: number | string,
+  page = 1,
+  perPage = 8,
+  options?: { silent?: boolean },
+): Promise<HomePostCommentsPage> {
+  const empty: HomePostCommentsPage = {
+    data: [],
+    meta: { current_page: 1, last_page: 1, per_page: perPage, total: 0 },
+    comments_count: 0,
+  };
+
+  try {
+    const silent = Boolean(options?.silent);
+    const response = await fetch(
+      `${API_BASE_URL}/public/home-posts/${id}/comments?page=${page}&per_page=${perPage}`,
+      {
+        headers: {
+          ...visitorHeaders(),
+          ...(silent ? { "X-Silent-Refresh": "1" } : {}),
+        },
+        cache: "no-store",
+      },
+    );
+    if (!response.ok) return empty;
+    const payload = (await response.json()) as Partial<HomePostCommentsPage>;
+    return {
+      data: Array.isArray(payload.data) ? payload.data : [],
+      meta: {
+        current_page: Number(payload.meta?.current_page ?? page),
+        last_page: Math.max(1, Number(payload.meta?.last_page ?? 1)),
+        per_page: Number(payload.meta?.per_page ?? perPage),
+        total: Number(payload.meta?.total ?? 0),
+      },
+      comments_count: Number(payload.comments_count ?? 0),
+    };
+  } catch {
+    return empty;
   }
 }
 
@@ -147,7 +197,7 @@ export async function likeHomePost(
 
 export async function commentHomePost(
   id: number,
-  data: { author_name: string; author_email?: string; body: string },
+  data: { author_name: string; author_email?: string; body: string; parent_id?: number },
 ): Promise<{ comment: HomePostComment; comments_count: number }> {
   const response = await fetch(`${API_BASE_URL}/public/home-posts/${id}/comments`, {
     method: "POST",
@@ -164,4 +214,20 @@ export async function commentHomePost(
     comment: (payload as { data: HomePostComment }).data,
     comments_count: Number((payload as { comments_count?: number }).comments_count ?? 0),
   };
+}
+
+export async function shareHomePost(
+  id: number,
+  channel = "link",
+): Promise<{ shares_count: number }> {
+  const response = await fetch(`${API_BASE_URL}/public/home-posts/${id}/share`, {
+    method: "POST",
+    headers: visitorHeaders(),
+    body: JSON.stringify({ channel }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error((payload as { message?: string }).message || "Partage impossible.");
+  }
+  return { shares_count: Number((payload as { shares_count?: number }).shares_count ?? 0) };
 }

@@ -24,6 +24,7 @@ class HomePost extends Model
         'views_count',
         'likes_count',
         'comments_count',
+        'shares_count',
         'author_id',
         'source_key',
     ];
@@ -37,6 +38,7 @@ class HomePost extends Model
             'views_count' => 'integer',
             'likes_count' => 'integer',
             'comments_count' => 'integer',
+            'shares_count' => 'integer',
         ];
     }
 
@@ -58,6 +60,11 @@ class HomePost extends Model
     public function views(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(HomePostView::class);
+    }
+
+    public function shares(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(HomePostShare::class);
     }
 
     public function scopePublished(Builder $query): Builder

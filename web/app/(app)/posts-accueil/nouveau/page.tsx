@@ -4,10 +4,9 @@ import { useRouter } from "next/navigation";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { HomePostForm } from "@/components/home-posts/home-post-form";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
-import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { Alert } from "@/components/ui/feedback";
 import { useAuth } from "@/lib/auth";
 import { PERMISSIONS, ROLE_SLUGS } from "@/lib/permissions";
-import { Alert } from "@/components/ui/feedback";
 
 export default function NouveauHomePostPage() {
   const router = useRouter();
@@ -24,20 +23,23 @@ export default function NouveauHomePostPage() {
           ]}
         />
 
+        <div className="rounded-3xl bg-gradient-to-r from-brand-700 via-brand-600 to-brand-800 p-6 text-white shadow-lg">
+          <p className="text-xs font-semibold tracking-[0.18em] text-brand-100 uppercase">
+            Publication
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold">Nouveau post d&apos;accueil</h1>
+          <p className="mt-1 max-w-2xl text-sm text-brand-50/85">
+            Rédigez le contenu, ajoutez une image, puis publiez sur la page Actualités publique
+            (/infos). Une barre de progression s&apos;affiche pendant l&apos;envoi.
+          </p>
+        </div>
+
         {!isSuperAdmin ? (
           <Alert tone="warning" title="Accès restreint">
             Seul le super administrateur peut créer des posts d&apos;accueil.
           </Alert>
         ) : (
-          <Card>
-            <CardHeader
-              title="Nouveau post d'accueil"
-              description="Ce contenu s'affiche sur la page Actualités publique (/infos)."
-            />
-            <CardBody>
-              <HomePostForm onSuccess={() => router.push("/posts-accueil")} />
-            </CardBody>
-          </Card>
+          <HomePostForm onSuccess={() => router.push("/posts-accueil")} />
         )}
       </div>
     </RequirePermission>

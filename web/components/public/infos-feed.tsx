@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Eye, Heart, MessageCircle, Newspaper } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, Heart, MessageCircle, Newspaper, Share2 } from "lucide-react";
 import { RevealOnScroll } from "@/components/ui/reveal-on-scroll";
 import {
   getPublicHomePostsPage,
@@ -12,7 +12,7 @@ import {
 import { getFastPollMs, subscribeRealtimeRefresh } from "@/lib/realtime";
 import { formatNumber } from "@/lib/utils";
 
-function dateBadgeParts(value: string): { day: string; month: string } | null {
+function dateBadgeParts(value: string): { day: string; month: string; year: string } | null {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
   const day = String(date.getDate());
@@ -21,14 +21,15 @@ function dateBadgeParts(value: string): { day: string; month: string } | null {
     .replace(/\./g, "")
     .trim()
     .toUpperCase();
-  return { day, month };
+  const year = String(date.getFullYear());
+  return { day, month, year };
 }
 
 function postsSignature(posts: HomePost[]): string {
   return posts
     .map(
       (p) =>
-        `${p.id}:${p.updated_at ?? p.published_at ?? ""}:${p.views_count ?? 0}:${p.likes_count ?? 0}:${p.comments_count ?? 0}:${p.title}`,
+        `${p.id}:${p.updated_at ?? p.published_at ?? ""}:${p.views_count ?? 0}:${p.likes_count ?? 0}:${p.comments_count ?? 0}:${p.shares_count ?? 0}:${p.title}`,
     )
     .join("|");
 }
@@ -190,16 +191,19 @@ function HomePostCard({ post }: { post: HomePost }) {
           )}
         </div>
 
-        <div className="relative flex flex-1 flex-col border-t border-slate-100 bg-gradient-to-b from-slate-50/90 to-white p-5 pt-8 sm:p-6 sm:pt-9">
+        <div className="relative flex flex-1 flex-col border-t border-slate-100 bg-gradient-to-b from-slate-50/90 to-white p-5 pt-10 sm:p-6 sm:pt-11">
           {badge && (
             <time
               dateTime={post.published_at ?? undefined}
-              className="absolute -top-7 left-4 flex h-[3.6rem] w-[3.6rem] flex-col items-center justify-center rounded-xl bg-[#002d72] text-white shadow-[0_8px_20px_-6px_rgba(0,45,114,0.65)]"
-              aria-label={`Publié le ${badge.day} ${badge.month}`}
+              className="absolute -top-8 left-4 flex h-[4.35rem] w-[3.75rem] flex-col items-center justify-center rounded-xl bg-[#002d72] px-1 py-1.5 text-white shadow-[0_8px_20px_-6px_rgba(0,45,114,0.65)]"
+              aria-label={`Publié le ${badge.day} ${badge.month} ${badge.year}`}
             >
-              <span className="text-xl leading-none font-bold tabular-nums">{badge.day}</span>
-              <span className="mt-1 text-[9px] leading-none font-bold tracking-wide uppercase">
+              <span className="text-lg leading-none font-bold tabular-nums">{badge.day}</span>
+              <span className="mt-0.5 text-[9px] leading-none font-bold tracking-wide uppercase">
                 {badge.month}
+              </span>
+              <span className="mt-0.5 text-[9px] leading-none font-semibold tabular-nums opacity-90">
+                {badge.year}
               </span>
             </time>
           )}
@@ -224,6 +228,10 @@ function HomePostCard({ post }: { post: HomePost }) {
             <span className="inline-flex items-center gap-1.5">
               <MessageCircle className="h-3.5 w-3.5" />
               {post.comments_count ?? 0}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Share2 className="h-3.5 w-3.5" />
+              {post.shares_count ?? 0}
             </span>
             <span className="ml-auto text-brand-700 group-hover:underline">Lire →</span>
           </div>

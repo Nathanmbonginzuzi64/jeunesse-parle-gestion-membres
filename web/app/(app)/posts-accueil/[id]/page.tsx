@@ -6,7 +6,6 @@ import { RequirePermission } from "@/components/auth/require-permission";
 import { HomePostForm } from "@/components/home-posts/home-post-form";
 import { Alert } from "@/components/ui/feedback";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
-import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { HomePost } from "@/lib/home-posts";
@@ -52,6 +51,16 @@ export default function EditHomePostPage() {
           ]}
         />
 
+        <div className="rounded-3xl bg-gradient-to-r from-brand-700 via-brand-600 to-brand-800 p-6 text-white shadow-lg">
+          <p className="text-xs font-semibold tracking-[0.18em] text-brand-100 uppercase">
+            Édition
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold">Modifier le post</h1>
+          <p className="mt-1 max-w-2xl text-sm text-brand-50/85">
+            {post?.title ?? "Mettez à jour le contenu, l'image ou le statut de publication."}
+          </p>
+        </div>
+
         {!isSuperAdmin ? (
           <Alert tone="warning" title="Accès restreint">
             Seul le super administrateur peut modifier ces posts.
@@ -63,16 +72,11 @@ export default function EditHomePostPage() {
             {error ?? "Post introuvable."}
           </Alert>
         ) : (
-          <Card>
-            <CardHeader title="Modifier le post" description={post.title} />
-            <CardBody>
-              <HomePostForm
-                initial={post}
-                postId={post.id}
-                onSuccess={() => router.push("/posts-accueil")}
-              />
-            </CardBody>
-          </Card>
+          <HomePostForm
+            initial={post}
+            postId={post.id}
+            onSuccess={() => router.push("/posts-accueil")}
+          />
         )}
       </div>
     </RequirePermission>

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\HomePost;
 use App\Models\HomePostComment;
 use App\Models\HomePostLike;
+use App\Models\HomePostShare;
 use App\Models\HomePostView;
 use App\Services\AuditLogger;
 use App\Services\HomePostMediaService;
@@ -64,7 +65,7 @@ class HomePostController extends Controller
         ]);
     }
 
-    /** Détail public + commentaires + enregistrement de vue. */
+    /** Détail public + enregistrement de vue (commentaires via endpoint dédié). */
     public function publicShow(Request $request, HomePost $homePost): JsonResponse
     {
         abort_unless($this->isPubliclyVisible($homePost), 404);
@@ -78,13 +79,6 @@ class HomePostController extends Controller
             $homePost->refresh();
         }
 
-        $comments = HomePostComment::query()
-            ->where('home_post_id', $homePost->id)
-            ->where('is_approved', true)
-            ->orderByDesc('created_at')
-            ->limit(100)
-            ->get();
-
         $liked = HomePostLike::query()
             ->where('home_post_id', $homePost->id)
             ->where('visitor_key', $visitorKey)
@@ -94,8 +88,37 @@ class HomePostController extends Controller
             'data' => [
                 ...$this->formatPublic($homePost),
                 'liked_by_me' => $liked,
-                'comments' => $comments->map(fn (HomePostComment $c) => $this->formatComment($c))->values(),
             ],
+        ]);
+    }
+
+    /** Commentaires racine paginés + réponses imbriquées. */
+    public function publicComments(Request $request, HomePost $homePost): JsonResponse
+    {
+        abort_unless($this->isPubliclyVisible($homePost), 404);
+
+        $perPage = min(max((int) $request->query('per_page', 8), 1), 30);
+        $page = max((int) $request->query('page', 1), 1);
+
+        $paginator = HomePostComment::query()
+            ->where('home_post_id', $homePost->id)
+            ->whereNull('parent_id')
+            ->where('is_approved', true)
+            ->with(['replies' => fn ($q) => $q->where('is_approved', true)->orderBy('created_at')])
+            ->orderByDesc('created_at')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        return response()->json([
+            'data' => collect($paginator->items())
+                ->map(fn (HomePostComment $c) => $this->formatComment($c, withReplies: true))
+                ->values(),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+            'comments_count' => (int) $homePost->comments_count,
         ]);
     }
 
@@ -145,15 +168,27 @@ class HomePostController extends Controller
         $data = Validator::make($request->all(), [
             'author_name' => ['required', 'string', 'max:80'],
             'author_email' => ['nullable', 'email', 'max:160'],
-            'body' => ['required', 'string', 'min:3', 'max:2000'],
+            'body' => ['required', 'string', 'min:2', 'max:2000'],
+            'parent_id' => ['nullable', 'integer', 'exists:home_post_comments,id'],
         ], [
             'author_name.required' => 'Indiquez votre nom.',
             'body.required' => 'Écrivez un commentaire.',
             'body.min' => 'Le commentaire est trop court.',
         ])->validate();
 
+        $parentId = $data['parent_id'] ?? null;
+        if ($parentId) {
+            $parent = HomePostComment::query()->findOrFail($parentId);
+            abort_unless(
+                (int) $parent->home_post_id === (int) $homePost->id && $parent->parent_id === null,
+                422,
+                'Réponse invalide : vous ne pouvez répondre qu’à un commentaire principal.',
+            );
+        }
+
         $comment = HomePostComment::query()->create([
             'home_post_id' => $homePost->id,
+            'parent_id' => $parentId,
             'author_name' => trim($data['author_name']),
             'author_email' => isset($data['author_email']) ? mb_strtolower(trim($data['author_email'])) : null,
             'body' => trim($data['body']),
@@ -165,10 +200,33 @@ class HomePostController extends Controller
         $homePost->increment('comments_count');
 
         return response()->json([
-            'message' => 'Commentaire publié.',
-            'data' => $this->formatComment($comment),
+            'message' => $parentId ? 'Réponse publiée.' : 'Commentaire publié.',
+            'data' => $this->formatComment($comment->fresh('replies'), withReplies: true),
             'comments_count' => (int) $homePost->fresh()->comments_count,
         ], 201);
+    }
+
+    public function publicShare(Request $request, HomePost $homePost): JsonResponse
+    {
+        abort_unless($this->isPubliclyVisible($homePost), 404);
+
+        $data = Validator::make($request->all(), [
+            'channel' => ['nullable', 'string', 'max:40'],
+        ])->validate();
+
+        HomePostShare::query()->create([
+            'home_post_id' => $homePost->id,
+            'visitor_key' => $this->visitorKey($request),
+            'channel' => $data['channel'] ?? 'link',
+            'ip_address' => $request->ip(),
+        ]);
+
+        $homePost->increment('shares_count');
+
+        return response()->json([
+            'message' => 'Partage enregistré.',
+            'shares_count' => (int) $homePost->fresh()->shares_count,
+        ]);
     }
 
     /** Administration : liste complète. */
@@ -230,14 +288,14 @@ class HomePostController extends Controller
 
         if (array_key_exists('is_published', $data)) {
             $homePost->is_published = filter_var($data['is_published'], FILTER_VALIDATE_BOOLEAN);
-            if ($homePost->is_published && ! $homePost->published_at) {
-                $homePost->published_at = $data['published_at'] ?? now();
-            }
-            if (! $homePost->is_published) {
-                $homePost->published_at = $data['published_at'] ?? $homePost->published_at;
-            }
-        } elseif (array_key_exists('published_at', $data)) {
-            $homePost->published_at = $data['published_at'];
+        }
+
+        if (array_key_exists('published_at', $data)) {
+            $homePost->published_at = $data['published_at'] ?: null;
+        }
+
+        if ($homePost->is_published && ! $homePost->published_at) {
+            $homePost->published_at = now();
         }
 
         if ($request->boolean('remove_image')) {
@@ -328,18 +386,33 @@ class HomePostController extends Controller
             'views_count' => (int) $post->views_count,
             'likes_count' => (int) $post->likes_count,
             'comments_count' => (int) $post->comments_count,
+            'shares_count' => (int) $post->shares_count,
             'updated_at' => $post->updated_at?->toIso8601String(),
         ];
     }
 
-    private function formatComment(HomePostComment $comment): array
+    private function formatComment(HomePostComment $comment, bool $withReplies = false): array
     {
-        return [
+        $payload = [
             'id' => $comment->id,
+            'parent_id' => $comment->parent_id,
             'author_name' => $comment->author_name,
             'body' => $comment->body,
             'created_at' => $comment->created_at?->toIso8601String(),
         ];
+
+        if ($withReplies) {
+            $replies = $comment->relationLoaded('replies')
+                ? $comment->replies
+                : $comment->replies()->where('is_approved', true)->orderBy('created_at')->get();
+
+            $payload['replies'] = $replies
+                ->map(fn (HomePostComment $reply) => $this->formatComment($reply))
+                ->values();
+            $payload['replies_count'] = $replies->count();
+        }
+
+        return $payload;
     }
 
     private function isPubliclyVisible(HomePost $post): bool
