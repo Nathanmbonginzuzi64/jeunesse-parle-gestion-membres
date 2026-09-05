@@ -10,7 +10,7 @@ import {
   type HomePostsPage,
 } from "@/lib/home-posts";
 import { getFastPollMs, subscribeRealtimeRefresh } from "@/lib/realtime";
-import { formatNumber } from "@/lib/utils";
+import { formatCompactCount, formatNumber } from "@/lib/utils";
 
 function dateBadgeParts(value: string): { day: string; month: string; year: string } | null {
   const date = new Date(value);
@@ -216,22 +216,34 @@ function HomePostCard({ post }: { post: HomePost }) {
             <p className="mt-2 line-clamp-3 flex-1 text-sm leading-relaxed text-slate-600">{preview}</p>
           )}
 
-          <div className="mt-4 flex items-center gap-4 border-t border-slate-100 pt-4 text-xs font-medium text-slate-500">
-            <span className="inline-flex items-center gap-1.5">
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4 text-xs font-semibold">
+            <span
+              className="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-2 py-1 text-sky-700"
+              title={`${post.views_count ?? 0} vues`}
+            >
               <Eye className="h-3.5 w-3.5" />
-              {post.views_count ?? 0}
+              {formatCompactCount(post.views_count)}
             </span>
-            <span className="inline-flex items-center gap-1.5">
+            <span
+              className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2 py-1 text-rose-700"
+              title={`${post.likes_count ?? 0} likes`}
+            >
               <Heart className="h-3.5 w-3.5" />
-              {post.likes_count ?? 0}
+              {formatCompactCount(post.likes_count)}
             </span>
-            <span className="inline-flex items-center gap-1.5">
+            <span
+              className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-1 text-emerald-700"
+              title={`${post.comments_count ?? 0} commentaires`}
+            >
               <MessageCircle className="h-3.5 w-3.5" />
-              {post.comments_count ?? 0}
+              {formatCompactCount(post.comments_count)}
             </span>
-            <span className="inline-flex items-center gap-1.5">
+            <span
+              className="inline-flex items-center gap-1 rounded-lg bg-violet-50 px-2 py-1 text-violet-700"
+              title={`${post.shares_count ?? 0} partages`}
+            >
               <Share2 className="h-3.5 w-3.5" />
-              {post.shares_count ?? 0}
+              {formatCompactCount(post.shares_count)}
             </span>
             <span className="ml-auto text-brand-700 group-hover:underline">Lire →</span>
           </div>

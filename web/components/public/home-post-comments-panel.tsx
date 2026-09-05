@@ -17,7 +17,7 @@ import {
   type HomePostComment,
 } from "@/lib/home-posts";
 import { getFastPollMs, subscribeRealtimeRefresh } from "@/lib/realtime";
-import { formatDateTime, formatNumber } from "@/lib/utils";
+import { formatCompactCount, formatDateTime, formatNumber } from "@/lib/utils";
 
 const PER_PAGE = 8;
 
@@ -119,7 +119,7 @@ export function HomePostCommentsPanel({
       <div>
         <p className="text-xs font-semibold tracking-[0.16em] text-brand-600 uppercase">Discussion</p>
         <h2 className="mt-1 text-xl font-semibold text-slate-900">
-          Commentaires ({formatNumber(commentsCount)})
+          Commentaires ({formatCompactCount(commentsCount)})
         </h2>
         <p className="mt-1 text-xs text-slate-500">
           Répondez en direct — les nouveaux messages apparaissent automatiquement.

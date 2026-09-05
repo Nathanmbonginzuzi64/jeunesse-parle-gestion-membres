@@ -10,7 +10,7 @@ import { Alert, Skeleton } from "@/components/ui/feedback";
 import { useApi } from "@/lib/hooks";
 import type { NewsPostItem } from "@/lib/news/constants";
 import { PERMISSIONS } from "@/lib/permissions";
-import { formatNumber } from "@/lib/utils";
+import { formatCompactCount } from "@/lib/utils";
 
 export default function ActualiteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -44,9 +44,9 @@ function ActualiteDetail({ id }: { id: string }) {
           Retour au fil
         </Link>
         {data?.data ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs text-slate-600">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700">
             <Eye className="h-3.5 w-3.5" />
-            {formatNumber(data.data.views_count)} vues
+            {formatCompactCount(data.data.views_count)} vues
           </span>
         ) : null}
       </div>

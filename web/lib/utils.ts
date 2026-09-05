@@ -74,6 +74,28 @@ export function formatNumber(value: number | null | undefined): string {
   return new Intl.NumberFormat("fr-FR").format(value);
 }
 
+/**
+ * Compteurs style Facebook : 999 → 999, 1000 → 1 K, 1500 → 1,5 K, 1_000_000 → 1 M.
+ */
+export function formatCompactCount(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "0";
+  const n = Math.max(0, Math.floor(Number(value)));
+  if (n < 1000) return String(n);
+
+  const formatScaled = (divisor: number, suffix: string) => {
+    const scaled = n / divisor;
+    const rounded = scaled >= 100 ? Math.round(scaled) : Math.round(scaled * 10) / 10;
+    const text = Number.isInteger(rounded)
+      ? String(rounded)
+      : rounded.toFixed(1).replace(".", ",");
+    return `${text} ${suffix}`;
+  };
+
+  if (n < 1_000_000) return formatScaled(1_000, "K");
+  if (n < 1_000_000_000) return formatScaled(1_000_000, "M");
+  return formatScaled(1_000_000_000, "Md");
+}
+
 export function initials(fullName?: string | null): string {
   if (!fullName) return "?";
   return fullName

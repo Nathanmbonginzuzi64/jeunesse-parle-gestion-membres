@@ -243,18 +243,40 @@ class HomePostController extends Controller
         ]);
     }
 
-    /** Administration : liste complète. */
-    public function index(): JsonResponse
+    /** Administration : liste paginée + totaux globaux. */
+    public function index(Request $request): JsonResponse
     {
         $this->assertSuperAdmin();
 
-        $posts = HomePost::query()
+        $perPage = min(max((int) $request->query('per_page', 10), 1), 50);
+        $page = max((int) $request->query('page', 1), 1);
+
+        $base = HomePost::query();
+        $summary = [
+            'posts' => (int) (clone $base)->count(),
+            'published' => (int) (clone $base)->where('is_published', true)->count(),
+            'views' => (int) (clone $base)->sum('views_count'),
+            'likes' => (int) (clone $base)->sum('likes_count'),
+            'comments' => (int) (clone $base)->sum('comments_count'),
+            'shares' => (int) (clone $base)->sum('shares_count'),
+        ];
+
+        $paginator = HomePost::query()
             ->with('author:id,name')
             ->ordered()
-            ->get();
+            ->paginate($perPage, ['*'], 'page', $page);
 
         return response()->json([
-            'data' => $posts->map(fn (HomePost $post) => $this->formatAdmin($post))->values(),
+            'data' => collect($paginator->items())
+                ->map(fn (HomePost $post) => $this->formatAdmin($post))
+                ->values(),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+            'summary' => $summary,
         ]);
     }
 

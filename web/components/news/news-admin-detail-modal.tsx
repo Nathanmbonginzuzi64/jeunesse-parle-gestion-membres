@@ -19,7 +19,7 @@ import { NewsActivityBlock, NewsMediaBlock } from "@/components/news/news-media"
 import { TextBackgroundBanner } from "@/components/news/text-background-picker";
 import { RichTextContent } from "@/components/news/rich-text-editor";
 import { CATEGORY_STYLES, type NewsPostItem } from "@/lib/news/constants";
-import { formatDateTime, formatNumber, formatRelative } from "@/lib/utils";
+import { formatCompactCount, formatDateTime, formatRelative } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
 interface NewsAdminDetailModalProps {
@@ -86,7 +86,7 @@ export function NewsAdminDetailModal({ post, open, onClose, onArchive }: NewsAdm
               <div className={cn("mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-lg", color)}>
                 <Icon className="h-4 w-4" />
               </div>
-              <p className="text-lg font-bold text-slate-900">{formatNumber(value)}</p>
+              <p className="text-lg font-bold text-slate-900">{formatCompactCount(value)}</p>
               <p className="text-xs text-slate-500">{label}</p>
             </div>
           ))}

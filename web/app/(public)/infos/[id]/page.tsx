@@ -23,7 +23,7 @@ import {
   type HomePost,
 } from "@/lib/home-posts";
 import { getFastPollMs, subscribeRealtimeRefresh } from "@/lib/realtime";
-import { cn } from "@/lib/utils";
+import { cn, formatCompactCount } from "@/lib/utils";
 
 function dateBadgeParts(value: string): { day: string; month: string; year: string } | null {
   const date = new Date(value);
@@ -247,13 +247,26 @@ export default function InfosDetailPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-5 py-4 sm:px-8">
-            <StatChip icon={<Eye className="h-3.5 w-3.5" />} label={`${viewsCount} vues`} />
+            <StatChip
+              icon={<Eye className="h-3.5 w-3.5" />}
+              label={`${formatCompactCount(viewsCount)} vues`}
+              tone="sky"
+            />
             <StatChip
               icon={<Heart className={cn("h-3.5 w-3.5", liked && "fill-rose-500 text-rose-500")} />}
-              label={`${likesCount} j'aime`}
+              label={`${formatCompactCount(likesCount)} j'aime`}
+              tone="rose"
             />
-            <StatChip icon={<MessageCircle className="h-3.5 w-3.5" />} label={`${commentsCount} commentaires`} />
-            <StatChip icon={<Share2 className="h-3.5 w-3.5" />} label={`${sharesCount} partages`} />
+            <StatChip
+              icon={<MessageCircle className="h-3.5 w-3.5" />}
+              label={`${formatCompactCount(commentsCount)} commentaires`}
+              tone="emerald"
+            />
+            <StatChip
+              icon={<Share2 className="h-3.5 w-3.5" />}
+              label={`${formatCompactCount(sharesCount)} partages`}
+              tone="violet"
+            />
 
             <div className="ml-auto flex flex-wrap items-center gap-2">
               <Button
@@ -348,9 +361,24 @@ export default function InfosDetailPage() {
   );
 }
 
-function StatChip({ icon, label }: { icon: ReactNode; label: string }) {
+function StatChip({
+  icon,
+  label,
+  tone = "slate",
+}: {
+  icon: ReactNode;
+  label: string;
+  tone?: "slate" | "sky" | "rose" | "emerald" | "violet";
+}) {
+  const tones = {
+    slate: "bg-slate-50 text-slate-600 ring-slate-200/80",
+    sky: "bg-sky-50 text-sky-700 ring-sky-100",
+    rose: "bg-rose-50 text-rose-700 ring-rose-100",
+    emerald: "bg-emerald-50 text-emerald-700 ring-emerald-100",
+    violet: "bg-violet-50 text-violet-700 ring-violet-100",
+  };
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200/80">
+    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1", tones[tone])}>
       {icon}
       {label}
     </span>

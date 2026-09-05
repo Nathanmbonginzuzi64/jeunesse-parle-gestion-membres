@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Edit3, ExternalLink, Eye, Heart, MessageCircle, Share2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CATEGORY_STYLES, type NewsPostItem } from "@/lib/news/constants";
-import { formatNumber, formatRelative } from "@/lib/utils";
+import { formatCompactCount, formatRelative } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
 interface NewsAdminTableProps {
@@ -108,10 +108,10 @@ function PublicationCell({ post }: { post: NewsPostItem }) {
 
 function EngagementBadges({ post }: { post: NewsPostItem }) {
   const items = [
-    { id: "views", icon: Eye, value: post.views_count, color: "text-blue-600" },
-    { id: "likes", icon: Heart, value: post.likes_count, color: "text-red-500" },
-    { id: "comments", icon: MessageCircle, value: post.comments_count, color: "text-emerald-600" },
-    { id: "shares", icon: Share2, value: post.shares_count, color: "text-violet-600" },
+    { id: "views", icon: Eye, value: post.views_count, color: "text-sky-700 bg-sky-50 ring-sky-100" },
+    { id: "likes", icon: Heart, value: post.likes_count, color: "text-rose-700 bg-rose-50 ring-rose-100" },
+    { id: "comments", icon: MessageCircle, value: post.comments_count, color: "text-emerald-700 bg-emerald-50 ring-emerald-100" },
+    { id: "shares", icon: Share2, value: post.shares_count, color: "text-violet-700 bg-violet-50 ring-violet-100" },
   ];
 
   return (
@@ -119,10 +119,14 @@ function EngagementBadges({ post }: { post: NewsPostItem }) {
       {items.map(({ id, icon: Icon, value, color }) => (
         <span
           key={id}
-          className="inline-flex items-center gap-1 rounded-lg bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-100"
+          className={cn(
+            "inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold ring-1",
+            color,
+          )}
+          title={String(value)}
         >
-          <Icon className={cn("h-3 w-3", color)} />
-          {formatNumber(value)}
+          <Icon className="h-3 w-3" />
+          {formatCompactCount(value)}
         </span>
       ))}
     </div>

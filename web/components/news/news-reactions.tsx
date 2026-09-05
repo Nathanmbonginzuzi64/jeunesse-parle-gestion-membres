@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { NEWS_REACTIONS, type NewsPostItem, type NewsReactionType } from "@/lib/news/constants";
-import { cn } from "@/lib/utils";
+import { cn, formatCompactCount } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 
 interface NewsReactionsProps {
@@ -63,7 +63,7 @@ export function NewsReactions({ post, onUpdate, disabled }: NewsReactionsProps) 
         )}
       >
         <span>{active?.emoji ?? "❤️"}</span>
-        <span>{post.likes_count > 0 ? `${post.likes_count} j'aime` : "J'aime"}</span>
+        <span>{post.likes_count > 0 ? `${formatCompactCount(post.likes_count)} j'aime` : "J'aime"}</span>
       </button>
 
       {open ? (

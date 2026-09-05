@@ -11,7 +11,7 @@ import { RichTextContent } from "@/components/news/rich-text-editor";
 import { TextBackgroundBanner } from "@/components/news/text-background-picker";
 import { api, ApiError } from "@/lib/api";
 import { CATEGORY_STYLES, type NewsPostItem } from "@/lib/news/constants";
-import { formatNumber, formatRelative } from "@/lib/utils";
+import { formatCompactCount, formatRelative } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 
@@ -124,13 +124,13 @@ export function NewsPostCard({ post: initial, onUpdated, compact = false }: News
             href={`/actualites/${post.id}#commentaires`}
             className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-slate-600 transition hover:bg-white hover:shadow-sm"
           >
-            <MessageCircle className="h-4 w-4" />
-            {post.comments_count}
+            <MessageCircle className="h-4 w-4 text-emerald-600" />
+            {formatCompactCount(post.comments_count)}
           </Link>
         ) : (
           <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-slate-500">
-            <MessageCircle className="h-4 w-4" />
-            {post.comments_count}
+            <MessageCircle className="h-4 w-4 text-emerald-600" />
+            {formatCompactCount(post.comments_count)}
           </span>
         )}
         <div className="relative">
@@ -140,8 +140,8 @@ export function NewsPostCard({ post: initial, onUpdated, compact = false }: News
             onClick={() => setShareOpen((v) => !v)}
             className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-slate-600 transition hover:bg-white hover:shadow-sm"
           >
-            <Share2 className="h-4 w-4" />
-            {post.shares_count}
+            <Share2 className="h-4 w-4 text-violet-600" />
+            {formatCompactCount(post.shares_count)}
           </button>
           {shareOpen ? (
             <>
@@ -173,9 +173,9 @@ export function NewsPostCard({ post: initial, onUpdated, compact = false }: News
             </>
           ) : null}
         </div>
-        <span className="ml-auto inline-flex items-center gap-1 text-xs text-slate-400">
+        <span className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-sky-700">
           <Eye className="h-3.5 w-3.5" />
-          {formatNumber(post.views_count)} vues
+          {formatCompactCount(post.views_count)} vues
         </span>
       </footer>
 
