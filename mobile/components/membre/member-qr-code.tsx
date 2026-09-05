@@ -27,8 +27,8 @@ export function MemberQrCode({
   emphasize?: boolean;
 }) {
   const payload = (value ?? '').trim();
-  const pad = emphasize ? 14 : compact ? 4 : 12;
-  const inner = Math.max(size - pad * 2, 12);
+  const pad = emphasize ? 14 : compact ? 2 : 12;
+  const inner = Math.max(size - pad * 2, 10);
   const [xml, setXml] = useState<string | null>(() => decodeSvgDataUri(svgDataUri));
   const [failed, setFailed] = useState(false);
 
@@ -53,10 +53,10 @@ export function MemberQrCode({
     setFailed(false);
     void QRCode.toString(payload, {
       type: 'svg',
-      margin: emphasize ? 3 : compact ? 2 : 3,
-      width: Math.max(inner, emphasize ? 280 : 160),
+      margin: emphasize ? 3 : compact ? 1 : 3,
+      width: Math.max(inner, emphasize ? 280 : compact ? Math.max(inner, 64) : 160),
       color: { dark: '#000000', light: '#FFFFFF' },
-      errorCorrectionLevel: 'H',
+      errorCorrectionLevel: compact ? 'M' : 'H',
     })
       .then((svg) => {
         if (!cancelled) setXml(svg);

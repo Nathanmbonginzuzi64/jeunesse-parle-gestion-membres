@@ -35,7 +35,7 @@ export function MemberCardBack({
     [render.province, render.commune ?? render.city, render.structure].filter(Boolean).join(' / ') ||
     null;
   const qrValue = render.verification_url || render.member_code;
-  const qrSize = width < 360 ? 40 : 48;
+  const qrSize = width < 360 ? 22 : 26;
 
   return (
     <View style={[styles.card, { width, height }]}>
@@ -251,16 +251,16 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   qrBox: {
-    borderRadius: 4,
-    borderWidth: 1,
+    borderRadius: 3,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: CARD.slate200,
     backgroundColor: CARD.white,
-    padding: 2,
+    padding: 1,
   },
   qrCaption: {
-    fontSize: 5,
+    fontSize: 4.5,
     fontWeight: '700',
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
     color: CARD.slate500,
     textTransform: 'uppercase',
   },
