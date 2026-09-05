@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
             StructureSeeder::class,
             SettingsSeeder::class,
             DemoDataSeeder::class,
+            HomePostsArchiveSeeder::class,
         ]);
     }
 }

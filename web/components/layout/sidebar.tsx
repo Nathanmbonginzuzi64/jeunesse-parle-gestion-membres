@@ -93,13 +93,14 @@ function NavLink({
 }
 
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { user, can } = useAuth();
+  const { user, can, hasRole } = useAuth();
   const { count: jpUnread } = useJpUnread();
 
   const sections = NAV_SECTIONS.map((section) => ({
     ...section,
     items: section.items.filter((item) => {
       if (item.requiresMember && !user?.member_id) return false;
+      if (item.roles?.length && !hasRole(...item.roles)) return false;
       if (!item.permissions) return true;
       return can(item.permissions);
     }),

@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\NotificationPreferenceController;
 use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\JpMessageController;
 use App\Http\Controllers\Api\NewsController;
+use App\Http\Controllers\Api\HomePostController;
 use App\Http\Controllers\Api\ReferenceController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\StatisticsController;
@@ -77,6 +78,15 @@ Route::get('health', function () {
 });
 
 Route::get('public/stats', [StatisticsController::class, 'publicLanding'])->middleware('throttle:60,1');
+
+/** Posts d'actualité de la page d'accueil (distincts de /news). */
+Route::prefix('public/home-posts')->middleware('throttle:60,1')->group(function () {
+    Route::get('/', [HomePostController::class, 'publicIndex']);
+    Route::get('{homePost}/image', [HomePostController::class, 'publicImage']);
+    Route::get('{homePost}', [HomePostController::class, 'publicShow']);
+    Route::post('{homePost}/like', [HomePostController::class, 'publicLike'])->middleware('throttle:30,1');
+    Route::post('{homePost}/comments', [HomePostController::class, 'publicComment'])->middleware('throttle:10,1');
+});
 
 Route::prefix('territories')->group(function () {
     Route::get('provinces', [TerritoryController::class, 'provinces']);
@@ -315,6 +325,17 @@ Route::middleware(['auth:sanctum', 'account.active', 'session.timeout', 'mainten
         Route::get('settings', [SettingsController::class, 'show']);
         Route::match(['put', 'post', 'patch'], 'settings', [SettingsController::class, 'update']);
     });
+
+    /** Posts page d'accueil — réservé super-admin (contrôle dans le contrôleur). */
+    Route::prefix('home-posts')->group(function () {
+        Route::get('/', [HomePostController::class, 'index']);
+        Route::post('/', [HomePostController::class, 'store']);
+        Route::get('{homePost}', [HomePostController::class, 'show']);
+        Route::match(['put', 'post', 'patch'], '{homePost}', [HomePostController::class, 'update']);
+        Route::delete('{homePost}', [HomePostController::class, 'destroy']);
+        Route::get('{homePost}/image', [HomePostController::class, 'adminImage']);
+    });
+
     Route::apiResource('users', UserController::class);
 
     Route::prefix('audit')->middleware('permission:audit.view')->group(function () {

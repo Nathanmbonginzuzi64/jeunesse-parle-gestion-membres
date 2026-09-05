@@ -24,13 +24,15 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, ROLE_SLUGS } from "@/lib/permissions";
 
 export interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
   permissions?: string[];
+  /** Si défini, visible uniquement pour ces rôles (en plus des permissions). */
+  roles?: string[];
   requiresMember?: boolean;
   exact?: boolean;
   children?: NavItem[];
@@ -150,6 +152,12 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     title: "Administration",
     items: [
+      {
+        href: "/posts-accueil",
+        label: "Posts d'accueil",
+        icon: Newspaper,
+        roles: [ROLE_SLUGS.superAdmin],
+      },
       {
         href: "/utilisateurs",
         label: "Utilisateurs",
