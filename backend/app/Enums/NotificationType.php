@@ -25,6 +25,7 @@ enum NotificationType: string
     case ChatMessage = 'chat_message';
     case AdminNewMember = 'admin_new_member';
     case AdminNewActivity = 'admin_new_activity';
+    case AdminMemberEnRoute = 'admin_member_en_route';
     case AdminCardVerified = 'admin_card_verified';
     case AdminAttendanceRecorded = 'admin_attendance_recorded';
     case AdminSystemAlert = 'admin_system_alert';
@@ -40,7 +41,7 @@ enum NotificationType: string
             self::AttendanceRecorded, self::AttendanceFailed => NotificationCategory::Presence,
             self::NewsPublished, self::NewsComment, self::NewsReaction, self::NewsShare => NotificationCategory::News,
             self::JpMessageCreated, self::JpMessageReply, self::ChatMessage => NotificationCategory::Message,
-            self::AdminNewMember, self::AdminNewActivity, self::AdminCardVerified,
+            self::AdminNewMember, self::AdminNewActivity, self::AdminMemberEnRoute, self::AdminCardVerified,
             self::AdminAttendanceRecorded, self::AdminSystemAlert => NotificationCategory::Admin,
             self::Manual => NotificationCategory::Admin,
         };

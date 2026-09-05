@@ -25,6 +25,10 @@ import {
   setActivityVoiceEnabled,
   speakActivity,
 } from '@/lib/activity-voice';
+import {
+  startBackgroundMemberTracking,
+  stopBackgroundMemberTracking,
+} from '@/lib/background-member-location';
 import { api, ApiError, resolveMediaUrl } from '@/lib/api';
 import { useBackgroundRefresh } from '@/lib/use-background-refresh';
 import { JP } from '@/constants/theme';
@@ -218,7 +222,14 @@ export default function MembreActiviteDetailScreen() {
           };
           setMyCoords(coords);
           void api
-            .post(`/activities/${id}/member-location/update`, coords)
+            .post<{ data?: { arrived?: boolean } }>(`/activities/${id}/member-location/update`, coords)
+            .then(async (res) => {
+              if (res?.data?.arrived) {
+                setSharing(false);
+                await stopBackgroundMemberTracking();
+                await speakActivity('Vous êtes arrivé au lieu de l’activité. Bienvenue.');
+              }
+            })
             .catch(() => undefined);
           void maybeAnnounceMemberPosition(coords.latitude, coords.longitude);
         },
@@ -286,11 +297,43 @@ export default function MembreActiviteDetailScreen() {
         latitude: pos.coords.latitude,
         longitude: pos.coords.longitude,
       };
-      await api.post(`/activities/${id}/member-location/start`, coords);
+      const startRes = await api.post<{ data?: { arrived?: boolean } }>(
+        `/activities/${id}/member-location/start`,
+        coords,
+      );
       setMyCoords(coords);
+
+      if (startRes?.data?.arrived) {
+        setSharing(false);
+        await speakActivity('Vous êtes déjà près du lieu. Bienvenue à l’activité.');
+        return;
+      }
+
       setSharing(true);
+
+      const destLat =
+        liveActive && liveLat != null ? liveLat : venueLat != null ? venueLat : null;
+      const destLng =
+        liveActive && liveLng != null ? liveLng : venueLng != null ? venueLng : null;
+      const destLabel =
+        liveActive && liveLat != null
+          ? item?.live_location?.shared_by ?? 'Organisateur'
+          : item?.location ?? item?.title ?? 'activité';
+
+      const bg = await startBackgroundMemberTracking({
+        activityId: id!,
+        destLat,
+        destLng,
+        destLabel,
+      });
+      if (!bg.ok && bg.message) {
+        setGeoError(bg.message);
+      }
+
       await speakActivity(
-        'Votre position est maintenant partagée. Les organisateurs peuvent vous voir en route.',
+        bg.ok
+          ? 'Votre position est partagée. Le suivi et la voix continuent même si vous fermez l’application. Les organisateurs vous voient en route.'
+          : 'Votre position est partagée. Les organisateurs peuvent vous voir en route. Activez la localisation « Toujours » pour le suivi en arrière-plan.',
       );
     } catch (caught) {
       setGeoError(caught instanceof ApiError ? caught.message : 'Impossible d’activer le partage.');
@@ -303,12 +346,36 @@ export default function MembreActiviteDetailScreen() {
     setShareBusy(true);
     try {
       await api.post(`/activities/${id}/member-location/stop`);
+      await stopBackgroundMemberTracking();
       setSharing(false);
+      await speakActivity('Partage de position arrêté.');
     } catch (caught) {
       setGeoError(caught instanceof ApiError ? caught.message : 'Arrêt impossible.');
     } finally {
       setShareBusy(false);
     }
+  }
+
+  async function launchItinerary() {
+    if (!destination) {
+      setGeoError('Aucune destination GPS disponible pour cette activité.');
+      return;
+    }
+    if (!sharing) {
+      await startSharing();
+    } else {
+      const bg = await startBackgroundMemberTracking({
+        activityId: id!,
+        destLat: destination.latitude,
+        destLng: destination.longitude,
+        destLabel: destination.label,
+      });
+      if (!bg.ok && bg.message) setGeoError(bg.message);
+    }
+    await speakActivity(
+      `Itinéraire lancé vers ${destination.label}. Restez en route, la voix vous guide même si l’application est fermée.`,
+    );
+    await openNativeDirections(destination.latitude, destination.longitude, destination.label);
   }
 
   async function toggleVoice(next: boolean) {
@@ -462,13 +529,7 @@ export default function MembreActiviteDetailScreen() {
                 {destination ? (
                   <BigButton
                     label="Démarrer l’itinéraire"
-                    onPress={() =>
-                      void openNativeDirections(
-                        destination.latitude,
-                        destination.longitude,
-                        destination.label,
-                      )
-                    }
+                    onPress={() => void launchItinerary()}
                   />
                 ) : null}
 

@@ -13,6 +13,7 @@ class ActivityMemberLocation extends Model
         'latitude',
         'longitude',
         'sharing_active',
+        'arrived_at',
     ];
 
     protected function casts(): array
@@ -21,6 +22,7 @@ class ActivityMemberLocation extends Model
             'latitude' => 'float',
             'longitude' => 'float',
             'sharing_active' => 'boolean',
+            'arrived_at' => 'datetime',
             'updated_at' => 'datetime',
             'created_at' => 'datetime',
         ];

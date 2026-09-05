@@ -636,17 +636,29 @@ class ActivityController extends Controller
                 'latitude' => $validated['latitude'],
                 'longitude' => $validated['longitude'],
                 'sharing_active' => true,
+                'arrived_at' => null,
                 'updated_at' => now(),
             ],
         );
 
+        $arrived = $this->markMemberArrivedIfNear($activity, $row, (float) $validated['latitude'], (float) $validated['longitude']);
+
+        if ($arrived) {
+            $this->notifications->adminMemberEnRoute($member, $activity, 'arrived');
+        } else {
+            $this->notifications->adminMemberEnRoute($member, $activity, 'en_route');
+        }
+
         return response()->json([
-            'message' => 'Votre position est partagée avec les organisateurs.',
+            'message' => $arrived
+                ? 'Vous êtes arrivé près du lieu de l\'activité.'
+                : 'Votre position est partagée avec les organisateurs.',
             'data' => [
-                'sharing_active' => true,
+                'sharing_active' => (bool) $row->fresh()->sharing_active,
+                'arrived' => $arrived,
                 'latitude' => $row->latitude,
                 'longitude' => $row->longitude,
-                'updated_at' => $row->updated_at?->toIso8601String(),
+                'updated_at' => $row->fresh()->updated_at?->toIso8601String(),
             ],
         ]);
     }
@@ -674,10 +686,17 @@ class ActivityController extends Controller
             'updated_at' => now(),
         ]);
 
+        $arrived = $this->markMemberArrivedIfNear($activity, $row, (float) $validated['latitude'], (float) $validated['longitude']);
+
+        if ($arrived) {
+            $this->notifications->adminMemberEnRoute($member, $activity, 'arrived');
+        }
+
         return response()->json([
-            'message' => 'Position mise à jour.',
+            'message' => $arrived ? 'Vous êtes arrivé près du lieu de l\'activité.' : 'Position mise à jour.',
             'data' => [
-                'sharing_active' => true,
+                'sharing_active' => (bool) $row->fresh()->sharing_active,
+                'arrived' => $arrived,
                 'latitude' => $row->latitude,
                 'longitude' => $row->longitude,
                 'updated_at' => $row->fresh()->updated_at?->toIso8601String(),
@@ -712,42 +731,110 @@ class ActivityController extends Controller
         );
         abort_unless($activity->isVisibleTo($user), 403, "Vous n'avez pas l'autorisation d'effectuer cette action.");
 
+        $memberRelations = [
+            'member:id,member_code,first_name,middle_name,last_name,photo_path,structure_id,province_id,commune_id',
+            'member.structure:id,name',
+            'member.province:id,name',
+            'member.commune:id,name',
+            'member.activeCard:id,member_id,card_number,status',
+        ];
+
         $rows = ActivityMemberLocation::query()
             ->where('activity_id', $activity->id)
             ->where('sharing_active', true)
-            ->with([
-                'member:id,member_code,first_name,middle_name,last_name,photo_path,structure_id,province_id,commune_id',
-                'member.structure:id,name',
-                'member.province:id,name',
-                'member.commune:id,name',
-                'member.activeCard:id,member_id,card_number,status',
-            ])
+            ->with($memberRelations)
             ->orderByDesc('updated_at')
             ->get();
+
+        $arrivals = ActivityMemberLocation::query()
+            ->where('activity_id', $activity->id)
+            ->whereNotNull('arrived_at')
+            ->where('arrived_at', '>=', now()->subMinutes(45))
+            ->with($memberRelations)
+            ->orderByDesc('arrived_at')
+            ->get();
+
+        $mapRow = function (ActivityMemberLocation $row, bool $arrived = false) {
+            $m = $row->member;
+
+            return [
+                'member_id' => $m?->id,
+                'member_code' => $m?->member_code,
+                'full_name' => $m?->full_name,
+                'photo_url' => $m?->photo_path
+                    ? route('media.member-photo', ['member' => $m->member_code])
+                    : null,
+                'card_number' => $m?->activeCard?->card_number,
+                'structure' => $m?->structure?->name,
+                'province' => $m?->province?->name,
+                'commune' => $m?->commune?->name,
+                'latitude' => $row->latitude,
+                'longitude' => $row->longitude,
+                'updated_at' => $row->updated_at?->toIso8601String(),
+                'arrived_at' => $row->arrived_at?->toIso8601String(),
+                'status' => $arrived ? 'arrived' : 'en_route',
+            ];
+        };
 
         return response()->json([
             'activity_id' => $activity->id,
             'total' => $rows->count(),
-            'data' => $rows->map(function (ActivityMemberLocation $row) {
-                $m = $row->member;
-
-                return [
-                    'member_id' => $m?->id,
-                    'member_code' => $m?->member_code,
-                    'full_name' => $m?->full_name,
-                    'photo_url' => $m?->photo_path
-                        ? route('media.member-photo', ['member' => $m->member_code])
-                        : null,
-                    'card_number' => $m?->activeCard?->card_number,
-                    'structure' => $m?->structure?->name,
-                    'province' => $m?->province?->name,
-                    'commune' => $m?->commune?->name,
-                    'latitude' => $row->latitude,
-                    'longitude' => $row->longitude,
-                    'updated_at' => $row->updated_at?->toIso8601String(),
-                ];
-            })->values(),
+            'data' => $rows->map(fn (ActivityMemberLocation $row) => $mapRow($row, false))->values(),
+            'arrivals' => $arrivals->map(fn (ActivityMemberLocation $row) => $mapRow($row, true))->values(),
         ]);
+    }
+
+    private function markMemberArrivedIfNear(
+        Activity $activity,
+        ActivityMemberLocation $row,
+        float $lat,
+        float $lng,
+    ): bool {
+        $targets = [];
+        if ($activity->latitude != null && $activity->longitude != null) {
+            $targets[] = [(float) $activity->latitude, (float) $activity->longitude];
+        }
+        if ($activity->live_location_active && $activity->live_latitude != null && $activity->live_longitude != null) {
+            $targets[] = [(float) $activity->live_latitude, (float) $activity->live_longitude];
+        }
+
+        if ($targets === []) {
+            return false;
+        }
+
+        $near = false;
+        foreach ($targets as [$tLat, $tLng]) {
+            if ($this->distanceMeters($lat, $lng, $tLat, $tLng) <= 120) {
+                $near = true;
+                break;
+            }
+        }
+
+        if (! $near) {
+            return false;
+        }
+
+        $row->update([
+            'sharing_active' => false,
+            'arrived_at' => now(),
+            'latitude' => $lat,
+            'longitude' => $lng,
+            'updated_at' => now(),
+        ]);
+
+        return true;
+    }
+
+    private function distanceMeters(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $earth = 6371000.0;
+        $phi1 = deg2rad($lat1);
+        $phi2 = deg2rad($lat2);
+        $dPhi = deg2rad($lat2 - $lat1);
+        $dLambda = deg2rad($lng2 - $lng1);
+        $a = sin($dPhi / 2) ** 2 + cos($phi1) * cos($phi2) * sin($dLambda / 2) ** 2;
+
+        return 2 * $earth * asin(min(1, sqrt($a)));
     }
 
     private function requireActiveRegisteredMember(Request $request, Activity $activity): Member

@@ -18,7 +18,8 @@
         "NSMicrophoneUsageDescription": "Enregistrer un message vocal dans JP Message.",
         "NSFaceIDUsageDescription": "Jeunesse Parle utilise Face ID uniquement pour sécuriser votre connexion.",
         "NSLocationWhenInUseUsageDescription": "Jeunesse Parle utilise votre position pour l’itinéraire vers l’activité et pour indiquer aux organisateurs que vous êtes en route.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Jeunesse Parle utilise votre position pour le suivi en route vers les activités.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Jeunesse Parle continue le suivi en route et les annonces vocales même si l’application est fermée.",
+        "UIBackgroundModes": ["location", "audio"],
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true,
           "NSAllowsArbitraryLoads": true
@@ -41,6 +42,7 @@
         "READ_MEDIA_IMAGES",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION"
       ],
@@ -56,7 +58,11 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Autoriser Jeunesse Parle à utiliser votre position pour l’itinéraire et le suivi en route vers les activités."
+          "locationWhenInUsePermission": "Autoriser Jeunesse Parle à utiliser votre position pour l’itinéraire et le suivi en route vers les activités.",
+          "locationAlwaysAndWhenInUsePermission": "Autoriser Jeunesse Parle à suivre votre itinéraire même lorsque l’application est fermée, pour indiquer que vous êtes en route.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       [

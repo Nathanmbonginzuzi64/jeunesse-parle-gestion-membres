@@ -1,14 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LiveLocationSharingBadge } from "@/components/activities/live-location-sharing-badge";
-import { Crosshair, Loader2, MapPin, Navigation, RefreshCw, Users, X } from "lucide-react";
+import { Crosshair, Loader2, MapPin, Navigation, RefreshCw, Search, Volume2, VolumeX, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Alert } from "@/components/ui/feedback";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/field";
 import { Table, Td, Th, Tr, Pagination } from "@/components/ui/table";
+import {
+  isAdminActivityVoiceEnabled,
+  setAdminActivityVoiceEnabled,
+  speakAdmin,
+} from "@/lib/admin-activity-voice";
 import { api, ApiError } from "@/lib/api";
 import { formatCoords } from "@/lib/geo";
 import { useDeviceLocation } from "@/lib/hooks/use-device-location";
@@ -32,6 +38,8 @@ export interface MemberEnRoute {
   latitude: number;
   longitude: number;
   updated_at: string | null;
+  arrived_at?: string | null;
+  status?: "en_route" | "arrived";
 }
 
 function loadGoogleMapsScript(apiKey: string): Promise<void> {
@@ -136,6 +144,9 @@ export function ActivityLiveLocationPanel({
   const didFitRef = useRef(false);
   const prevEnabledRef = useRef(false);
   const selectedMemberIdRef = useRef<number | null>(null);
+  const knownEnRouteIdsRef = useRef<Set<number>>(new Set());
+  const announcedArrivalKeysRef = useRef<Set<string>>(new Set());
+  const voiceSeededRef = useRef(false);
 
   const {
     enabled,
@@ -159,11 +170,32 @@ export function ActivityLiveLocationPanel({
   const [trackingMembers, setTrackingMembers] = useState(true);
   const [membersEnRoute, setMembersEnRoute] = useState<MemberEnRoute[]>([]);
   const [selectedMember, setSelectedMember] = useState<MemberEnRoute | null>(null);
+  const [memberSearch, setMemberSearch] = useState("");
+  const [adminVoiceOn, setAdminVoiceOn] = useState(true);
+
+  const filteredMembers = useMemo(() => {
+    const q = memberSearch.trim().toLowerCase();
+    if (!q) return membersEnRoute;
+    return membersEnRoute.filter((m) => {
+      const haystack = [
+        m.full_name,
+        m.member_code,
+        m.card_number,
+        m.structure,
+        m.province,
+        m.commune,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [membersEnRoute, memberSearch]);
 
   const membersPagination = useClientPagination(
-    membersEnRoute,
+    filteredMembers,
     MEMBERS_EN_ROUTE_PER_PAGE,
-    activity.id,
+    `${activity.id}:${memberSearch.trim().toLowerCase()}`,
   );
 
   const venueLat = activity.latitude ?? null;
@@ -175,6 +207,10 @@ export function ActivityLiveLocationPanel({
     setSharing(activity.live_location?.active ?? false);
   }, [activity.live_location?.active]);
 
+  useEffect(() => {
+    setAdminVoiceOn(isAdminActivityVoiceEnabled());
+  }, []);
+
   const hasMapPoints =
     geoActive ||
     (venueLat != null && venueLng != null) ||
@@ -185,26 +221,78 @@ export function ActivityLiveLocationPanel({
 
   const loadMembersEnRoute = useCallback(async () => {
     try {
-      const res = await api.get<{ data: MemberEnRoute[]; total: number }>(
-        `/activities/${activity.id}/members-en-route`,
-      );
+      const res = await api.get<{
+        data: MemberEnRoute[];
+        arrivals?: MemberEnRoute[];
+        total: number;
+      }>(`/activities/${activity.id}/members-en-route`);
       const list = res.data ?? [];
+      const arrivals = res.arrivals ?? [];
       setMembersEnRoute(list);
+
       const selectedId = selectedMemberIdRef.current;
       if (selectedId != null) {
         const fresh = list.find((m) => m.member_id === selectedId) ?? null;
         setSelectedMember(fresh);
         if (!fresh) selectedMemberIdRef.current = null;
       }
+
+      const currentIds = new Set(
+        list.map((m) => m.member_id).filter((id): id is number => id != null),
+      );
+
+      if (!voiceSeededRef.current) {
+        knownEnRouteIdsRef.current = currentIds;
+        for (const a of arrivals) {
+          if (a.member_id != null && a.arrived_at) {
+            announcedArrivalKeysRef.current.add(`${a.member_id}:${a.arrived_at}`);
+          }
+        }
+        voiceSeededRef.current = true;
+      } else if (isAdminActivityVoiceEnabled()) {
+        for (const m of list) {
+          if (m.member_id == null) continue;
+          if (!knownEnRouteIdsRef.current.has(m.member_id)) {
+            const name = m.full_name ?? "Un membre";
+            speakAdmin(`${name} est en route vers l'activité.`);
+            toast.info(`${name} est en route`);
+          }
+        }
+        for (const a of arrivals) {
+          if (a.member_id == null || !a.arrived_at) continue;
+          const key = `${a.member_id}:${a.arrived_at}`;
+          if (announcedArrivalKeysRef.current.has(key)) continue;
+          announcedArrivalKeysRef.current.add(key);
+          const name = a.full_name ?? "Un membre";
+          speakAdmin(`${name} est arrivé à l'activité.`);
+          toast.success(`${name} est arrivé`);
+        }
+        knownEnRouteIdsRef.current = currentIds;
+      } else {
+        for (const m of list) {
+          if (m.member_id == null) continue;
+          if (!knownEnRouteIdsRef.current.has(m.member_id)) {
+            toast.info(`${m.full_name ?? "Un membre"} est en route`);
+          }
+        }
+        for (const a of arrivals) {
+          if (a.member_id == null || !a.arrived_at) continue;
+          const key = `${a.member_id}:${a.arrived_at}`;
+          if (announcedArrivalKeysRef.current.has(key)) continue;
+          announcedArrivalKeysRef.current.add(key);
+          toast.success(`${a.full_name ?? "Un membre"} est arrivé`);
+        }
+        knownEnRouteIdsRef.current = currentIds;
+      }
     } catch {
       /* ignore poll errors */
     }
-  }, [activity.id]);
+  }, [activity.id, toast]);
 
   useEffect(() => {
     if (!canManage || !trackingMembers) return;
     loadMembersEnRoute();
-    const timer = setInterval(loadMembersEnRoute, 4_000);
+    const timer = setInterval(loadMembersEnRoute, 2_000);
     return () => clearInterval(timer);
   }, [canManage, trackingMembers, loadMembersEnRoute]);
 
@@ -693,15 +781,57 @@ export function ActivityLiveLocationPanel({
         <Card className="lg:col-span-3">
           <CardHeader
             title="Membres en route"
-            description={`${membersPagination.total} membre(s) partagent leur position — cliquez une ligne pour centrer la carte`}
+            description={`${filteredMembers.length} membre(s) affiché(s) sur ${membersEnRoute.length} en route — recherche et voix off disponibles`}
           />
-          <CardBody className="p-0 sm:p-0">
+          <CardBody className="space-y-3 p-5 pt-0 sm:p-5 sm:pt-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative min-w-[16rem] flex-1">
+                <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  type="search"
+                  value={memberSearch}
+                  onChange={(e) => setMemberSearch(e.target.value)}
+                  placeholder="Rechercher un membre en route (nom, code, carte, structure…)"
+                  className="pl-9"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const next = !adminVoiceOn;
+                  setAdminVoiceOn(next);
+                  setAdminActivityVoiceEnabled(next);
+                  if (next) {
+                    speakAdmin("Voix activée pour le suivi des membres en route.");
+                  }
+                }}
+              >
+                {adminVoiceOn ? (
+                  <>
+                    <Volume2 className="mr-2 h-4 w-4" />
+                    Voix on
+                  </>
+                ) : (
+                  <>
+                    <VolumeX className="mr-2 h-4 w-4" />
+                    Voix off
+                  </>
+                )}
+              </Button>
+            </div>
+
             {membersEnRoute.length === 0 ? (
-              <p className="mx-4 mb-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500 sm:mx-6">
+              <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
                 Aucun membre ne partage sa position pour le moment.
               </p>
+            ) : filteredMembers.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+                Aucun membre ne correspond à « {memberSearch.trim()} ».
+              </p>
             ) : (
-              <>
+              <div className="-mx-5 overflow-hidden border-t border-slate-200 sm:-mx-5">
                 <Table className="min-w-[52rem]">
                   <thead>
                     <tr>
@@ -781,7 +911,7 @@ export function ActivityLiveLocationPanel({
                   onChange={membersPagination.setPage}
                   label="membres en route"
                 />
-              </>
+              </div>
             )}
           </CardBody>
         </Card>

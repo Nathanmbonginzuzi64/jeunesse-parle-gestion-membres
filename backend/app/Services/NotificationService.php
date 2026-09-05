@@ -405,6 +405,43 @@ class NotificationService
         }
     }
 
+    /** Membre en route / arrivé — organisateurs & SuperAdmin. */
+    public function adminMemberEnRoute(Member $member, Activity $activity, string $event = 'en_route'): void
+    {
+        $name = $member->full_name ?: ($member->member_code ?: 'Un membre');
+        $isArrival = $event === 'arrived';
+        $title = $isArrival ? '✅ Membre arrivé' : '🧭 Membre en route';
+        $body = $isArrival
+            ? "{$name} est arrivé à l'activité « {$activity->title} »."
+            : "{$name} a démarré son itinéraire et est en route vers « {$activity->title} ».";
+
+        $recipients = $this->adminUsers(Permission::ActivitiesManage);
+        if ($activity->organizer_id) {
+            $organizer = User::query()->find($activity->organizer_id);
+            if ($organizer) {
+                $recipients = $recipients->push($organizer)->unique('id');
+            }
+        }
+
+        foreach ($recipients as $admin) {
+            $this->pushToUser(
+                $admin,
+                NotificationType::AdminMemberEnRoute,
+                $title,
+                $body,
+                $this->activityData($activity, [
+                    'action' => 'view_activity',
+                    'event' => $event,
+                    'member_id' => $member->id,
+                    'member_code' => $member->member_code,
+                    'member_name' => $name,
+                ]),
+                $isArrival ? 'success' : 'info',
+                $member,
+            );
+        }
+    }
+
     /** Vérification carte (QR / biométrie) — admins dans le périmètre du membre. */
     public function adminCardVerified(Member $member, string $result, ?User $author = null, string $method = 'qr'): void
     {
