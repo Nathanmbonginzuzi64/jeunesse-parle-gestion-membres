@@ -94,6 +94,11 @@ class Activity extends Model
         return $this->hasMany(Attendance::class);
     }
 
+    public function memberLocations(): HasMany
+    {
+        return $this->hasMany(ActivityMemberLocation::class);
+    }
+
     /** Même cloisonnement que les membres : une activité appartient à un territoire. */
     public function scopeVisibleTo(Builder $query, User $user): Builder
     {

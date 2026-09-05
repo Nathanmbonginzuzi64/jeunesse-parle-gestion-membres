@@ -45,7 +45,9 @@ class ActivityResource extends JsonResource
                 'latitude' => $this->live_latitude,
                 'longitude' => $this->live_longitude,
                 'updated_at' => $this->live_updated_at?->toIso8601String(),
-                'shared_by' => $this->whenLoaded('liveSharer', fn () => $this->liveSharer?->name),
+                'shared_by' => $this->relationLoaded('liveSharer')
+                    ? $this->liveSharer?->name
+                    : null,
             ],
             'participants_count' => $this->whenCounted('members'),
             'attendances_count' => $this->whenCounted('attendances'),

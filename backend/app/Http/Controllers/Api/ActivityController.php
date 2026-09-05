@@ -12,6 +12,7 @@ use App\Http\Requests\UpdateActivityRequest;
 use App\Http\Resources\ActivityResource;
 use App\Http\Resources\MemberResource;
 use App\Models\Activity;
+use App\Models\ActivityMemberLocation;
 use App\Models\Member;
 use App\Services\ActivityImageStorageService;
 use App\Services\AuditLogger;
@@ -240,7 +241,7 @@ class ActivityController extends Controller
             abort(404, 'Activité introuvable.');
         }
 
-        $activity->load(['province:id,name', 'city:id,name', 'structure:id,name', 'organizer:id,name'])
+        $activity->load(['province:id,name', 'city:id,name', 'structure:id,name', 'organizer:id,name', 'liveSharer:id,name'])
             ->loadCount(['members', 'attendances']);
 
         $isRegistered = $activity->members()->where('members.id', $member->id)->exists();
@@ -268,11 +269,22 @@ class ActivityController extends Controller
 
         $verificationUrl = $token ? $qrCodes->verificationUrl($token->token) : null;
 
+        $memberLocation = ActivityMemberLocation::query()
+            ->where('activity_id', $activity->id)
+            ->where('member_id', $member->id)
+            ->first();
+
         return response()->json([
             'data' => (new ActivityResource($activity))->resolve() + [
                 'is_registered' => $isRegistered,
                 'fingerprint_enrolled' => $fingerprintEnrolled,
                 'can_check_in' => $canCheckIn,
+                'member_location_sharing' => (bool) ($memberLocation?->sharing_active),
+                'member_location' => $memberLocation && $memberLocation->sharing_active ? [
+                    'latitude' => $memberLocation->latitude,
+                    'longitude' => $memberLocation->longitude,
+                    'updated_at' => $memberLocation->updated_at?->toIso8601String(),
+                ] : null,
                 'attendance' => $attendance ? [
                     'id' => $attendance->id,
                     'status' => $attendance->status?->value,
@@ -533,6 +545,8 @@ class ActivityController extends Controller
     {
         $this->authorize('view', $activity);
 
+        $activity->loadMissing('liveSharer:id,name');
+
         return response()->json([
             'activity_id' => $activity->id,
             'venue' => [
@@ -548,6 +562,215 @@ class ActivityController extends Controller
                 'shared_by' => $activity->liveSharer?->name,
             ],
         ]);
+    }
+
+    /** Snapshot live pour le membre (sans activities.view). */
+    public function liveLocationForMember(Request $request, Activity $activity): JsonResponse
+    {
+        $user = $request->user()->loadMissing('member');
+
+        if (! $user->member_id || ! $user->member) {
+            abort(403, 'Aucun dossier membre rattaché à ce compte.');
+        }
+
+        $member = $user->member;
+
+        if ($member->status?->value !== 'active') {
+            abort(403, 'Votre compte membre doit être actif.');
+        }
+
+        $allowed = $activity->is_public
+            || ($member->structure_id && (int) $activity->structure_id === (int) $member->structure_id)
+            || ($member->province_id && (int) $activity->province_id === (int) $member->province_id)
+            || $activity->members()->where('members.id', $member->id)->exists();
+
+        if (! $allowed || $activity->status === ActivityStatus::Cancelled) {
+            abort(404, 'Activité introuvable.');
+        }
+
+        $activity->loadMissing('liveSharer:id,name');
+
+        $own = ActivityMemberLocation::query()
+            ->where('activity_id', $activity->id)
+            ->where('member_id', $member->id)
+            ->first();
+
+        return response()->json([
+            'activity_id' => $activity->id,
+            'venue' => [
+                'latitude' => $activity->latitude,
+                'longitude' => $activity->longitude,
+                'location' => $activity->location,
+            ],
+            'live' => [
+                'active' => (bool) $activity->live_location_active,
+                'latitude' => $activity->live_latitude,
+                'longitude' => $activity->live_longitude,
+                'updated_at' => $activity->live_updated_at?->toIso8601String(),
+                'shared_by' => $activity->liveSharer?->name,
+            ],
+            'member_location_sharing' => (bool) ($own?->sharing_active),
+            'member_location' => $own && $own->sharing_active ? [
+                'latitude' => $own->latitude,
+                'longitude' => $own->longitude,
+                'updated_at' => $own->updated_at?->toIso8601String(),
+            ] : null,
+        ]);
+    }
+
+    public function startMemberLocation(Request $request, Activity $activity): JsonResponse
+    {
+        $member = $this->requireActiveRegisteredMember($request, $activity);
+
+        $validated = $request->validate([
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+        ]);
+
+        $row = ActivityMemberLocation::query()->updateOrCreate(
+            [
+                'activity_id' => $activity->id,
+                'member_id' => $member->id,
+            ],
+            [
+                'latitude' => $validated['latitude'],
+                'longitude' => $validated['longitude'],
+                'sharing_active' => true,
+                'updated_at' => now(),
+            ],
+        );
+
+        return response()->json([
+            'message' => 'Votre position est partagée avec les organisateurs.',
+            'data' => [
+                'sharing_active' => true,
+                'latitude' => $row->latitude,
+                'longitude' => $row->longitude,
+                'updated_at' => $row->updated_at?->toIso8601String(),
+            ],
+        ]);
+    }
+
+    public function updateMemberLocation(Request $request, Activity $activity): JsonResponse
+    {
+        $member = $this->requireActiveRegisteredMember($request, $activity);
+
+        $validated = $request->validate([
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+        ]);
+
+        $row = ActivityMemberLocation::query()
+            ->where('activity_id', $activity->id)
+            ->where('member_id', $member->id)
+            ->where('sharing_active', true)
+            ->first();
+
+        abort_unless($row, 422, 'Le partage de position n\'est pas actif. Activez-le d\'abord.');
+
+        $row->update([
+            'latitude' => $validated['latitude'],
+            'longitude' => $validated['longitude'],
+            'updated_at' => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'Position mise à jour.',
+            'data' => [
+                'sharing_active' => true,
+                'latitude' => $row->latitude,
+                'longitude' => $row->longitude,
+                'updated_at' => $row->fresh()->updated_at?->toIso8601String(),
+            ],
+        ]);
+    }
+
+    public function stopMemberLocation(Request $request, Activity $activity): JsonResponse
+    {
+        $member = $this->requireActiveRegisteredMember($request, $activity);
+
+        ActivityMemberLocation::query()
+            ->where('activity_id', $activity->id)
+            ->where('member_id', $member->id)
+            ->update([
+                'sharing_active' => false,
+                'updated_at' => now(),
+            ]);
+
+        return response()->json(['message' => 'Partage de position arrêté.']);
+    }
+
+    /** Membres en route (partage GPS actif) — organisateurs. */
+    public function membersEnRoute(Request $request, Activity $activity): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless(
+            $user->hasPermission(Permission::ActivitiesManage)
+            || $user->hasPermission(Permission::AttendanceView),
+            403,
+            "Vous n'avez pas l'autorisation d'effectuer cette action."
+        );
+        abort_unless($activity->isVisibleTo($user), 403, "Vous n'avez pas l'autorisation d'effectuer cette action.");
+
+        $rows = ActivityMemberLocation::query()
+            ->where('activity_id', $activity->id)
+            ->where('sharing_active', true)
+            ->with([
+                'member:id,member_code,first_name,middle_name,last_name,photo_path,structure_id,province_id,commune_id',
+                'member.structure:id,name',
+                'member.province:id,name',
+                'member.commune:id,name',
+                'member.activeCard:id,member_id,card_number,status',
+            ])
+            ->orderByDesc('updated_at')
+            ->get();
+
+        return response()->json([
+            'activity_id' => $activity->id,
+            'total' => $rows->count(),
+            'data' => $rows->map(function (ActivityMemberLocation $row) {
+                $m = $row->member;
+
+                return [
+                    'member_id' => $m?->id,
+                    'member_code' => $m?->member_code,
+                    'full_name' => $m?->full_name,
+                    'photo_url' => $m?->photo_path
+                        ? route('media.member-photo', ['member' => $m->member_code])
+                        : null,
+                    'card_number' => $m?->activeCard?->card_number,
+                    'structure' => $m?->structure?->name,
+                    'province' => $m?->province?->name,
+                    'commune' => $m?->commune?->name,
+                    'latitude' => $row->latitude,
+                    'longitude' => $row->longitude,
+                    'updated_at' => $row->updated_at?->toIso8601String(),
+                ];
+            })->values(),
+        ]);
+    }
+
+    private function requireActiveRegisteredMember(Request $request, Activity $activity): Member
+    {
+        $user = $request->user()->loadMissing('member');
+
+        if (! $user->member_id || ! $user->member) {
+            abort(403, 'Aucun dossier membre rattaché à ce compte.');
+        }
+
+        $member = $user->member;
+
+        if ($member->status?->value !== 'active') {
+            abort(403, 'Votre compte membre doit être actif.');
+        }
+
+        abort_unless(
+            $activity->members()->where('members.id', $member->id)->exists(),
+            403,
+            'Vous devez être inscrit à cette activité pour partager votre position.'
+        );
+
+        return $member;
     }
 
     private function notifyLiveLocation(Activity $activity, string $event): void

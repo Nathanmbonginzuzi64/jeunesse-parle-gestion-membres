@@ -96,15 +96,13 @@ export default function ActivityShowPage() {
 
       <DashboardAnimate delay={100}>
         <div className="grid gap-6 lg:grid-cols-3">
-          <Card className="lg:col-span-2">
-            <CardHeader title="Informations" description="Détail complet de l'activité" />
-            <CardBody className="space-y-4">
+          <Card className="lg:col-span-1">
+            <CardHeader title="Informations" description="Résumé de l'activité" />
+            <CardBody className="space-y-3">
               {item.description ? (
-                <p className="text-sm leading-relaxed text-slate-600">{item.description}</p>
-              ) : (
-                <p className="text-sm italic text-slate-400">Aucune description renseignée.</p>
-              )}
-              <dl className="grid gap-4 sm:grid-cols-2">
+                <p className="line-clamp-3 text-xs leading-relaxed text-slate-600">{item.description}</p>
+              ) : null}
+              <dl className="grid gap-2.5">
                 <DetailItem icon={CalendarDays} label="Début" value={formatDateTime(item.starts_at)} />
                 <DetailItem icon={CalendarDays} label="Fin" value={formatDateTime(item.ends_at)} />
                 <DetailItem icon={MapPin} label="Lieu" value={item.location ?? "—"} />
@@ -119,7 +117,7 @@ export default function ActivityShowPage() {
                 <DetailItem icon={User} label="Organisateur" value={item.organizer?.name ?? "—"} />
                 <DetailItem icon={Globe} label="Visibilité" value={item.is_public ? "Visible des membres" : "Interne"} />
                 <DetailItem icon={Users} label="Capacité" value={item.capacity ? String(item.capacity) : "—"} />
-                <div className="rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2.5 sm:col-span-2">
+                <div className="rounded-lg border border-slate-100 bg-slate-50/50 px-2.5 py-2">
                   <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Statut</dt>
                   <dd className="mt-1">
                     <ActivityStatusBadge status={item.status} label={item.status_label} />
@@ -165,12 +163,12 @@ function DetailItem({
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2.5">
+    <div className="rounded-lg border border-slate-100 bg-slate-50/50 px-2.5 py-2">
       <dt className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-        <Icon className="h-3.5 w-3.5" />
+        <Icon className="h-3 w-3 shrink-0" />
         {label}
       </dt>
-      <dd className="mt-1 text-sm font-medium text-slate-900">{value}</dd>
+      <dd className="mt-0.5 text-xs font-medium leading-snug text-slate-900 break-words">{value}</dd>
     </div>
   );
 }

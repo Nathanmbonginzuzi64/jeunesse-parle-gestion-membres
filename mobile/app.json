@@ -17,6 +17,8 @@
         "NSPhotoLibraryAddUsageDescription": "Enregistrer le recto ou le verso de votre carte membre dans la galerie.",
         "NSMicrophoneUsageDescription": "Enregistrer un message vocal dans JP Message.",
         "NSFaceIDUsageDescription": "Jeunesse Parle utilise Face ID uniquement pour sécuriser votre connexion.",
+        "NSLocationWhenInUseUsageDescription": "Jeunesse Parle utilise votre position pour l’itinéraire vers l’activité et pour indiquer aux organisateurs que vous êtes en route.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Jeunesse Parle utilise votre position pour le suivi en route vers les activités.",
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true,
           "NSAllowsArbitraryLoads": true
@@ -36,7 +38,11 @@
       "permissions": [
         "CAMERA",
         "RECORD_AUDIO",
-        "READ_MEDIA_IMAGES"
+        "READ_MEDIA_IMAGES",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
       ],
       "edgeToEdgeEnabled": true
     },
@@ -47,6 +53,12 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Autoriser Jeunesse Parle à utiliser votre position pour l’itinéraire et le suivi en route vers les activités."
+        }
+      ],
       [
         "expo-camera",
         {

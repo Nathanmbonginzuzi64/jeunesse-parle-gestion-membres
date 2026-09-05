@@ -24,6 +24,13 @@ export type AppNotification = {
   is_read: boolean;
   read_at?: string | null;
   created_at?: string | null;
+  data?: {
+    action?: string;
+    activity_id?: number;
+    code?: string;
+    title?: string;
+    event?: string;
+  } | null;
 };
 
 const LEVEL_META: Record<
@@ -167,6 +174,12 @@ export function NotificationsInboxModal({
   }
 
   function openDetail(item: AppNotification) {
+    if (item.data?.action === 'view_maps' && item.data.activity_id) {
+      if (!item.is_read) void markOne(item.id);
+      onClose();
+      router.push(`/(membre)/activite/${item.data.activity_id}`);
+      return;
+    }
     setSelected({
       ...item,
       is_read: true,

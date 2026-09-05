@@ -200,6 +200,10 @@ Route::middleware(['auth:sanctum', 'account.active', 'session.timeout', 'mainten
     Route::get('activities/for-member', [ActivityController::class, 'forMember']);
     Route::get('activities/{activity}/for-member', [ActivityController::class, 'showForMember']);
     Route::post('activities/{activity}/register', [ActivityController::class, 'registerSelf']);
+    Route::get('activities/{activity}/live-location/for-member', [ActivityController::class, 'liveLocationForMember']);
+    Route::post('activities/{activity}/member-location/start', [ActivityController::class, 'startMemberLocation']);
+    Route::post('activities/{activity}/member-location/update', [ActivityController::class, 'updateMemberLocation']);
+    Route::post('activities/{activity}/member-location/stop', [ActivityController::class, 'stopMemberLocation']);
     Route::get('attendance/agent-presents', [AttendanceController::class, 'agentPresents']);
     Route::get('attendances/for-member', [AttendanceController::class, 'forMember']);
     Route::get('verifications/history', [VerificationController::class, 'history']);
@@ -217,6 +221,7 @@ Route::middleware(['auth:sanctum', 'account.active', 'session.timeout', 'mainten
         Route::post('live-location/start', [ActivityController::class, 'startLiveLocation']);
         Route::post('live-location/update', [ActivityController::class, 'updateLiveLocation']);
         Route::post('live-location/stop', [ActivityController::class, 'stopLiveLocation']);
+        Route::get('members-en-route', [ActivityController::class, 'membersEnRoute']);
 
         Route::get('attendance', [AttendanceController::class, 'index']);
         Route::get('attendance/sheet', [AttendanceController::class, 'sheet']);

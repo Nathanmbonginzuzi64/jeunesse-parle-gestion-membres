@@ -25,6 +25,13 @@ export type AppNotification = {
   is_read: boolean;
   read_at?: string | null;
   created_at?: string | null;
+  data?: {
+    action?: string;
+    activity_id?: number;
+    code?: string;
+    title?: string;
+    event?: string;
+  } | null;
 };
 
 const LEVEL_META: Record<
@@ -223,6 +230,17 @@ export default function MembreNotificationsScreen() {
           ) : (
             <Text style={styles.detailEmpty}>Aucun message complémentaire.</Text>
           )}
+          {selected.data?.action === 'view_maps' && selected.data.activity_id ? (
+            <Pressable
+              onPress={() =>
+                router.push(`/(membre)/activite/${selected.data!.activity_id}`)
+              }
+              style={({ pressed }) => [styles.mapCta, pressed && { opacity: 0.92 }]}
+            >
+              <Ionicons name="map" size={18} color={JP.white} />
+              <Text style={styles.mapCtaText}>Voir la carte & l’itinéraire</Text>
+            </Pressable>
+          ) : null}
           <Text style={styles.detailDate}>{formatRelative(selected.created_at)}</Text>
         </ScrollView>
       ) : (
@@ -376,6 +394,17 @@ const styles = StyleSheet.create({
     color: JP.text,
     lineHeight: 22,
   },
+  mapCta: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: JP.brand,
+    borderRadius: 12,
+    paddingVertical: 12,
+  },
+  mapCtaText: { color: JP.white, fontSize: 14, fontWeight: '800' },
   detailEmpty: {
     marginTop: 16,
     fontSize: 13,
