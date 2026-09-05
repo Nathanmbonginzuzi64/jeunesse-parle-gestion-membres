@@ -9,6 +9,7 @@ export interface HomePost {
   external_url: string | null;
   published_at: string | null;
   image_url: string | null;
+  video_url?: string | null;
   views_count?: number;
   likes_count?: number;
   comments_count?: number;

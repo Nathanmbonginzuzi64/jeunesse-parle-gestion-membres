@@ -118,7 +118,7 @@ export interface ArchivedNewsItem {
 export const ARCHIVED_NEWS: ArchivedNewsItem[] = [
   {
     id: "dialogue-national-prealables",
-    date: "2025-08-14",
+    date: "2026-08-14",
     dateLabel: "14 août",
     category: "Actualité",
     title:
@@ -135,7 +135,7 @@ export const ARCHIVED_NEWS: ArchivedNewsItem[] = [
   },
   {
     id: "deploiement-grand-bandundu",
-    date: "2025-08-06",
+    date: "2026-08-06",
     dateLabel: "6 août",
     category: "Campagne",
     title:
@@ -151,7 +151,7 @@ export const ARCHIVED_NEWS: ArchivedNewsItem[] = [
   },
   {
     id: "idiofa-kwilu",
-    date: "2025-08-02",
+    date: "2026-08-02",
     dateLabel: "2 août",
     category: "Événement",
     title:
@@ -166,7 +166,7 @@ export const ARCHIVED_NEWS: ArchivedNewsItem[] = [
   },
   {
     id: "complexe-sportif-garde",
-    date: "2025-07-27",
+    date: "2026-07-27",
     dateLabel: "27 juillet",
     category: "Actualité",
     title:

@@ -17,6 +17,7 @@ class HomePost extends Model
         'body',
         'category',
         'image_path',
+        'video_path',
         'external_url',
         'is_published',
         'published_at',

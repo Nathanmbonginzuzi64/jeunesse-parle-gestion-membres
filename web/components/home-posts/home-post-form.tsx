@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
-import { ImagePlus, Upload } from "lucide-react";
-import { ApiError, uploadFormData } from "@/lib/api";
+import { useEffect, useState, type FormEvent } from "react";
+import { Film, ImagePlus, Upload } from "lucide-react";
+import { ApiError, getToken, uploadFormData } from "@/lib/api";
 import { fieldErrors, toFormData, validationErrorMessages } from "@/lib/form";
 import type { HomePost } from "@/lib/home-posts";
 import { Alert } from "@/components/ui/feedback";
@@ -14,12 +14,13 @@ export type HomePostFormValues = {
   excerpt: string;
   body: string;
   category: string;
-  external_url: string;
   published_at: string;
   sort_order: string;
   is_published: boolean;
   image: File | null;
+  video: File | null;
   remove_image: boolean;
+  remove_video: boolean;
 };
 
 const CATEGORIES = [
@@ -53,13 +54,28 @@ export function emptyHomePostForm(post?: HomePost | null): HomePostFormValues {
     excerpt: post?.excerpt ?? "",
     body: post?.body ?? "",
     category: post?.category ?? "Actualité",
-    external_url: post?.external_url ?? "",
     published_at: toDateInputValue(post?.published_at),
     sort_order: String(post?.sort_order ?? 0),
     is_published: post?.is_published ?? true,
     image: null,
+    video: null,
     remove_image: false,
+    remove_video: false,
   };
+}
+
+async function fetchAuthenticatedMedia(url: string): Promise<string | null> {
+  const token = getToken();
+  try {
+    const response = await fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+  } catch {
+    return null;
+  }
 }
 
 export function HomePostForm({
@@ -76,12 +92,60 @@ export function HomePostForm({
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [coverSrc, setCoverSrc] = useState<string | null>(null);
+  const [videoSrc, setVideoSrc] = useState<string | null>(null);
 
-  const previewUrl = useMemo(() => {
-    if (values.image) return URL.createObjectURL(values.image);
-    if (!values.remove_image && initial?.image_url) return initial.image_url;
-    return null;
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let cancelled = false;
+
+    async function loadCover() {
+      if (values.image) {
+        objectUrl = URL.createObjectURL(values.image);
+        setCoverSrc(objectUrl);
+        return;
+      }
+      if (values.remove_image || !initial?.image_url) {
+        setCoverSrc(null);
+        return;
+      }
+      const url = await fetchAuthenticatedMedia(initial.image_url);
+      if (!cancelled) setCoverSrc(url);
+      objectUrl = url;
+    }
+
+    void loadCover();
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
   }, [values.image, values.remove_image, initial?.image_url]);
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let cancelled = false;
+
+    async function loadVideo() {
+      if (values.video) {
+        objectUrl = URL.createObjectURL(values.video);
+        setVideoSrc(objectUrl);
+        return;
+      }
+      if (values.remove_video || !initial?.video_url) {
+        setVideoSrc(null);
+        return;
+      }
+      const url = await fetchAuthenticatedMedia(initial.video_url);
+      if (!cancelled) setVideoSrc(url);
+      objectUrl = url;
+    }
+
+    void loadVideo();
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [values.video, values.remove_video, initial?.video_url]);
 
   function patch(partial: Partial<HomePostFormValues>) {
     setValues((current) => ({ ...current, ...partial }));
@@ -90,7 +154,7 @@ export function HomePostForm({
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
-    setProgress(values.image ? 5 : 15);
+    setProgress(values.image || values.video ? 5 : 15);
     setError(null);
     setErrors({});
 
@@ -99,12 +163,13 @@ export function HomePostForm({
       excerpt: values.excerpt.trim() || null,
       body: values.body.trim() || null,
       category: values.category.trim() || null,
-      external_url: values.external_url.trim() || null,
       published_at: values.published_at || null,
       sort_order: Number(values.sort_order || 0),
       is_published: values.is_published,
       image: values.image,
+      video: values.video,
       remove_image: values.remove_image || undefined,
+      remove_video: values.remove_video || undefined,
     };
 
     try {
@@ -170,27 +235,58 @@ export function HomePostForm({
             error={errors.body}
             placeholder="Texte complet de l'actualité…"
           />
-          <Input
-            label="Lien / vidéo (optionnel)"
-            type="url"
-            value={values.external_url}
-            onChange={(event) => patch({ external_url: event.target.value })}
-            placeholder="https://… ou URL .mp4"
-            error={errors.external_url}
-          />
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700">Vidéo (optionnel)</label>
+            <p className="text-xs text-slate-500">Fichier local MP4, WEBM ou MOV (max. 200 Mo).</p>
+            {videoSrc && !values.remove_video && (
+              <video
+                key={videoSrc}
+                controls
+                preload="metadata"
+                className="aspect-video w-full overflow-hidden rounded-xl bg-black object-contain"
+                src={videoSrc}
+              />
+            )}
+            <input
+              type="file"
+              accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+              onChange={(event) =>
+                patch({ video: event.target.files?.[0] ?? null, remove_video: false })
+              }
+              className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-brand-700"
+            />
+            {errors.video && <p className="text-xs text-red-600">{errors.video}</p>}
+            {values.video && (
+              <p className="text-xs text-slate-500">{values.video.name}</p>
+            )}
+            {initial?.video_url && !values.video && (
+              <Checkbox
+                checked={values.remove_video}
+                onChange={(event) => patch({ remove_video: event.target.checked })}
+                label="Supprimer la vidéo actuelle"
+              />
+            )}
+            {!videoSrc && !values.video && (
+              <div className="flex items-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-xs text-slate-400">
+                <Film className="h-4 w-4" />
+                Aucune vidéo sélectionnée
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold tracking-wide text-brand-700 uppercase">Médias & diffusion</p>
 
           <div className="overflow-hidden rounded-2xl border border-dashed border-slate-300 bg-slate-50">
-            {previewUrl ? (
+            {coverSrc && !values.remove_image ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={previewUrl} alt="" className="aspect-[16/10] w-full object-cover" />
+              <img src={coverSrc} alt="Couverture" className="aspect-[16/10] w-full object-cover" />
             ) : (
               <div className="flex aspect-[16/10] flex-col items-center justify-center gap-2 text-slate-400">
                 <ImagePlus className="h-8 w-8" />
-                <p className="text-xs">Aperçu de l&apos;image</p>
+                <p className="text-xs">Aperçu de l&apos;image de couverture</p>
               </div>
             )}
           </div>

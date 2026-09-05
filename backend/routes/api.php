@@ -83,6 +83,7 @@ Route::get('public/stats', [StatisticsController::class, 'publicLanding'])->midd
 Route::prefix('public/home-posts')->group(function () {
     Route::get('/', [HomePostController::class, 'publicIndex'])->middleware('throttle:180,1');
     Route::get('{homePost}/image', [HomePostController::class, 'publicImage'])->middleware('throttle:180,1');
+    Route::get('{homePost}/video', [HomePostController::class, 'publicVideo'])->middleware('throttle:180,1');
     Route::get('{homePost}/comments', [HomePostController::class, 'publicComments'])->middleware('throttle:180,1');
     Route::get('{homePost}', [HomePostController::class, 'publicShow'])->middleware('throttle:180,1');
     Route::post('{homePost}/like', [HomePostController::class, 'publicLike'])->middleware('throttle:60,1');
@@ -336,6 +337,7 @@ Route::middleware(['auth:sanctum', 'account.active', 'session.timeout', 'mainten
         Route::match(['put', 'post', 'patch'], '{homePost}', [HomePostController::class, 'update']);
         Route::delete('{homePost}', [HomePostController::class, 'destroy']);
         Route::get('{homePost}/image', [HomePostController::class, 'adminImage']);
+        Route::get('{homePost}/video', [HomePostController::class, 'adminVideo']);
     });
 
     Route::apiResource('users', UserController::class);

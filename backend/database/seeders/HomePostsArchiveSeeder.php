@@ -22,10 +22,6 @@ class HomePostsArchiveSeeder extends Seeder
             ->whereHas('role', fn ($q) => $q->where('slug', RoleSlug::SuperAdmin->value))
             ->value('id');
 
-        $frontendUrl = rtrim((string) (
-            config('jeunesse.verification_base_url')
-            ?: env('FRONTEND_URL', 'http://localhost:3000')
-        ), '/');
         $campaignDir = $this->resolveCampaignDirectory();
 
         foreach ($this->archiveItems() as $index => $item) {
@@ -33,12 +29,12 @@ class HomePostsArchiveSeeder extends Seeder
 
             $imagePath = $existing?->image_path;
             if (! empty($item['image_file']) && $campaignDir) {
-                $imagePath = $this->copyCampaignImage($campaignDir, $item['image_file'], $imagePath);
+                $imagePath = $this->copyCampaignMedia($campaignDir, $item['image_file'], $imagePath);
             }
 
-            $externalUrl = null;
-            if (! empty($item['video_file'])) {
-                $externalUrl = $frontendUrl.'/campaign/'.$item['video_file'];
+            $videoPath = $existing?->video_path;
+            if (! empty($item['video_file']) && $campaignDir) {
+                $videoPath = $this->copyCampaignMedia($campaignDir, $item['video_file'], $videoPath);
             }
 
             $payload = [
@@ -47,7 +43,8 @@ class HomePostsArchiveSeeder extends Seeder
                 'body' => $item['body'],
                 'category' => $item['category'],
                 'image_path' => $imagePath,
-                'external_url' => $externalUrl,
+                'video_path' => $videoPath,
+                'external_url' => null,
                 'is_published' => true,
                 'published_at' => $item['published_at'],
                 'sort_order' => 100 - $index,
@@ -79,7 +76,7 @@ class HomePostsArchiveSeeder extends Seeder
         return [
             [
                 'source_key' => 'archive:dialogue-national-prealables',
-                'published_at' => '2025-08-14 10:00:00',
+                'published_at' => '2026-08-14 10:00:00',
                 'category' => 'Actualité',
                 'title' => 'Dialogue national : Jeunesse Parle pose ses préalables et refuse toute récompense politique aux porteurs d\'armes',
                 'excerpt' => 'Le coordonnateur et initiateur du mouvement Jeunesse Parle, Serge ETINKUM ANZA, présente sa vision d\'un dialogue national inclusif à Kinshasa.',
@@ -93,7 +90,7 @@ class HomePostsArchiveSeeder extends Seeder
             ],
             [
                 'source_key' => 'archive:deploiement-grand-bandundu',
-                'published_at' => '2025-08-06 10:00:00',
+                'published_at' => '2026-08-06 10:00:00',
                 'category' => 'Campagne',
                 'title' => 'Après Kinshasa, Lubumbashi et Kisangani, « Jeunesse Parle » poursuit son déploiement dans le Grand Bandundu',
                 'excerpt' => 'Initié par Serge Etinkum ANZA, le mouvement poursuit son déploiement provincial et donne la parole à la jeunesse congolaise.',
@@ -106,7 +103,7 @@ class HomePostsArchiveSeeder extends Seeder
             ],
             [
                 'source_key' => 'archive:idiofa-kwilu',
-                'published_at' => '2025-08-02 10:00:00',
+                'published_at' => '2026-08-02 10:00:00',
                 'category' => 'Événement',
                 'title' => 'Kwilu : à Idiofa, Serge Etinkum ANZA annonce l\'implantation de « Jeunesse Parle » et mobilise les jeunes',
                 'excerpt' => 'En marge d\'un meeting populaire à Idiofa, le coordonnateur national livre un message tourné vers la jeunesse et l\'engagement citoyen.',
@@ -119,7 +116,7 @@ class HomePostsArchiveSeeder extends Seeder
             ],
             [
                 'source_key' => 'archive:complexe-sportif-garde',
-                'published_at' => '2025-07-27 10:00:00',
+                'published_at' => '2026-07-27 10:00:00',
                 'category' => 'Actualité',
                 'title' => 'Serge Etinkum Anza salue l\'encadrement de la jeunesse au complexe sportif et promet un appui en équipements',
                 'excerpt' => 'Visite au complexe sportif omnisports de la « Cohésion nationale » au camp Tshatshi, avec un engagement d\'appui aux jeunes.',
@@ -149,14 +146,14 @@ class HomePostsArchiveSeeder extends Seeder
         return null;
     }
 
-    private function copyCampaignImage(string $campaignDir, string $filename, ?string $previousPath): ?string
+    private function copyCampaignMedia(string $campaignDir, string $filename, ?string $previousPath): ?string
     {
         $source = $campaignDir.DIRECTORY_SEPARATOR.$filename;
         if (! is_file($source)) {
             return $previousPath;
         }
 
-        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION) ?: 'jpg');
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION) ?: 'bin');
         $target = 'home-posts/archive-'.Str::slug(pathinfo($filename, PATHINFO_FILENAME)).'-'.Str::random(8).'.'.$extension;
 
         Storage::disk('local')->put($target, File::get($source));

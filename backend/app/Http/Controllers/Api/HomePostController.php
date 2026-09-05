@@ -65,6 +65,20 @@ class HomePostController extends Controller
         ]);
     }
 
+    /** Vidéo publique d'un post publié. */
+    public function publicVideo(HomePost $homePost): Response|BinaryFileResponse
+    {
+        abort_unless($this->isPubliclyVisible($homePost) && filled($homePost->video_path), 404);
+
+        $absolute = $this->media->absolutePath($homePost->video_path);
+        abort_unless($absolute, 404);
+
+        return response()->file($absolute, [
+            'Cache-Control' => 'public, max-age=3600',
+            'Accept-Ranges' => 'bytes',
+        ]);
+    }
+
     /** Détail public + enregistrement de vue (commentaires via endpoint dédié). */
     public function publicShow(Request $request, HomePost $homePost): JsonResponse
     {
@@ -249,7 +263,7 @@ class HomePostController extends Controller
         $this->assertSuperAdmin();
         $data = $this->validated($request);
 
-        $post = new HomePost(collect($data)->except(['image', 'remove_image'])->all());
+        $post = new HomePost(collect($data)->except(['image', 'video', 'remove_image', 'remove_video'])->all());
         $post->author_id = $request->user()->id;
         $post->is_published = filter_var($data['is_published'] ?? false, FILTER_VALIDATE_BOOLEAN);
         $post->published_at = $post->is_published
@@ -258,6 +272,10 @@ class HomePostController extends Controller
 
         if ($request->hasFile('image')) {
             $post->image_path = $this->media->storeImage($request->file('image'));
+        }
+
+        if ($request->hasFile('video')) {
+            $post->video_path = $this->media->storeVideo($request->file('video'));
         }
 
         $post->save();
@@ -284,7 +302,7 @@ class HomePostController extends Controller
         $this->assertSuperAdmin();
         $data = $this->validated($request, updating: true);
 
-        $homePost->fill(collect($data)->except(['is_published', 'published_at', 'remove_image'])->all());
+        $homePost->fill(collect($data)->except(['is_published', 'published_at', 'remove_image', 'remove_video', 'image', 'video'])->all());
 
         if (array_key_exists('is_published', $data)) {
             $homePost->is_published = filter_var($data['is_published'], FILTER_VALIDATE_BOOLEAN);
@@ -303,10 +321,22 @@ class HomePostController extends Controller
             $homePost->image_path = null;
         }
 
+        if ($request->boolean('remove_video')) {
+            $this->media->delete($homePost->video_path);
+            $homePost->video_path = null;
+        }
+
         if ($request->hasFile('image')) {
             $homePost->image_path = $this->media->storeImage(
                 $request->file('image'),
                 $homePost->image_path,
+            );
+        }
+
+        if ($request->hasFile('video')) {
+            $homePost->video_path = $this->media->storeVideo(
+                $request->file('video'),
+                $homePost->video_path,
             );
         }
 
@@ -355,16 +385,20 @@ class HomePostController extends Controller
             'excerpt' => ['nullable', 'string', 'max:400'],
             'body' => ['nullable', 'string', 'max:20000'],
             'category' => ['nullable', 'string', 'max:60'],
-            'external_url' => ['nullable', 'url', 'max:500'],
+            'external_url' => ['nullable', 'string', 'max:500'],
             'is_published' => ['nullable', 'boolean'],
             'published_at' => ['nullable', 'date'],
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
             'image' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'video' => ['nullable', 'file', 'mimetypes:video/mp4,video/webm,video/quicktime', 'max:204800'],
             'remove_image' => ['nullable', 'boolean'],
+            'remove_video' => ['nullable', 'boolean'],
         ], [
             'title.required' => 'Le titre est obligatoire.',
             'image.mimes' => 'Formats image acceptés : JPG, PNG, WEBP.',
             'image.max' => 'L\'image ne doit pas dépasser 5 Mo.',
+            'video.mimetypes' => 'Formats vidéo acceptés : MP4, WEBM, MOV.',
+            'video.max' => 'La vidéo ne doit pas dépasser 200 Mo.',
         ]);
 
         return $validator->validate();
@@ -382,6 +416,9 @@ class HomePostController extends Controller
             'published_at' => $post->published_at?->toIso8601String(),
             'image_url' => $post->image_path
                 ? url('/api/public/home-posts/'.$post->id.'/image')
+                : null,
+            'video_url' => $post->video_path
+                ? url('/api/public/home-posts/'.$post->id.'/video')
                 : null,
             'views_count' => (int) $post->views_count,
             'likes_count' => (int) $post->likes_count,
@@ -459,15 +496,19 @@ class HomePostController extends Controller
             'is_published' => $post->is_published,
             'sort_order' => $post->sort_order,
             'image_path' => $post->image_path,
+            'video_path' => $post->video_path,
             'author' => $post->author ? [
                 'id' => $post->author->id,
                 'name' => $post->author->name,
             ] : null,
             'created_at' => $post->created_at?->toIso8601String(),
             'updated_at' => $post->updated_at?->toIso8601String(),
-            // URL admin même si brouillon (image privée via route auth ci-dessous)
+            // URL admin même si brouillon (médias privés via routes auth)
             'image_url' => $post->image_path
                 ? url('/api/home-posts/'.$post->id.'/image')
+                : null,
+            'video_url' => $post->video_path
+                ? url('/api/home-posts/'.$post->id.'/video')
                 : null,
         ];
     }
@@ -483,6 +524,21 @@ class HomePostController extends Controller
 
         return response()->file($absolute, [
             'Cache-Control' => 'private, max-age=300',
+        ]);
+    }
+
+    /** Vidéo admin (brouillons inclus). */
+    public function adminVideo(HomePost $homePost): Response|BinaryFileResponse
+    {
+        $this->assertSuperAdmin();
+        abort_unless(filled($homePost->video_path), 404);
+
+        $absolute = $this->media->absolutePath($homePost->video_path);
+        abort_unless($absolute, 404);
+
+        return response()->file($absolute, [
+            'Cache-Control' => 'private, max-age=300',
+            'Accept-Ranges' => 'bytes',
         ]);
     }
 }

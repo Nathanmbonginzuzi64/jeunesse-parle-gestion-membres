@@ -173,7 +173,8 @@ export default function InfosDetailPage() {
 
   if (!post) return null;
 
-  const video = isVideoUrl(post.external_url);
+  const videoUrl = post.video_url || (isVideoUrl(post.external_url) ? post.external_url : null);
+  const externalLink = post.external_url && !isVideoUrl(post.external_url) ? post.external_url : null;
 
   return (
     <div className="bg-[var(--background)] pb-24">
@@ -291,9 +292,9 @@ export default function InfosDetailPage() {
               <p className="text-sm text-slate-500">Aucun contenu détaillé pour cette publication.</p>
             )}
 
-            {post.external_url && (
+            {(videoUrl || externalLink) && (
               <div className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
-                {video ? (
+                {videoUrl ? (
                   <div>
                     <video
                       controls
@@ -301,7 +302,7 @@ export default function InfosDetailPage() {
                       poster={post.image_url ?? undefined}
                       className="aspect-video w-full bg-black object-contain"
                     >
-                      <source src={post.external_url} />
+                      <source src={videoUrl} />
                     </video>
                     <div className="flex items-center gap-2 px-4 py-3 text-xs font-medium text-slate-600">
                       <Play className="h-3.5 w-3.5 text-brand-600" />
@@ -310,7 +311,7 @@ export default function InfosDetailPage() {
                   </div>
                 ) : (
                   <a
-                    href={post.external_url}
+                    href={externalLink!}
                     target="_blank"
                     rel="noreferrer"
                     className="flex items-center justify-between gap-3 px-4 py-4 text-sm font-semibold text-brand-700 transition hover:bg-brand-50"
@@ -319,7 +320,7 @@ export default function InfosDetailPage() {
                       <ExternalLink className="h-4 w-4" />
                       Ouvrir le lien associé
                     </span>
-                    <span className="truncate text-xs font-normal text-slate-400">{post.external_url}</span>
+                    <span className="truncate text-xs font-normal text-slate-400">{externalLink}</span>
                   </a>
                 )}
               </div>
