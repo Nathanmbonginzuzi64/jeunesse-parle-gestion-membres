@@ -1,9 +1,32 @@
 /* eslint-disable @next/next/no-img-element */
 
+/**
+ * Layout PDF institutionnel.
+ * Couleurs en hex / rgb inline uniquement — Tailwind v4 (oklch sur slate-*)
+ * rend le texte invisible avec html2canvas.
+ */
+
 import { formatDateLong } from "@/lib/datetime";
 import { PERIOD_LABELS, STATUS_LABELS } from "@/lib/reports/types";
 import type { ReportFiltersState } from "@/lib/reports/api-types";
 import { formatNumber } from "@/lib/utils";
+
+const C = {
+  white: "#ffffff",
+  ink: "#101426",
+  muted: "#667085",
+  mutedSoft: "#475569",
+  border: "#e2e8f0",
+  borderStrong: "#94a3b8",
+  rowAlt: "#f8fafc",
+  brand50: "#e7f4fb",
+  brand100: "#cfe9f7",
+  brand200: "#9ed3ef",
+  brand500: "#0087d1",
+  brand600: "#0076b8",
+  brand700: "#00649c",
+  brand800: "#0a4f7a",
+} as const;
 
 export interface ReportPdfMeta {
   title: string;
@@ -53,45 +76,96 @@ export function ReportPdfPage({
   return (
     <div
       data-report-page
-      className="mx-auto flex min-h-[1123px] w-[794px] flex-col bg-white px-10 py-8"
-      style={{ width: 794, minHeight: 1123 }}
+      style={{
+        width: 794,
+        minHeight: 1123,
+        margin: "0 auto",
+        display: "flex",
+        flexDirection: "column",
+        backgroundColor: C.white,
+        color: C.ink,
+        padding: "32px 40px",
+        boxSizing: "border-box",
+        fontFamily: "Arial, Helvetica, sans-serif",
+      }}
     >
-      <header className="border-b-2 border-brand-500 pb-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
+      <header
+        style={{
+          borderBottom: `2px solid ${C.brand500}`,
+          paddingBottom: 16,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <img
               src="/logo.jpeg"
               alt="La Jeunesse Parle"
               width={56}
               height={56}
-              className="h-14 w-14 rounded-full object-cover ring-2 ring-brand-200"
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: "9999px",
+                objectFit: "cover",
+                border: `2px solid ${C.brand200}`,
+                display: "block",
+              }}
             />
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-600">
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: "0.2em",
+                  textTransform: "uppercase",
+                  color: C.brand600,
+                }}
+              >
                 La Jeunesse Parle
               </p>
-              <h1 className="text-lg font-bold text-slate-900">{meta.title}</h1>
-              {meta.subtitle ? <p className="text-xs text-slate-500">{meta.subtitle}</p> : null}
+              <h1 style={{ margin: "2px 0 0", fontSize: 18, fontWeight: 700, color: C.ink }}>
+                {meta.title}
+              </h1>
+              {meta.subtitle ? (
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: C.muted }}>{meta.subtitle}</p>
+              ) : null}
             </div>
           </div>
-          <div className="text-right text-[10px] text-slate-500">
-            <p className="font-semibold text-slate-700">Document officiel</p>
-            <p>Généré le {formatDateLong(new Date(meta.generatedAt))}</p>
-            {meta.generatedBy ? <p>Par : {meta.generatedBy}</p> : null}
-            {meta.pageLabel ? <p className="mt-1 font-medium text-brand-700">{meta.pageLabel}</p> : null}
+          <div style={{ textAlign: "right", fontSize: 10, color: C.muted }}>
+            <p style={{ margin: 0, fontWeight: 600, color: C.mutedSoft }}>Document officiel</p>
+            <p style={{ margin: "2px 0 0" }}>Généré le {formatDateLong(new Date(meta.generatedAt))}</p>
+            {meta.generatedBy ? <p style={{ margin: "2px 0 0" }}>Par : {meta.generatedBy}</p> : null}
+            {meta.pageLabel ? (
+              <p style={{ margin: "4px 0 0", fontWeight: 600, color: C.brand700 }}>{meta.pageLabel}</p>
+            ) : null}
           </div>
         </div>
         {(tags.length > 0 || meta.scope) && (
-          <div className="mt-3 flex flex-wrap gap-2 text-[10px]">
+          <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8, fontSize: 10 }}>
             {meta.scope ? (
-              <span className="rounded-md bg-brand-50 px-2 py-1 text-brand-800 ring-1 ring-brand-100">
+              <span
+                style={{
+                  borderRadius: 6,
+                  backgroundColor: C.brand50,
+                  color: C.brand800,
+                  padding: "4px 8px",
+                  border: `1px solid ${C.brand100}`,
+                }}
+              >
                 {meta.scope}
               </span>
             ) : null}
             {tags.map((tag) => (
               <span
                 key={tag}
-                className="rounded-md bg-brand-50 px-2 py-1 text-brand-800 ring-1 ring-brand-100"
+                style={{
+                  borderRadius: 6,
+                  backgroundColor: C.brand50,
+                  color: C.brand800,
+                  padding: "4px 8px",
+                  border: `1px solid ${C.brand100}`,
+                }}
               >
                 {tag}
               </span>
@@ -100,14 +174,26 @@ export function ReportPdfPage({
         )}
       </header>
 
-      <div className="min-h-0 flex-1 py-6">{children}</div>
+      <div style={{ flex: 1, minHeight: 0, paddingTop: 24, paddingBottom: 24, color: C.ink }}>
+        {children}
+      </div>
 
-      <footer className="mt-auto flex shrink-0 justify-between border-t border-slate-200 pt-3 text-[9px] text-slate-500">
+      <footer
+        style={{
+          marginTop: "auto",
+          display: "flex",
+          justifyContent: "space-between",
+          borderTop: `1px solid ${C.border}`,
+          paddingTop: 12,
+          fontSize: 9,
+          color: C.muted,
+        }}
+      >
         <div>
-          <p className="font-semibold text-slate-700">La Jeunesse Parle — RDC</p>
-          <p>Document confidentiel · Usage institutionnel</p>
+          <p style={{ margin: 0, fontWeight: 600, color: C.mutedSoft }}>La Jeunesse Parle — RDC</p>
+          <p style={{ margin: "2px 0 0" }}>Document confidentiel · Usage institutionnel</p>
         </div>
-        <p>
+        <p style={{ margin: 0 }}>
           Page {page} / {total}
         </p>
       </footer>
@@ -126,14 +212,42 @@ export function ReportPdfTable({
   rows: Array<Array<string | number>>;
   compact?: boolean;
 }) {
+  const fontSize = compact ? 9 : 11;
+
   return (
     <div>
-      <h3 className="mb-2 text-xs font-bold uppercase text-brand-700">{title}</h3>
-      <table className={`w-full border-collapse ${compact ? "text-[9px]" : "text-[11px]"}`}>
+      <h3
+        style={{
+          margin: "0 0 8px",
+          fontSize: 12,
+          fontWeight: 700,
+          textTransform: "uppercase",
+          color: C.brand700,
+        }}
+      >
+        {title}
+      </h3>
+      <table
+        style={{
+          width: "100%",
+          borderCollapse: "collapse",
+          fontSize,
+          color: C.ink,
+        }}
+      >
         <thead>
-          <tr className="bg-brand-600 text-white">
+          <tr style={{ backgroundColor: C.brand600, color: C.white }}>
             {headers.map((h) => (
-              <th key={h} className="border border-brand-700 px-2 py-2 text-left">
+              <th
+                key={h}
+                style={{
+                  border: `1px solid ${C.brand700}`,
+                  padding: "8px",
+                  textAlign: "left",
+                  color: C.white,
+                  fontWeight: 600,
+                }}
+              >
                 {h}
               </th>
             ))}
@@ -142,15 +256,30 @@ export function ReportPdfTable({
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={headers.length} className="border border-slate-200 px-3 py-4 text-center text-slate-500">
+              <td
+                colSpan={headers.length}
+                style={{
+                  border: `1px solid ${C.border}`,
+                  padding: "16px 12px",
+                  textAlign: "center",
+                  color: C.muted,
+                }}
+              >
                 Aucune donnée
               </td>
             </tr>
           ) : (
             rows.map((row, i) => (
-              <tr key={i} className={i % 2 ? "bg-slate-50" : "bg-white"}>
+              <tr key={i} style={{ backgroundColor: i % 2 ? C.rowAlt : C.white }}>
                 {row.map((cell, j) => (
-                  <td key={j} className="border border-slate-200 px-2 py-1.5">
+                  <td
+                    key={j}
+                    style={{
+                      border: `1px solid ${C.border}`,
+                      padding: "6px 8px",
+                      color: C.ink,
+                    }}
+                  >
                     {typeof cell === "number" ? formatNumber(cell) : cell}
                   </td>
                 ))}
@@ -169,11 +298,44 @@ export function ReportPdfKpiGrid({
   items: Array<{ label: string; value: string | number }>;
 }) {
   return (
-    <div className="grid grid-cols-4 gap-2">
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+        gap: 8,
+      }}
+    >
       {items.map(({ label, value }) => (
-        <div key={label} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-          <p className="text-[9px] uppercase text-slate-500">{label}</p>
-          <p className="text-lg font-bold tabular-nums">{typeof value === "number" ? formatNumber(value) : value}</p>
+        <div
+          key={label}
+          style={{
+            borderRadius: 8,
+            border: `1px solid ${C.border}`,
+            backgroundColor: C.rowAlt,
+            padding: "8px 12px",
+          }}
+        >
+          <p
+            style={{
+              margin: 0,
+              fontSize: 9,
+              textTransform: "uppercase",
+              color: C.muted,
+            }}
+          >
+            {label}
+          </p>
+          <p
+            style={{
+              margin: "4px 0 0",
+              fontSize: 18,
+              fontWeight: 700,
+              color: C.ink,
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {typeof value === "number" ? formatNumber(value) : value}
+          </p>
         </div>
       ))}
     </div>
@@ -182,7 +344,17 @@ export function ReportPdfKpiGrid({
 
 export function ReportPdfSummary({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-brand-100 bg-brand-50/50 px-4 py-3 text-[11px] leading-relaxed text-slate-600">
+    <div
+      style={{
+        borderRadius: 8,
+        border: `1px solid ${C.brand100}`,
+        backgroundColor: C.brand50,
+        padding: "12px 16px",
+        fontSize: 11,
+        lineHeight: 1.55,
+        color: C.mutedSoft,
+      }}
+    >
       {children}
     </div>
   );
@@ -190,14 +362,33 @@ export function ReportPdfSummary({ children }: { children: React.ReactNode }) {
 
 export function ReportPdfSignatureBlock() {
   return (
-    <div className="grid grid-cols-2 gap-8 border-t pt-6">
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: 32,
+        borderTop: `1px solid ${C.border}`,
+        paddingTop: 24,
+      }}
+    >
       <div>
-        <p className="text-[10px] uppercase text-slate-500">Validé par</p>
-        <div className="mt-8 border-b border-slate-400" />
+        <p style={{ margin: 0, fontSize: 10, textTransform: "uppercase", color: C.muted }}>
+          Validé par
+        </p>
+        <div style={{ marginTop: 32, borderBottom: `1px solid ${C.borderStrong}` }} />
       </div>
       <div>
-        <p className="text-[10px] uppercase text-slate-500">Cachet officiel</p>
-        <div className="mt-4 h-16 rounded border border-dashed border-slate-300" />
+        <p style={{ margin: 0, fontSize: 10, textTransform: "uppercase", color: C.muted }}>
+          Cachet officiel
+        </p>
+        <div
+          style={{
+            marginTop: 16,
+            height: 64,
+            borderRadius: 4,
+            border: `1px dashed ${C.borderStrong}`,
+          }}
+        />
       </div>
     </div>
   );

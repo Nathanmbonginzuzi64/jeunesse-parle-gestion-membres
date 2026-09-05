@@ -7,6 +7,18 @@ const JPEG_QUALITY = 0.92;
 /** Ignore une tranche résiduelle inférieure à 4 % de la hauteur A4 (évite les pages blanches). */
 const MIN_SLICE_RATIO = 0.04;
 
+/**
+ * Classes du conteneur d’export hors écran.
+ * Ne jamais utiliser opacity-0 ni left:-9999px : html2canvas produit un PDF blanc.
+ */
+export const REPORT_PDF_HOST_CLASS =
+  "pointer-events-none fixed top-0 left-0 -z-10 w-[794px] opacity-[0.01]";
+
+type StyleSnapshot = {
+  el: HTMLElement;
+  cssText: string;
+};
+
 function canvasToJpeg(canvas: HTMLCanvasElement): string {
   const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
   if (!dataUrl.startsWith("data:image/jpeg")) {
@@ -138,43 +150,153 @@ function hasVisibleContent(page: HTMLElement): boolean {
   return text.length > 0;
 }
 
+/**
+ * Rend temporairement le conteneur et ses ancêtres capturables
+ * (opacity / position hors viewport → PDF blanc sinon).
+ */
+function prepareHostForCapture(host: HTMLElement): () => void {
+  const snapshots: StyleSnapshot[] = [];
+
+  const remember = (el: HTMLElement) => {
+    if (snapshots.some((s) => s.el === el)) return;
+    snapshots.push({ el, cssText: el.style.cssText });
+  };
+
+  remember(host);
+  host.style.setProperty("opacity", "1", "important");
+  host.style.setProperty("visibility", "visible", "important");
+  host.style.setProperty("pointer-events", "none", "important");
+  host.style.setProperty("position", "fixed", "important");
+  host.style.setProperty("left", "0", "important");
+  host.style.setProperty("top", "0", "important");
+  host.style.setProperty("z-index", "-1", "important");
+  host.style.setProperty("width", "794px", "important");
+  host.style.setProperty("transform", "none", "important");
+  host.style.setProperty("clip", "auto", "important");
+  host.style.setProperty("clip-path", "none", "important");
+
+  let ancestor: HTMLElement | null = host.parentElement;
+  while (ancestor && ancestor !== document.documentElement) {
+    remember(ancestor);
+    const computed = window.getComputedStyle(ancestor);
+    if (computed.opacity !== "1") {
+      ancestor.style.setProperty("opacity", "1", "important");
+    }
+    if (computed.visibility === "hidden") {
+      ancestor.style.setProperty("visibility", "visible", "important");
+    }
+    if (computed.display === "none") {
+      ancestor.style.setProperty("display", "block", "important");
+    }
+    ancestor = ancestor.parentElement;
+  }
+
+  return () => {
+    for (const { el, cssText } of snapshots) {
+      el.style.cssText = cssText;
+    }
+  };
+}
+
+/** Force l’opacité dans le clone html2canvas (filet de sécurité). */
+function forceCloneVisibility(clonedPage: HTMLElement) {
+  let node: HTMLElement | null = clonedPage;
+  while (node) {
+    node.style.setProperty("opacity", "1", "important");
+    node.style.setProperty("visibility", "visible", "important");
+    node = node.parentElement;
+  }
+  clonedPage.querySelectorAll<HTMLElement>("*").forEach((el) => {
+    const op = el.style.opacity;
+    if (op === "0" || op === "0.01" || op === "0.001") {
+      el.style.setProperty("opacity", "1", "important");
+    }
+  });
+}
+
+/**
+ * Copie les couleurs calculées (souvent rgb) en styles inline.
+ * Évite que html2canvas doive parser oklch() des classes Tailwind v4.
+ */
+function sanitizeCloneColors(root: HTMLElement) {
+  const view = root.ownerDocument.defaultView ?? window;
+  const nodes = [root, ...Array.from(root.querySelectorAll<HTMLElement>("*"))];
+
+  for (const el of nodes) {
+    const cs = view.getComputedStyle(el);
+    el.style.color = cs.color;
+    el.style.backgroundColor = cs.backgroundColor;
+    el.style.borderTopColor = cs.borderTopColor;
+    el.style.borderRightColor = cs.borderRightColor;
+    el.style.borderBottomColor = cs.borderBottomColor;
+    el.style.borderLeftColor = cs.borderLeftColor;
+    el.style.outlineColor = cs.outlineColor;
+
+    // Filet si la couleur calculée est transparente / invalide.
+    if (!cs.color || cs.color === "rgba(0, 0, 0, 0)" || cs.color === "transparent") {
+      el.style.color = "#101426";
+    }
+  }
+}
+
+async function capturePage(page: HTMLElement): Promise<HTMLCanvasElement> {
+  const width = Math.max(page.offsetWidth || 0, page.scrollWidth || 0, 794);
+  const height = Math.max(page.scrollHeight || 0, page.offsetHeight || 0, 1);
+
+  return html2canvas(page, {
+    scale: 2,
+    useCORS: true,
+    allowTaint: false,
+    backgroundColor: "#ffffff",
+    logging: false,
+    imageTimeout: 15_000,
+    foreignObjectRendering: false,
+    width,
+    height,
+    windowWidth: width,
+    windowHeight: height,
+    onclone: (_doc, cloned) => {
+      forceCloneVisibility(cloned);
+      sanitizeCloneColors(cloned);
+    },
+  });
+}
+
 export async function exportReportToPdf(
   container: HTMLElement,
   filename: string,
 ): Promise<void> {
-  const pages = Array.from(container.querySelectorAll<HTMLElement>("[data-report-page]")).filter(
-    hasVisibleContent,
-  );
+  const restoreHost = prepareHostForCapture(container);
 
-  if (pages.length === 0) {
-    throw new Error("Aucune page de rapport à exporter.");
+  try {
+    // Laisser le layout se stabiliser après le forçage de styles.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+    let pages = Array.from(container.querySelectorAll<HTMLElement>("[data-report-page]")).filter(
+      hasVisibleContent,
+    );
+
+    // Filet : si le conteneur est lui-même une page.
+    if (pages.length === 0 && container.matches("[data-report-page]") && hasVisibleContent(container)) {
+      pages = [container];
+    }
+
+    if (pages.length === 0) {
+      throw new Error("Aucune page de rapport à exporter.");
+    }
+
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+    for (let index = 0; index < pages.length; index++) {
+      const page = pages[index]!;
+      const canvas = await capturePage(page);
+      addReportPageToPdf(pdf, canvas, index === 0);
+    }
+
+    pdf.save(filename);
+  } finally {
+    restoreHost();
   }
-
-  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-
-  for (let index = 0; index < pages.length; index++) {
-    const page = pages[index]!;
-    const width = page.offsetWidth || page.scrollWidth || 794;
-    const height = page.scrollHeight || page.offsetHeight || 1;
-
-    const canvas = await html2canvas(page, {
-      scale: 2,
-      useCORS: true,
-      allowTaint: false,
-      backgroundColor: "#ffffff",
-      logging: false,
-      imageTimeout: 15_000,
-      foreignObjectRendering: false,
-      width,
-      height,
-      windowWidth: width,
-      windowHeight: height,
-    });
-
-    addReportPageToPdf(pdf, canvas, index === 0);
-  }
-
-  pdf.save(filename);
 }
 
 export function buildReportFilename(type: string, date = new Date()): string {

@@ -18,7 +18,7 @@ import { Select } from "@/components/ui/field";
 import { Alert } from "@/components/ui/feedback";
 import { useAuth } from "@/lib/auth";
 import { useApi, usePublicStructures } from "@/lib/hooks";
-import { buildReportFilename, exportReportToPdf } from "@/lib/reports/export-pdf";
+import { REPORT_PDF_HOST_CLASS, buildReportFilename, exportReportToPdf } from "@/lib/reports/export-pdf";
 import {
   REPORT_TYPES,
   type ReportFilters,
@@ -209,12 +209,7 @@ export function ReportBuilderPanel() {
       )}
 
       {ready && !showPreview && (
-        <div
-          ref={printRef}
-          className="pointer-events-none absolute top-0 left-0 -z-10 opacity-[0.01]"
-          style={{ width: 794 }}
-          aria-hidden
-        >
+        <div ref={printRef} className={REPORT_PDF_HOST_CLASS} aria-hidden>
           <ReportDocument payload={payload!} />
         </div>
       )}

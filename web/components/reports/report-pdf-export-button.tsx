@@ -1,10 +1,15 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
-import { buildReportFilename, exportReportToPdf } from "@/lib/reports/export-pdf";
+import {
+  REPORT_PDF_HOST_CLASS,
+  buildReportFilename,
+  exportReportToPdf,
+} from "@/lib/reports/export-pdf";
 import { reportApiErrorMessage } from "@/lib/reports/fetch-all-pages";
 
 interface ReportPdfExportButtonProps {
@@ -14,6 +19,20 @@ interface ReportPdfExportButtonProps {
   disabled?: boolean;
   /** Prépare le document PDF (peut inclure un fetch API). */
   onPrepare: () => Promise<React.ReactNode>;
+}
+
+/** Attend que le DOM React ait monté au moins une page de rapport. */
+async function waitForReportPages(container: HTMLElement, timeoutMs = 4000): Promise<void> {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const pages = container.querySelectorAll("[data-report-page]");
+    if (pages.length > 0) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      return;
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 32));
+  }
+  throw new Error("Le document PDF n'a pas pu être préparé.");
 }
 
 export function ReportPdfExportButton({
@@ -30,12 +49,12 @@ export function ReportPdfExportButton({
   const handleExport = useCallback(async () => {
     setExporting(true);
     try {
-      const document = await onPrepare();
-      setPreview(document);
-      await new Promise<void>((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      const documentNode = await onPrepare();
+      flushSync(() => {
+        setPreview(documentNode);
       });
       if (!containerRef.current) throw new Error("Conteneur PDF indisponible.");
+      await waitForReportPages(containerRef.current);
       await exportReportToPdf(containerRef.current, buildReportFilename(reportId));
       toast.success("Rapport PDF téléchargé.");
     } catch (caught) {
@@ -52,11 +71,7 @@ export function ReportPdfExportButton({
         <FileDown className="mr-2 h-4 w-4" aria-hidden />
         {exporting ? "Génération PDF…" : label}
       </Button>
-      <div
-        ref={containerRef}
-        aria-hidden
-        className="pointer-events-none fixed left-[-9999px] top-0 z-[-1] opacity-0"
-      >
+      <div ref={containerRef} aria-hidden className={REPORT_PDF_HOST_CLASS}>
         {preview}
       </div>
     </>

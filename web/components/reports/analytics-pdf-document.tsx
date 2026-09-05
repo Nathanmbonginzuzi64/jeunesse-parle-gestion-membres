@@ -465,7 +465,7 @@ export function RolesPdfDocument({
   if (data.data.length === 0) {
     return (
       <ReportPdfPage meta={meta} page={1} total={1}>
-        <p className="text-sm text-slate-500">Aucun rôle configuré.</p>
+        <p style={{ margin: 0, fontSize: 14, color: "#667085" }}>Aucun rôle configuré.</p>
       </ReportPdfPage>
     );
   }
