@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\Concerns\RecordsToTrash;
 
 class HomePost extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, RecordsToTrash;
 
     protected $fillable = [
         'title',

@@ -19,6 +19,8 @@ import {
   ShieldCheck,
   ShieldOff,
   Smartphone,
+  Trash2,
+  HardDrive,
   UserCog,
   UserCircle,
   Users,
@@ -175,6 +177,19 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Journal d'audit",
         icon: ShieldCheck,
         permissions: [PERMISSIONS.auditView],
+      },
+      {
+        href: "/corbeille",
+        label: "Corbeille",
+        icon: Trash2,
+        permissions: [PERMISSIONS.trashView],
+      },
+      {
+        href: "/sauvegardes",
+        label: "Sauvegardes",
+        icon: HardDrive,
+        permissions: [PERMISSIONS.backupManage],
+        roles: [ROLE_SLUGS.superAdmin],
       },
       {
         href: "/parametres/administration/systeme",

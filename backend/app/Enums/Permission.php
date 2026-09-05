@@ -46,6 +46,9 @@ enum Permission: string
     case AuditView = 'audit.view';
     case SettingsManage = 'settings.manage';
     case NotificationsSend = 'notifications.send';
+    case BackupManage = 'backup.manage';
+    case TrashView = 'trash.view';
+    case TrashManage = 'trash.manage';
 
     public function label(): string
     {
@@ -77,6 +80,9 @@ enum Permission: string
             self::AuditView => 'Consulter le journal d\'audit',
             self::SettingsManage => 'Gérer les paramètres',
             self::NotificationsSend => 'Envoyer des notifications',
+            self::BackupManage => 'Gérer les sauvegardes système',
+            self::TrashView => 'Consulter la corbeille',
+            self::TrashManage => 'Restaurer ou purger la corbeille',
         };
     }
 

@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\Concerns\RecordsToTrash;
 
 class JpMessage extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, RecordsToTrash;
 
     protected $fillable = [
         'reference', 'member_id', 'user_id', 'guest_name', 'guest_email', 'source',

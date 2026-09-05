@@ -5,10 +5,15 @@ use App\Models\User;
 use App\Services\BiometricService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+Schedule::command('backup:create --notes="Sauvegarde automatique quotidienne"')
+    ->dailyAt('02:30')
+    ->withoutOverlapping();
 
 Artisan::command('jp:seed-biometrics', function (BiometricService $biometrics) {
     $slots = BiometricService::REQUIRED_SLOTS;

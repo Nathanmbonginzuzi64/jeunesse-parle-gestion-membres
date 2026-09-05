@@ -32,6 +32,9 @@ export const PERMISSIONS = {
   auditView: "audit.view",
   settingsManage: "settings.manage",
   notificationsSend: "notifications.send",
+  backupManage: "backup.manage",
+  trashView: "trash.view",
+  trashManage: "trash.manage",
 } as const;
 
 export type PermissionSlug = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

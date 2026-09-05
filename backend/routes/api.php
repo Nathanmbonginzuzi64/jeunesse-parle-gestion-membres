@@ -6,6 +6,8 @@ use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BackupController;
+use App\Http\Controllers\Api\TrashController;
 use App\Http\Controllers\Api\MapController;
 use App\Http\Controllers\Api\MediaController;
 use App\Http\Controllers\Api\MemberCardController;
@@ -351,6 +353,19 @@ Route::middleware(['auth:sanctum', 'account.active', 'session.timeout', 'mainten
         Route::get('/', [AuditLogController::class, 'index']);
         Route::get('stats', [AuditLogController::class, 'stats']);
         Route::get('verifications', [AuditLogController::class, 'verifications']);
+    });
+
+    Route::prefix('trash')->group(function () {
+        Route::get('/', [TrashController::class, 'index']);
+        Route::post('{trashItem}/restore', [TrashController::class, 'restore']);
+        Route::delete('{trashItem}', [TrashController::class, 'destroy']);
+    });
+
+    Route::prefix('backups')->middleware('permission:backup.manage')->group(function () {
+        Route::get('/', [BackupController::class, 'index']);
+        Route::post('/', [BackupController::class, 'store']);
+        Route::get('{backup}/download', [BackupController::class, 'download']);
+        Route::delete('{backup}', [BackupController::class, 'destroy']);
     });
 
     // ------------------------------------------------------------ Médias protégés

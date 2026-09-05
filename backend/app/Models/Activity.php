@@ -11,10 +11,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\Concerns\RecordsToTrash;
 
 class Activity extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, RecordsToTrash;
 
     protected $fillable = [
         'code', 'title', 'description', 'type', 'starts_at', 'ends_at', 'location', 'image_path',

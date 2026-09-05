@@ -26,6 +26,7 @@ class RolePermissionSeeder extends Seeder
             PermissionEnum::UsersView, PermissionEnum::UsersManage,
             PermissionEnum::StatisticsView, PermissionEnum::MapView, PermissionEnum::AuditView,
             PermissionEnum::NotificationsSend,
+            PermissionEnum::TrashView, PermissionEnum::TrashManage,
         ],
         RoleSlug::ResponsableProvincial->value => [
             PermissionEnum::MembersView, PermissionEnum::MembersCreate, PermissionEnum::MembersUpdate,
@@ -37,6 +38,7 @@ class RolePermissionSeeder extends Seeder
             PermissionEnum::AttendanceView, PermissionEnum::AttendanceRecord,
             PermissionEnum::UsersView,
             PermissionEnum::StatisticsView, PermissionEnum::MapView,
+            PermissionEnum::TrashView, PermissionEnum::TrashManage,
         ],
         RoleSlug::ResponsableVille->value => [
             PermissionEnum::MembersView, PermissionEnum::MembersCreate, PermissionEnum::MembersUpdate,
@@ -46,6 +48,7 @@ class RolePermissionSeeder extends Seeder
             PermissionEnum::ActivitiesView, PermissionEnum::ActivitiesManage,
             PermissionEnum::AttendanceView, PermissionEnum::AttendanceRecord,
             PermissionEnum::StatisticsView, PermissionEnum::MapView,
+            PermissionEnum::TrashView, PermissionEnum::TrashManage,
         ],
         RoleSlug::ResponsableLocal->value => [
             PermissionEnum::MembersView, PermissionEnum::MembersCreate, PermissionEnum::MembersUpdate,
@@ -55,6 +58,7 @@ class RolePermissionSeeder extends Seeder
             PermissionEnum::ActivitiesView, PermissionEnum::ActivitiesManage,
             PermissionEnum::AttendanceView, PermissionEnum::AttendanceRecord,
             PermissionEnum::StatisticsView,
+            PermissionEnum::TrashView, PermissionEnum::TrashManage,
         ],
         RoleSlug::AgentVerification->value => [
             PermissionEnum::MembersView,
